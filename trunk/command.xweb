@@ -43,270 +43,224 @@ version 2.</para>
 
 <para>The command task is the brains of the program.  It interprets input
 commands and dispatches requests for information to the database and file
-access tasks, as well as handling some commands itself.  In &prog;, the input
-comes from the user on the standard input stream; in &prog;, commands come
-from users on the IRC server.</para>
+access tasks, as well as handling some commands itself.  In &prog;, commands
+come from users on the IRC server.</para>
 
 <section>
 <title>Command Loop</title>
 <para>
 The heart of the command task is an endless loop.  It removes a request from
 the command queue, parses its content as a command, then executes the command.
-<link linkend="cmd-set">The command set</link> for &prog; is very simple,
-consisting of an initial letter that determines where the remaining data in
-the string is to be dispatched.  In addition, it recognizes a
-<quote>quit</quote> command, causing it to send shutdown operations to its
-subordinate tasks, manually abort the ping and input tasks, and then terminate
-its loop, and thus its task, causing the termination of the application
-process.
+<link linkend="cmd-set">The command set</link> for &prog; is fairly simple,
+and owes much of its design to David Sobon's blootbot, which in turn was based
+on infobot by Kevin Lenzo and Patrick Cole.
 
 <src:fragment id="command-loop">
-      loop
-         Requests.Dequeue (Request);
-<src:fragref linkend="command-parse"/>
-<src:fragref linkend="command-execute"/>
-      end loop;
+   loop
+      Requests.Dequeue (Request);
+      <src:fragref linkend="process-request"/>
+   end loop;
 </src:fragment>
 
 The task spends most of its time sitting on the
 <methodname>Dequeue</methodname> statement, waiting for a command request to
 be placed in its queue by one of the other tasks.  (In &prog;, only <link
-linkend="input-task">the input task</link> puts requests on the command
-queue.)
+linkend="&inpkg;">the input task</link> puts command requests on the
+command queue, though any task can send a <quote>crash</quote> request.)
 </para>
 
+
+<!-- Command Recognition -->
 <section>
-<title>Command Parsing</title>
+<title>Recognizing Command Messages</title>
+<para>The &pkg; task receives requests for several types of operations.  Most
+of these operations have fixed actions.  Only messages require additional
+action, which is to inspect them to determine if they contain user
+commands.</para>
+
+<para>&prog;'s user commands come in IRC messages, either sent in the channel,
+or as direct private messages.  Channel messages are only passed to the &pkg;
+task by the &inname; task if they contain the program's nick, or if they begin
+with the shorthand string (if it is configured).  Private messages are always
+passed.  So we begin with the assumption that all message requests we receive
+are worthy of the command processor's attention.</para>
 
 <section>
-<title>Recognizing Commands</title>
+<title>Prefix Scanning</title>
+<para>Both channel messages and private messages may begin with either the
+shorthand string, or the program's nick followed by one of several separator
+characters.  This prefix is required for a channel message to be recognized as
+a command, but for consistency is allowed on private messages too.  If it's
+present, its presence is noted, and it is stripped; if not, we use the entire
+message as the actual command string.  If shorthand recognition is enabled, we
+look for that first.  Note that with the leading-nick form, the actual command
+begins one position past the separator character (My_Nick'Length + 2).
 
-<para>&prog;'s commands come in IRC messages, either sent in the channel, or
-as direct private messages.  To begin with, channel messages are only passed
-to the &pkg; task by the &inname; task if they contain the program's nick.
-Private messages are always passed.  If the nick occurs at the start of the
-message, and is followed by one of several separator characters, then the rest
-of the message is taken as a command.  Private messages are always assumed to
-be commands, though they are allowed (but not required) to have the same
-leading-nick syntax as channel messages.</para>
-
-<para>Passed channel messages which don't match the required command syntax
-will trigger a quip if that option is enabled in the configuration.</para>
+<src:fragment id="prefix-scan">
+   Has_Prefix := false;
+   Command := To_Unbounded_String (Message);
+   if Shorthand'Length &gt; 0 and then Index (Message, Shorthand) = 1 then
+      Has_Prefix := true;
+      Command := To_Unbounded_String (Message (Shorthand'Length + 1 .. Message'Length));
+   elsif Leading_Nick (Message, My_Nick) then
+      Has_Prefix := true;
+      Command := To_Unbounded_String (Message (My_Nick'Length + 2 .. Message'Length));
+   end if;
+   Command := Trim (Command, Side => Ada.Strings.Both);
+</src:fragment>
+</para>
 </section>
 
+<section>
+<title>Command Recognition</title>
+<para>Recognition continues by assuming that the message is
+<emphasis>not</emphasis> a command, until it is proven to be one.  It then
+determines whether we have a private message or a channel message by checking
+the message's target.  Private messages are always assumed to be commands.
+Channel messages are commands only if they have a recognized prefix.  In
+both cases, we set the message type and destination, which determine how the
+response is constructed.
+
+<src:fragment id="recognize">
+   Is_Command := false;
+   if To_Lower (To_String (Request.Target)) = My_Nick then
+      Is_Command := true;
+      Msg_Type := PrivMsg;
+      Destination := Sender.Nick;
+   else
+      Is_Command := Has_Prefix;
+      Msg_Type := ChanMsg;
+      Destination := Request.Target;
+   end if;
+</src:fragment>
+</para>
+</section>
 
 <section>
-<title>Check For Leading-Nick Format</title>
+<title>Check For Leading-Nick Prefix</title>
 
-<para>This function checks for the leading-nick message format, and returns
-true if the input message matches that format.</para>
+<para>This function checks for the leading-nick message prefix, and returns
+true if the input message has one, false if not.  We ensure that the message
+contains at least one character after the separator, by checking for
+<literal>Nick'Length + 2</literal>.</para>
 
 <src:fragment id="func-leadnick">
-function Leading_Nick (Msg : in string;   Nick:  in string) return boolean is
-begin  -- Leading_Nick
-   if Msg'Length &gt; Nick'Length + 1 then
-      if Index (To_Lower (Msg), Nick) = 1 and Is_In (Msg (Nick'Length + 1), Separators) then
-         return true;
+   function Leading_Nick (Msg : in string;   Nick:  in string) return boolean is
+   begin  -- Leading_Nick
+      if Msg'Length &gt; Nick'Length + 2 then
+         if Index (To_Lower (Msg), Nick) = 1 and Is_In (Msg (Nick'Length + 1), Separators) then
+            return true;
+         end if;
       end if;
-   end if;
-   return false;
-end Leading_Nick;
+      return false;
+   end Leading_Nick;
 </src:fragment>
 </section>
 
-<section>
-<function>Command Request Handling</function>
-<para>
-Since <link linkend="cmd-set">the commands</link> have a very simple format,
-parsing them is straightforward.  The parser scans for the first non-blank
-character, then interprets that as a command.  (If no non-blank character is
-found, the request is discarded.)  The parser then scans for the next
-non-blank after the command letter, and uses the rest of the string starting
-with that character as the data, if the command requires data.  If there isn't
-a non-blank character after the command character, then the data is set to the
-null string.
-
-<src:fragment id="command-parse">
-         case Request.Operation is
-            when Login_Operation =&gt;
-               Command := Cmd_Login;
-
-            when Ping_Operation =&gt;
-               Output_Request.Operation := &outname;.Ping_Operation;
-               Output_Request.Data      := Request.Data;
-               Destination := Request.Origin.Nick;
-               Command := Cmd_Pong;
-
-            when Message_Operation =&gt;
-               declare
-                  Comment:  string := To_String (Request.Data);
-                  Nick:  string := To_Lower (Config.Get_Value (Config.Item_Nick));
-                  type Message_Type is ( PrivMsg, ChanMsg );
-                  MsgFor:  Message_Type;
-               begin
-                  IsCommand := false;
-                  if To_Lower (To_String (Request.Target)) = Nick then
-                     MsgFor := PrivMsg;
-                     Destination := Request.Origin.Nick;
-                     IsCommand := true;
-                  else
-                     MsgFor := ChanMsg;
-                     Destination := Request.Target;
-                  end if;
-                  if Leading_Nick (Comment, Nick) then
-                     IsCommand := MsgFor = ChanMsg;
-                  end if;
-
-                  if IsCommand then
-                     declare
-                        CmdStr : string := Trim (Comment (Nick'Length + 2 .. Comment'Length), Side => Ada.Strings.Both);
-                     begin
-                        if Index (CmdStr, "quit") = 1 then
-                           Command := Cmd_Quit;
-                        else
-                           Output_Request.Data := To_Unbounded_String (CmdStr);
-                           Command := Cmd_Process;
-                        end if;
-                     end;
-                  else
-                     Command := Cmd_None;
-                  end if;
-               end;
-
-            when Reply_Operation =&gt;
-               Command := Cmd_None;
-         end case;
-</src:fragment>
-</para>
-
-<para>The <methodname>Index_Non_Blank</methodname> function returns the
-character position of the first character within its unbounded-string argument
-that is not a space character; its operation, and those of the other
-unbounded-string functions used in this code, are described in <ulink
-url="http://www.adapower.com/rm95/arm95_228.html#SEC228">the Ada Reference
-Manual, section A.4.5</ulink>.  If no non-blank character is present, the
-function returns zero.</para>
-
-<para>The <methodname>Element</methodname> function is used to fetch the
-command character from the unbounded <literal>Data</literal> string, once its
-position has been determined.</para>
-
-<para>The test <literal>Cmd_At &lt; Length (Request.Data)</literal>
-determines whether any data string follows the command character.  If it is
-false, no data was given, and the data string is set to the constant
-<literal>Null_Unbounded_String</literal>, causing the eventual user, the
-output task, to print nothing.</para>
-
-<para>Once the command character has been found, the
-<methodname>Slice</methodname> function is used to return the remainder of the
-string, so it can be scanned for the next non-blank character, which is taken
-as the first character of actual data.  The
-<methodname>To_Unbounded_String</methodname> function must be used, since
-<methodname>Slice</methodname> returns a plain fixed-length string value.
-This <quote>tail</quote> of the input line is stored temporarily back in the
-variable <literal>Data</literal>.</para>
-
-<para><methodname>Slice</methodname> is used once again when (if) a
-non-blank character is found following the command character, to extract the
-actual data string starting with its first non-blank character.  It is again
-converted to an unbounded string and stored back in
-<literal>Data</literal>.</para>
 </section>
 
-</section>
 
+<!-- Request processing -->
 <section>
-<title>Command Execution</title>
-
-<para>
-The command having been parsed into the <literal>Command</literal> and
-<literal>Data</literal> variables, the command task now attempts to recognize
-and execute the command.  The <command>case</command> statement that
-recognizes the command has four types of alternative.
+<title>Request Processing</title>
+<para>The task handles incoming requests by selecting the processing they
+require, based on the request's operation type.  The operations are:
 
 <itemizedlist>
 <listitem>
-<para>The first alternative is the <quote>internal command</quote> handler.
-In this simulator, all that does is prepend the string
-<quote><literal>Internal command:</literal> </quote> to the input string and
-place it on the output queue.</para>
+<para><literal>Crash_Operation</literal> - Received when another task has
+suffered an unhandled exception.  The request's <varname>Data</varname> field
+contains the text of the exception information, to be logged if
+desired.</para>
 </listitem>
 
 <listitem>
-<para>The next two alternatives are <quote>dispatch</quote> commands.
-Their commands send a data string to the database access task or the file
-access task.</para>
+<para><literal>Login_Operation</literal> - Received at program startup, and
+after a reconnect, to ask the program to log in to the IRC server and join its
+configured channel.  The request contains no additional data.</para>
 </listitem>
 
 <listitem>
-<para>The fourth alternative processes the <quote>quit</quote> command.  It
-dispatches shutdown messages to those subordinate tasks which have request
-queues, aborts the input and ping tasks (which do not have request queues),
-and then terminates itself.  This causes the application to exit.</para>
+<para><literal>Message_Operation</literal> - Received when the &inname; task
+sees something that might be a user command.  That is, a private message
+addressed to &prog;, or a channel message containing the program's nick.  The
+request's <varname>Origin</varname> field contains the sender's user ID, in
+IRC <quote>msgto</quote> format; the <varname>Target</varname> field contains
+the message's target (either a nick or a channel name), and the
+<varname>Data</varname> field contains the text of the message.</para>
 </listitem>
 
 <listitem>
-<para>The final alternative handles all unrecognized commands, by adding an
-error message to the output queue.</para>
+<para><literal>Ping_Operation</literal> - Received when a ping message comes
+from the server, or when the &pingname; task gets lonely.  The request's
+<varname>Data</varname> field contains the ping message's parameter.</para>
+</listitem>
+
+<listitem>
+<para><literal>Reply_Operation</literal> - Received when a numeric IRC reply
+comes in from the server.  These can be error messages, status messages, or
+several other sorts.  Currently, the command task ignores them, but in the
+future, they will be used for several purposes, including better handling of
+nick collisions, login failures, user tracking perhaps, etc.  The request's
+<varname>Reply</varname> field contains the three-digit numeric reply code,
+and the <varname>Data</varname> field contains the reply's parameter(s).</para>
 </listitem>
 </itemizedlist>
 
-<src:fragment id="command-execute">
-         case Command is
+<src:fragment id="process-request">
+   case Request.Operation is
 
-            when Cmd_Login =&gt;
-               Info (Command_Name, "Login as " &amp; &cfgname;.Get_Value (&cfgname;.Item_Nick) &amp; " to " &amp;
-                                   "#" &amp; &cfgname;.Get_Value (&cfgname;.Item_Channel));
-               Output_Request.Operation := &outname;.Nick_Operation;
-               Output_Request.Data      := To_Unbounded_String (&cfgname;.Get_Value (&cfgname;.Item_Nick));
-               &outname;.Requests.Enqueue (Output_Request);
-               Output_Request.Operation := &outname;.User_Operation;
-               Output_Request.Data      := To_Unbounded_String (&cfgname;.Get_Value (&cfgname;.Item_UserName) &amp; " 0 * :" &amp; &cfgname;.Get_Value (&cfgname;.Item_RealName));
-               &outname;.Requests.Enqueue (Output_Request);
-               delay 2.0;  -- doesn't delay the write, but ...
-               Output_Request.Operation := &outname;.Join_Operation;
-               Output_Request.Data      := To_Unbounded_String ("#" &amp; &cfgname;.Get_Value (&cfgname;.Item_Channel));
-               &outname;.Requests.Enqueue (Output_Request);
+      when Login_Operation =&gt;
+         Info (Command_Name, "Login as " &amp; &cfgname;.Get_Value (&cfgname;.Item_Nick) &amp; " to " &amp;
+                             "#" &amp; &cfgname;.Get_Value (&cfgname;.Item_Channel));
+         Output_Request.Operation := &outname;.Nick_Operation;
+         Output_Request.Data      := To_Unbounded_String (&cfgname;.Get_Value (&cfgname;.Item_Nick));
+         &outname;.Requests.Enqueue (Output_Request);
+         Output_Request.Operation := &outname;.User_Operation;
+         Output_Request.Data      := To_Unbounded_String (&cfgname;.Get_Value (&cfgname;.Item_UserName) &amp;
+                                                          " 0 * :" &amp; &cfgname;.Get_Value (&cfgname;.Item_RealName));
+         &outname;.Requests.Enqueue (Output_Request);
+         delay 2.0;  -- doesn't delay the write, but ...
+         Output_Request.Operation := &outname;.Join_Operation;
+         Output_Request.Data      := To_Unbounded_String ("#" &amp; &cfgname;.Get_Value (&cfgname;.Item_Channel));
+         &outname;.Requests.Enqueue (Output_Request);
 
-            when Cmd_Pong =&gt;
-               Dbg (Command_Name, "Pong to " &amp; To_String (Destination));
-               Output_Request.Destination := Destination;
-               &outname;.Requests.Enqueue (Output_Request);
+      when Ping_Operation =&gt;
+         Dbg (Command_Name, "Ping to " &amp; To_String (Destination));
+         Output_Request.Operation := &outname;.Ping_Operation;
+         Output_Request.Data      := Request.Data;
+         &outname;.Requests.Enqueue (Output_Request);
 
-            when Cmd_Process =&gt;
-               Dbg (Command_Name, "Processing command " &amp; To_String (Output_Request.Data));
-               Output_Request.Operation := Output.Message_Operation;
-               Output_Request.Destination := Destination;
-               Output_Request.Data := To_Unbounded_String ("That command isn't implemented yet.");
-               &outname;.Requests.Enqueue (Output_Request);
+      when Message_Operation =&gt;
+         declare
+            Command    : Unbounded_String;
+            Has_Prefix : boolean;
+            Is_Command : boolean;
+            Message    : string := To_String (Request.Data);
+            My_Nick    : string := To_Lower (Config.Get_Value (Config.Item_Nick));
+            Shorthand  : string := &cfgname;.Get_Value (&cfgname;.Item_Shorthand);
+         begin
+            &ircname;.Parse_MsgTo (Request.Origin, Sender);
+            <src:fragref linkend="prefix-scan"/>
+            <src:fragref linkend="recognize"/>
+            if Is_Command then
+               Do_Exit := false;
+               Process_Command (Command, Sender);
+               exit when Do_Exit;
+            else
+            -- Quips go here
+            end if;
+         end;
 
-            when Cmd_Quit =&gt;
-               if Auth.Permitted (Request.Origin, &cfgname;.Cmd_Quit) then
-                  Info (Command_Name, "Executing shutdown request from " &amp; To_String (Request.Origin.Nick));
-                  Database_Request.Operation := Database.Shutdown_Operation;
-                  File_Request.Operation     := File.Shutdown_Operation;
-                  Output_Request.Operation   := &outname;.Shutdown_Operation;
-                  Database.Requests.Enqueue (Database_Request);
-                  File.Requests.Enqueue     (File_Request);
-                  Output.Requests.Enqueue   (Output_Request);
-                  abort Input.Input_Task;
-                  abort Ping.Ping_Task;
-                  delay 3.0;
-                  &logname;.WrapUp;
-                  exit;
-               else
-                  Info (Command_Name, "Rejecting shutdown request from " &amp; To_String (Request.Origin.Nick));
-                  Output_Request.Operation := Output.Message_Operation;
-                  Output_Request.Destination := Destination;
-                  Output_Request.Data := To_Unbounded_String ("I'm sorry, I don't know you well enough to take orders from you.");
-                  &outname;.Requests.Enqueue (Output_Request);
-               end if;
+      when Crash_Operation =&gt;
+         Err (Command_Name, "Crash:  " &amp; To_String (Request.Data));
+         Shutdown;
+         exit;
 
-            when Cmd_None =&gt;
-               null;
-         end case;
+      when Reply_Operation =&gt;
+         null;  -- for now
+   end case;
 </src:fragment>
-
 </para>
 
 <para>It may be argued that it would be <quote>cleaner</quote> in some ways
@@ -320,9 +274,90 @@ and seems a high price to pay for something that can be solved in this fairly
 straightforward manner using standard Ada facilities.  Suggestions are
 welcome, however.</para>
 
-</section>
+<section>
+<title>Program Shutdown</title>
+
+<para>This procedure causes the program to close up shop.  It sends shutdown
+requests to the tasks which accept them, and aborts the tasks which don't,
+waits a bit for the whole thing to settle down (which should eventually be
+replaced by a wait for the appropriate server reply code in response to the
+logout request), then closes the log.  It is called when it accepts a
+<quote>quit</quote> command, or when this or another task crashes.
+
+<src:fragment id="proc-shutdown">
+   procedure Shutdown is
+   begin  -- Shutdown
+      Database_Request.Operation := &dataname;.Shutdown_Operation;
+      File_Request.Operation     := &filename;.Shutdown_Operation;
+      Output_Request.Operation   := &outname;.Shutdown_Operation;
+      &dataname;.Requests.Enqueue (Database_Request);
+      &filename;.Requests.Enqueue (File_Request);
+      &outname;.Requests.Enqueue  (Output_Request);
+      abort &inname;.Input_Task;
+      abort &pingname;.Ping_Task;
+      delay 3.0;
+      &logname;.WrapUp;
+   end Shutdown;
+</src:fragment>
+</para>
 </section>
 
+</section>
+
+</section>
+
+
+<!-- Task body declarations -->
+<section>
+<title>Command Parsing</title>
+
+<para></para>
+
+<src:fragment id="proc-process-cmd">
+   procedure Process_Command (Cmd:  in Unbounded_String;   Sender:  in &ircname;.MsgTo_Rec) is
+
+   procedure Unrecognized is
+
+      Msg : string := "I don't recognize that command.";
+
+   begin  -- Unrecognized
+      Output_Request.Operation := Output.Message_Operation;
+      Output_Request.Destination := Destination;
+      if Msg_Type = PrivMsg then
+         Output_Request.Data := To_Unbounded_String (Msg);
+      else
+         Output_Request.Data := "Sorry " &amp; Sender.Nick &amp; ", " &amp; Msg;
+      end if;
+      &outname;.Requests.Enqueue (Output_Request);
+   end Unrecognized;
+
+   procedure Quit is
+   begin  -- Quit
+      if Auth.Permitted (Request.Origin, &cfgname;.Cmd_Quit) then
+         Info (Command_Name, "Executing shutdown request from " &amp; To_String (Request.Origin));
+         Shutdown;
+         Do_Exit := true;
+      else
+         Info (Command_Name, "Rejecting shutdown request from " &amp; To_String (Request.Origin));
+         Output_Request.Operation := Output.Message_Operation;
+         Output_Request.Destination := Destination;
+         Output_Request.Data := To_Unbounded_String ("I'm sorry, I don't know you well enough to take orders from you.");
+         &outname;.Requests.Enqueue (Output_Request);
+      end if;
+   end Quit;
+
+   begin  -- Process_Command
+      Dbg (Command_Name, "Processing command """ &amp; To_String (Cmd) &amp; """ from " &amp; To_String (Sender.Nick));
+      if Cmd = "quit" then
+         Quit;
+      else
+         Unrecognized;
+      end if;
+   end Process_Command;
+</src:fragment>
+</section>
+
+<!-- Task body declarations -->
 <section>
 <title>Command Task Declarations</title>
 
@@ -333,8 +368,7 @@ The command loop uses these variables:
 <listitem>
 <para><literal>Request</literal> - A local item of the type of the
 command-queue entries, used to receive the next item taken from the request
-queue.  It has only one field, <literal>Data</literal>, which contains the
-command string to be parsed.</para>
+queue.</para>
 </listitem>
 
 <listitem>
@@ -343,44 +377,34 @@ and <literal>Output_Request</literal> - Request-queue variables for each of
 the three subordinate tasks that the command task talks to.  Used by the
 command execution code to build requests to send to other tasks.</para>
 </listitem>
-
-<listitem>
-<para><literal>Cmd_At</literal> and <literal>Data_At</literal> - Indices
-within the command string of the location of the command character and the
-start of the data, respectively.  Used by the parser to locate the separate
-pieces of the command.</para>
-</listitem>
-
-<listitem>
-<para><literal>Command</literal> - The command letter, set by the parser
-and used by the execution code to determing which action to take.</para>
-</listitem>
-
-<listitem>
-<para><literal>Data</literal> - The data portion of the command string, set
-by the parser and used by the execution code when building an outgoing
-request.</para>
-</listitem>
 </itemizedlist>
 
 <src:fragment id="command-decls">
-      Separators:  Character_Set := To_Set (",:~");
+      Separators : Character_Set := To_Set (",:~");
 
-      Request:           Request_Rec;
-      Database_Request:  Database.Request_Rec;
-      File_Request:      File.Request_Rec;
-      Output_Request:    &outname;.Request_Rec;
-      Comment:           Unbounded_String;
-      Destination:       Unbounded_String;
-      Command:           Command_Type;
-      IsCommand:         boolean;
+      type Message_Type_Enm is ( PrivMsg, ChanMsg );
+
+      Database_Request : &dataname;.Request_Rec;
+      Destination      : Unbounded_String;
+      Do_Exit          : boolean;
+      File_Request     : &filename;.Request_Rec;
+      Msg_Type         : Message_Type_Enm;
+      Output_Request   : &outname;.Request_Rec;
+      Request          : Request_Rec;
+      Sender           : &ircname;.MsgTo_Rec;
 
 <src:fragref linkend="func-leadnick"/>
+
+<src:fragref linkend="proc-shutdown"/>
+
+<src:fragref linkend="proc-process-cmd"/>
 </src:fragment>
 
 </para>
 </section>
 
+
+<!-- Task body -->
 <section>
 <title>Command Task Body</title>
 <para>
@@ -398,12 +422,15 @@ declarations:
    exception
       when E: others =>
          Err (Command_Name, "Exception:  " &amp; Ada.Exceptions.Exception_Information (E));
+         Shutdown;
    end Command_Task;
 
 </src:fragment>
 </para>
 </section>
 
+
+<!-- Packaging -->
 <section>
 <title>Command Task Package</title>
 
@@ -486,19 +513,17 @@ linkend="command-pkg-spec-context-section">the context clause</link>.  The
 spec also declares the task which comprises the body of the package.
 
 <src:fragment id="command-basic-types">
-   type Operation_Type is ( Login_Operation, Reply_Operation, Message_Operation, Ping_Operation );
+   type Operation_Type is ( Login_Operation, Reply_Operation, Message_Operation, Ping_Operation, Crash_Operation );
 
    subtype Reply_Type is string ( 1 .. 3 );
 
    type Request_Rec is record
       Operation:  Operation_Type;
-      Origin:     &ircname;.MsgTo_Rec;
+      Origin:     Unbounded_String;
       Target:     Unbounded_String;
       Data:       Unbounded_String;
       Reply:      Reply_Type;
    end record;
-
-   type Command_Type is ( Cmd_None, Cmd_Login, Cmd_Pong, Cmd_Process, Cmd_Quit );
 
    task Command_Task;
 </src:fragment>
