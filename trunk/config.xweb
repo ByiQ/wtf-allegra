@@ -2,7 +2,8 @@
 <!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
                       "file:///opt/litprog/dtd/xweb.dtd" [
 <!ENTITY svc      "configuration">
-<!ENTITY tbl      "config">
+<!ENTITY ctbl     "config">
+<!ENTITY atbl     "cmdlevels">
 <!ENTITY namelen  "16">
 <!ENTITY nick     "&prog;">
 <!ENTITY % entities SYSTEM "entities.inc.dtd">
@@ -55,8 +56,9 @@ some few <quote>bootstrap</quote> values are expressed as constants.</para>
 <para>As configuration information is pretty simple, so is this package's API.
 The only complicating factor is that we must ensure in &prog;'s multi-tasking
 environment that the configuration information has been read before any task
-tries to access it.  The interface provides only one service, a function which
-returns a given named configuration value.</para>
+tries to access it.  The interface provides two services, a function which
+returns a given named configuration value, and a function which returns a
+command's authorization level.</para>
 
 </section>
 
@@ -72,8 +74,36 @@ returns a given named configuration value.</para>
 </src:fragment>
 
 <para>The <function>Get_Value</function> function returns the requested named
-configuration value.  This is for accessing everything except nicknames and
-hostnames.</para>
+configuration value.  This is for accessing all configuration values except
+command authorization levels.</para>
+
+</section>
+
+<section>
+<title>The <function>Get_Auth_Level</function> Function</title>
+
+<src:fragment id="func-geta">
+   function Get_Auth_Level (Command:  Command_Type)
+   return Auth_Level
+</src:fragment>
+
+<para>The <function>Get_Auth_Level</function> fuction returns the numeric
+authorization level that has been configured for the given command
+type.</para>
+
+</section>
+
+<section>
+<title>The <function>Init</function> Procedure</title>
+
+<src:fragment id="proc-init">
+   procedure Init
+</src:fragment>
+
+<para>The <function>Init</function> procedure (re-)initializes the (cached)
+configuration data held in memory.  It is called at package initialization
+time, and may be called at any time during execution, to re-read new
+configuration settings from the database server.</para>
 
 </section>
 
@@ -136,7 +166,7 @@ actually in memory before attempting to use any of the values.</para>
 
 <para>Given the preparation done by the package init code, accessing the
 values is a very simple job.  We simply ensure that the values are present by
-calling the protected entry <function>Wait_For_Data</function>, then using the
+calling the protected entry <function>Wait_For_Data</function>, then use the
 given enumeration value to index into the configuration table for the value.
 It is converted from the storage format, which is
 <literal>Unbounded_String</literal>, into a standard <literal>string</literal>
@@ -145,6 +175,24 @@ value, before returning it.</para>
 <src:fragment id="getv-body">
    Access_Control.Wait_For_Data;
    return To_String (Config_Values (Item));
+</src:fragment>
+
+</section>
+
+
+<section>
+<title>Accessing the Authorization Levels</title>
+
+<para>Accessing the auth levels is also quite simple, since most of the work
+has been done by the init code.  We ensure that the values are present by
+calling the protected entry <function>Wait_For_Data</function>, then using the
+given command-type enumeration value to index into the authorization level
+table for the value.
+</para>
+
+<src:fragment id="geta-body">
+   Access_Control.Wait_For_Data;
+   return Cmd_Auth_Levels (Command);
 </src:fragment>
 
 </section>
@@ -165,17 +213,25 @@ is quite small, given the few services it offers.</para>
 <section>
 <title>The Package Spec</title>
 
-<para>The package spec defines the <function>Get_Value</function> function and
-the enumeration type used by the package and its users to identify individual
-configuration values.  It also defines the names of the program's database and
-the relevant table names.  Only predefined data types are used, so the spec
-requires no context clause.</para>
+<para>The package spec defines the <function>Get_Value</function> and
+<function>Get_Auth_Level</function> functions, the <function>Init</function>
+procedure, and the enumeration types used by the package and its users to
+identify individual configuration values and auth level.  It also defines the
+program's database name and the relevant table names.  Only predefined data
+types are used, so the spec requires no context clause.</para>
+
+<para>The presence of the command-type enumeration here makes a rather tight
+binding between this package and <ulink url="&cmdpkg;">the &cmdname;
+package</ulink>, which isn't particularly desirable.  Whenever a new command
+type is added, both packages must be updated.  We're working on an alternative
+to this design, but this will do for now.</para>
 
 <src:fragment id="config-pkg-spec">
 package &pkg; is
 
    Allegra_DB:     string := "&progdb;";
-   Config_Tbl:     string := "&tbl;";
+   Config_Tbl:     string := "&ctbl;";
+   Cmd_Auth_Tbl:   string := "&atbl;";
 
    type Config_Item is
    (
@@ -192,7 +248,31 @@ package &pkg; is
       Item_UserName
    );
 
+   type Command_Type is
+   (
+      Cmd_None,
+      Cmd_Access,
+      Cmd_Fetch,
+      Cmd_Find,
+      Cmd_Forget,
+      Cmd_Help,
+      Cmd_Quit,
+      Cmd_Quote,
+      Cmd_Rename,
+      Cmd_Set,
+      Cmd_Stats,
+      Cmd_Tell
+   );
+
+   Min_Auth_Level : constant :=  0;
+   Max_Auth_Level : constant := 10;
+   subtype Auth_Level is integer range Min_Auth_Level .. Max_Auth_Level;
+
 <src:fragref linkend="func-getv"/>;
+
+<src:fragref linkend="func-geta"/>;
+
+<src:fragref linkend="proc-init"/>;
 
 end &pkg;;
 </src:fragment>
@@ -239,12 +319,13 @@ use
 </section>
 
 <section>
-<title>The Mapping Table</title>
+<title>The Mapping Tables</title>
 
-<para>A statically-initialized table is used to map between a configuration
+<para>Statically-initialized tables are used to map between a configuration
 value's symbolic name as stored in the database, and the enumeration value
-used to identify it in the application.  One constant and three types are used
-to support the table.</para>
+used to identify it in the application, and similarly to map between a
+command-type's symbolic name and its enumeration type.  One constant and three
+types are used to support these tables.</para>
 
 <itemizedlist>
 <listitem>
@@ -265,11 +346,26 @@ strings with their enumeration values.</para>
 
 <listitem>
 <para><literal>Cfg_Map_Array</literal> - an unconstrained array type of
-mapping records.</para>
+configuration mapping records.</para>
 </listitem>
 
 <listitem>
-<para><literal>Cfg_Map</literal> - the mapping table itself, an array of
+<para><literal>Cmd_Auth_Mapping_Rec</literal> - a record that pairs the
+command-type name strings with their enumeration values.</para>
+</listitem>
+
+<listitem>
+<para><literal>Cmd_Map_Array</literal> - an unconstrained array type of
+command auth level mapping records.</para>
+</listitem>
+
+<listitem>
+<para><literal>Cfg_Map</literal> - the configuration mapping table, an array
+of mapping records whose size is set by its initialization clause.</para>
+</listitem>
+
+<listitem>
+<para><literal>Cmd_Map</literal> - the command-type mapping table, an array of
 mapping records whose size is set by its initialization clause.</para>
 </listitem>
 </itemizedlist>
@@ -286,6 +382,13 @@ mapping records whose size is set by its initialization clause.</para>
 
    type Cfg_Map_Array is array ( positive range &lt;&gt; ) of Config_Mapping_Rec;
 
+   type Cmd_Auth_Mapping_Rec is record
+      Name:  Item_Name;
+      Item:  Command_Type;
+   end record;
+
+   type Cmd_Map_Array is array ( positive range &lt;&gt; ) of Cmd_Auth_Mapping_Rec;
+
    Cfg_Map:  Cfg_Map_Array :=
    (
       ("                ", Item_None),
@@ -299,6 +402,22 @@ mapping records whose size is set by its initialization clause.</para>
       ("realname        ", Item_RealName),
       ("shorthand       ", Item_Shorthand),
       ("username        ", Item_UserName)
+   );
+
+   Cmd_Map:  Cmd_Map_Array :=
+   (
+      ("                ", Cmd_None),
+      ("access          ", Cmd_Access),
+      ("fetch           ", Cmd_Fetch),
+      ("find            ", Cmd_Find),
+      ("forget          ", Cmd_Forget),
+      ("help            ", Cmd_Help),
+      ("quit            ", Cmd_Quit),
+      ("quote           ", Cmd_Quote),
+      ("rename          ", Cmd_Rename),
+      ("set             ", Cmd_Set),
+      ("stats           ", Cmd_Stats),
+      ("tell            ", Cmd_Tell)
    );
 </src:fragment>
 
@@ -319,6 +438,19 @@ them on the way back out.</para>
 </section>
 
 <section>
+<title>The Authorization Levels</title>
+
+<para>As with the configuration values, the auth levels are read into an
+array, indexed by the command type enumeration.  The array elements are of
+type <literal>Auth_Level</literal>, which is an integer subrange.</para>
+
+<src:fragment id="auth-levels">
+   Cmd_Auth_Levels:  array ( Command_Type ) of Auth_Level;
+</src:fragment>
+
+</section>
+
+<section>
 <title>Reading the Configuration Data</title>
 
 <para>The package initialization code is the most complicated part of the
@@ -329,7 +461,8 @@ and sets the semaphore to indicate that the data is now available.</para>
 
 <src:fragment id="init-body">
 <src:fragref linkend="fetch-data"/>
-<src:fragref linkend="map-data"/>
+<src:fragref linkend="map-cfg"/>
+<src:fragref linkend="map-auth"/>
    DB.Disconnect (Handle);
    Access_Control.Data_Available;
 </src:fragment>
@@ -338,12 +471,13 @@ and sets the semaphore to indicate that the data is now available.</para>
 <title>Fetch the Data</title>
 
 <para>The first step in this process is to connect to the external database,
-and then fetch the data from it.  It identifies the database and the table
+and then fetch the data from it.  It identifies the database and the tables
 containing the configuration data by means of constants.</para>
 
 <src:fragment id="fetch-data">
    DB.Connect (Handle, Host => "", DB => Allegra_DB);
-   DB.Fetch (Handle, "*", Config_Tbl, "", Cfg_Data);
+   DB.Fetch (Handle, "*", Config_Tbl,   "", Cfg_Data);
+   DB.Fetch (Handle, "*", Cmd_Auth_Tbl, "", Auth_Data);
 </src:fragment>
 
 </section>
@@ -353,18 +487,18 @@ containing the configuration data by means of constants.</para>
 
 <para>Once the data has been fetched, we must convert the value names to the
 enumeration constants used by the application when querying the values.  The
-actual configuration value is then stored in an array indexed by the
-enumeration value.  This is done by a simple linear search of a table, which
-was deemed acceptable because of the small number of values, and the fact that
-the mapping is only done once.  Any unrecognized parameter names are simply
-skipped, so be sure to update the enumeration and the table when adding new
-configuration parameters.</para>
+actual configuration value or auth level is then stored in an array indexed by
+the enumeration value.  This is done by a simple linear search of a table,
+which was deemed acceptable because of the small number of values, and the
+fact that the mapping is done infrequently.  Any unrecognized parameter names
+are simply skipped, so be sure to update the enumeration and the table when
+adding new configuration parameters or command types.</para>
 
 <para>We considered a scheme to use the actual name string for accessing the
 parameters, presumable via a hash table or something similar, but that
 mechanism is overkill in this situation.</para>
 
-<src:fragment id="map-data">
+<src:fragment id="map-cfg">
    for Row in 1 .. DB.Rows (Cfg_Data) loop
       declare
          Name:  string := DB.Get_Value (Cfg_Data, Row, "name");
@@ -387,8 +521,68 @@ mechanism is overkill in this situation.</para>
    end loop;
 </src:fragment>
 
+
+<src:fragment id="map-auth">
+   for Row in 1 .. DB.Rows (Auth_Data) loop
+      declare
+         Name:  string := DB.Get_Value (Auth_Data, Row, "name");
+      begin
+         Cmd := Cmd_None;
+         for Index in Cmd_Map'Range loop
+            if Cmd_Map (Index).Name (1 .. Name'Length) = Name then
+               Cmd := Cmd_Map (Index).Item;
+               exit;
+            end if;
+         end loop;
+         if Cmd /= Cmd_None then
+            Cmd_Auth_Levels (Cmd) := DB.Get_Value (Auth_Data, Row, "level");
+         end if;         
+      end;
+   end loop;
+</src:fragment>
+
 </section>
 
+<section>
+<title></title>
+
+<para>These variables are required to support the initialization code:</para>
+
+<src:fragment id="init-vars">
+   Handle:    DB.DB_Handle;
+   Auth_Data: DB.DB_Result;
+   Cfg_Data:  DB.DB_Result;
+   Item:      Config_Item;
+   Cmd:       Command_Type;
+</src:fragment>
+
+<itemizedlist>
+<listitem>
+<para><varname>Auth_Data</varname> - The database result structure used to
+fetch the configured command authorization levels.</para>
+</listitem>
+
+<listitem>
+<para><varname>Cfg_Data</varname> - The database result structure used to
+fetch the configuration item values.</para>
+</listitem>
+
+<listitem>
+<para><varname>Cmd</varname> - Enum variable which holds the result of the
+command type's symbolic name lookup.</para>
+</listitem>
+
+<listitem>
+<para><varname>Handle</varname> - The database handle, used for all data
+fetches.</para>
+</listitem>
+
+<listitem>
+<para><varname>Item</varname> - Enum variable which holds the result of the
+configuration item's symbolic name lookup.</para>
+</listitem>
+</itemizedlist>
+</section>
 </section>
 
 <section>
@@ -410,17 +604,28 @@ package body &pkg; is
 
 <src:fragref linkend="cfg-values"/>
 
+<src:fragref linkend="auth-levels"/>
+
 <src:fragref linkend="func-getv"/> is
 begin  -- Get_Value
 <src:fragref linkend="getv-body"/>
 end Get_Value;
 
-Handle:    DB.DB_Handle;
-Cfg_Data:  DB.DB_Result;
-Item:      Config_Item;
+<src:fragref linkend="func-geta"/> is
+begin  -- Get_Auth_Level
+<src:fragref linkend="geta-body"/>
+end Get_Auth_Level;
+
+<src:fragref linkend="proc-init"/> is
+
+<src:fragref linkend="init-vars"/>
+
+begin  -- Init
+<src:fragref linkend="init-body"/>
+end Init;
 
 begin  -- &pkg;
-<src:fragref linkend="init-body"/>
+   Init;
 end &pkg;;
 </src:fragment>
 
@@ -441,19 +646,26 @@ end &pkg;;
 <title>Database Schema</title>
 
 <para>The configuration database schema can be illustrated by the following
-SQL <command>CREATE TABLE</command> statament:</para>
+SQL <command>CREATE TABLE</command> stataments:</para>
 
 <src:fragment id="schema">
-   CREATE TABLE &tbl;
+   CREATE TABLE &ctbl;
    (
       name  varchar (&namelen;),
       value text
    );
+   CREATE TABLE &atbl;
+   (
+      name  varchar (&namelen;),
+      level integer
+   );
 </src:fragment>
 
-<para>The two fields contain the name of the configuration value, such as
-<literal>username</literal> or <literal>nick</literal>, and the value of the
-configuration item, such as <literal>Allegra</literal>.</para>
+<para>The two fields contain the name of the configuration value or command
+type, such as <literal>username</literal>, <literal>nick</literal>,
+<literal>access</literal>, or <literal>help</literal>, and the value of the
+configuration item or auth level, such as <literal>Allegra</literal> or
+<literal>5</literal>.</para>
 
 </section>
 
@@ -554,27 +766,39 @@ user ID.</entry>
 <section>
 <title>Creating and Initializing the Configuration Database</title>
 
-<para>The configuration values are maintained in a table named &tbl; within
-the program's database.  Here is a shell script that uses the PostgreSQL
-<command>psql</command> utility to create and initialize the table to &prog;'s
-default values.  This script is normally run automatically by <ulink
-url="&instpkg;">the program installation process</ulink>, which ensures that
-the database is created before attempting to create a table within it.</para>
+<para>The configuration values are maintained in a table named &ctbl;, and the
+auth levels in a table named &atbl;, within the program's database.  Here is a
+shell script that uses the PostgreSQL <command>psql</command> utility to
+create and initialize the tables to &prog;'s default values.  This script is
+normally run automatically by <ulink url="&instpkg;">the program installation
+process</ulink>, which ensures that the database is created before attempting
+to create a table within it.</para>
 
 <src:fragment id="init-config">
 #!/bin/sh
 psql --dbname &progdb; --file - &lt;&lt;eof
 <src:fragref linkend="schema"/>
-INSERT INTO &tbl; VALUES ('armpath',   '/usr/share/doc/ada-reference-manual/html/arm95tc1');
-INSERT INTO &tbl; VALUES ('channel',   'Ada');
-INSERT INTO &tbl; VALUES ('host',      'irc.freenode.net');
-INSERT INTO &tbl; VALUES ('loglevel',  'error');
-INSERT INTO &tbl; VALUES ('logpath',   '/var/log/allegra.log');
-INSERT INTO &tbl; VALUES ('nick',      '&nick;');
-INSERT INTO &tbl; VALUES ('port',      '6667');
-INSERT INTO &tbl; VALUES ('realname',  'Allegra InfoBot');
-INSERT INTO &tbl; VALUES ('shorthand', '!');
-INSERT INTO &tbl; VALUES ('username',  'allegra');
+INSERT INTO &ctbl; VALUES ('armpath',   '/usr/share/doc/ada-reference-manual/html/arm95tc1');
+INSERT INTO &ctbl; VALUES ('channel',   'Ada');
+INSERT INTO &ctbl; VALUES ('host',      'irc.freenode.net');
+INSERT INTO &ctbl; VALUES ('loglevel',  'error');
+INSERT INTO &ctbl; VALUES ('logpath',   '/var/log/allegra.log');
+INSERT INTO &ctbl; VALUES ('nick',      '&nick;');
+INSERT INTO &ctbl; VALUES ('port',      '6667');
+INSERT INTO &ctbl; VALUES ('realname',  'Allegra InfoBot');
+INSERT INTO &ctbl; VALUES ('shorthand', '!');
+INSERT INTO &ctbl; VALUES ('username',  'allegra');
+INSERT INTO &atbl; VALUES ('access',     10);
+INSERT INTO &atbl; VALUES ('fetch',       1);
+INSERT INTO &atbl; VALUES ('find',        1);
+INSERT INTO &atbl; VALUES ('forget',      5);
+INSERT INTO &atbl; VALUES ('help',        1);
+INSERT INTO &atbl; VALUES ('quit',        9);
+INSERT INTO &atbl; VALUES ('quote',       2);
+INSERT INTO &atbl; VALUES ('rename',      5);
+INSERT INTO &atbl; VALUES ('set',         5);
+INSERT INTO &atbl; VALUES ('stats',       2);
+INSERT INTO &atbl; VALUES ('tell',        3);
 eof
 </src:fragment>
 
