@@ -76,6 +76,12 @@ database.  Most of them have some associated data value.
       when Access_Operation =&gt;
          Set_Access;
 
+      when AddFactoid_Operation =&gt;
+         Add_Factoid;
+
+      when FactoidStats_Operation =&gt;
+         Factoid_Stats (S (Request.Key));
+
       when Fetch_Operation =&gt;
          Fetch_Factoid ("=");
 
@@ -97,14 +103,26 @@ database.  Most of them have some associated data value.
       when RE_Tell_Operation =&gt;
          Fetch_Factoid ("~*", Request.Origin);
 
-      when Set_Operation =&gt;
+      when ResetFactoid_Operation =&gt;
+         Reset_Factoid;
+
+      when SetAction_Operation =&gt;
+         Set_Action;
+
+      when SetFactoid_Operation =&gt;
          Set_Factoid;
+
+      when SetReply_Operation =&gt;
+         Set_Reply;
 
       when Shutdown_Operation =&gt;
          Output_Request.Operation := Output.Shutdown_Operation;
          Output_Request.Data := US (Random_Select (QuitMsg_Tbl));
          &outname;.Requests.Enqueue (Output_Request);
          exit;
+
+      when Stats_Operation =&gt;
+         Show_Stats;
 
       when Tell_Operation =&gt;
          Fetch_Factoid ("=", Request.Origin);
@@ -206,6 +224,88 @@ which is written separately.
 </section>
 
 <section>
+<title>Add a New Factoid Definition</title>
+
+<para>This procedure adds the text associated with a factoid name.  It may
+join other definitions for the same factoid already out there.
+
+<src:fragment id="proc-add-factoid">
+   procedure Add_Factoid is
+
+      use &dbname;;
+
+      Data   : DB_Result;
+      Fact   : string := S (Request.Key);
+      Handle : DB_Handle;
+      Hits   : natural;
+
+   begin  -- Add_Factoid
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+      Fetch (Handle, "name", Factoid_Tbl, "where name=" &amp; Escape (To_Lower (Fact)), Data);
+      Hits := Rows (Data);
+      if Hits = 0 then
+         Say ("I don't know a factoid """ &amp; """ yet, but what the heck.", Request.Destination);
+         Disconnect (Handle);
+         Set_Factoid;
+         return;
+      end if;
+
+      Statement (Handle, "insert into " &amp; Factoid_Tbl &amp; " (name,value) values (" &amp;
+                 To_Lower (Escape (Fact)) &amp; "," &amp; Escape (S (Request.Data)) &amp; ")");
+      Say ("Another definition for """ &amp; Fact &amp; """ has been added!", Request.Destination);
+      Disconnect (Handle);
+   end Add_Factoid;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Show Factoid Statistics</title>
+
+<para>This procedure tells the user some statistics about a given factoid.
+
+<src:fragment id="proc-factoid-stats">
+   procedure Factoid_Stats (Name : in string) is
+
+      use &dbname;;
+
+      Data   : DB_Result;
+      Handle : DB_Handle;
+      Msg    : Unbounded_String;
+
+   begin  -- Factoid_Stats
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+      Fetch (Handle, "*", Factstats_Tbl, "where name=" &amp; Escape (To_Lower (Name)), Data);
+      Disconnect (Handle);
+      if Rows (Data) &gt; 0 then
+         Say ("The factoid named """ &amp; Name &amp; """ was created by " &amp; Get_Value (Data, 1, "creator") &amp;
+              " on " &amp; Get_Value (Data, 1, "created") &amp; ".", Request.Destination);
+         delay 1.5;
+         declare
+            Count : string := Get_Value (Data, 1, "acc_count");
+         begin
+            if Count = "0" then
+               Say ("It has never been accessed.", Request.Destination);
+            else
+               if Count = "1" then
+                  Msg := US ("It has been accessed once");
+               else
+                  Msg := US ("It has been accessed " &amp; Count &amp; " times");
+               end if;
+               Msg := Msg &amp; ", last by " &amp; Get_Value (Data, 1, "acc_by") &amp;
+                      " on " &amp; Get_Value (Data, 1, "acc_last") &amp; ".";
+               Say (S (Msg), Request.Destination);
+            end if;
+         end;
+      else
+         Say ("I can't seem to locate a factoid named """ &amp; Name &amp; """, sorry.", Request.Destination);
+      end if;
+   end Factoid_Stats;
+</src:fragment>
+</para>
+</section>
+
+<section>
 <title>Fetch Factoid</title>
 
 <para>This procedure returns the text associated with a factoid name.  The
@@ -218,18 +318,27 @@ between each line.
       use &dbname;;
 
       Data   : DB_Result;
+      AccCnt : DB_Result;
       Handle : DB_Handle;
       Hits   : natural;
 
    begin  -- Fetch_Factoid
+      if Length (Request.Data) &lt; 1 then
+         Say (Random_Select (Quips_Tbl), Request.Destination);
+         return;
+      end if;
+
       Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
 
-      Fetch (Handle, "name,value", Factoid_Tbl, "where name" &amp; Op &amp; "'" &amp; To_Lower (S (Request.Data)) &amp; "'", Data);
-      Disconnect (Handle);
+      Fetch (Handle, "name,value", Factoid_Tbl, "where name" &amp; Op &amp; Escape (To_Lower (S (Request.Data))), Data);
       Hits := Rows (Data);
       if Hits &gt; 0 then
          if From /= Null_Unbounded_String then
-            Say (S (From) &amp; " wanted me to tell you:", Request.Destination);
+            if From = Request.Origin then
+               Say ("You wanted to know:", Request.Destination);
+            else
+               Say (S (From) &amp; " wanted me to tell you:", Request.Destination);
+            end if;
          end if;
          declare
             Key : string := Get_Value (Data, 1, "name");
@@ -238,9 +347,16 @@ between each line.
                if Get_Value (Data, Row, "name") /= Key then
                   Say ("""" &amp; S (Request.Data) &amp; """ matches more than one factoid ...", Request.Destination);
                   List_Factoids (S (Request.Data));
+                  Disconnect (Handle);
                   return;
                end if;
             end loop;
+            Fetch (Handle, "acc_count", Factstats_Tbl, "where name='" &amp; Key &amp; "'", AccCnt);
+            Statement (Handle, "update " &amp; Factstats_Tbl &amp;
+                       " set acc_count=" &amp; natural'Image (Get_Value (AccCnt, 1, "acc_count") + 1) &amp;
+                       ",acc_last='now',acc_by=" &amp; Escape (To_Lower (S (Request.Origin))) &amp;
+                       " where name='" &amp; Key &amp; "'");
+            Disconnect (Handle);
          end;
          for Row in 1 .. Hits loop
             if Row = 1 then
@@ -254,10 +370,11 @@ between each line.
                delay 1.0;
             end if;
          end loop;
-         if From /= Null_Unbounded_String then
+         if From /= Null_Unbounded_String and then From /= Request.Origin then
             Say ("I told " &amp; S (Request.Destination) &amp; natural'Image (Hits) &amp; " line(s).", Request.Origin);
          end if;
       else
+         Disconnect (Handle);
          if From /= Null_Unbounded_String then
             Say (S (From) &amp; " asked me to tell you about """ &amp; S (Request.Data) &amp; """, but I couldn't find it.", Request.Destination);
             Say ("Regrettably, I couldn't find """ &amp; S (Request.Data) &amp; """ to tell " &amp; S (From), Request.Origin);
@@ -291,7 +408,7 @@ exceed the IRC message-size limit.
    begin  -- List_Factoids
       Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
 
-      Fetch (Handle, "distinct name", Factoid_Tbl, "where name ~* '" &amp; Pat &amp; "' order by name", Data);
+      Fetch (Handle, "distinct name", Factoid_Tbl, "where name ~* " &amp; Escape (To_Lower (Pat)) &amp; " order by name", Data);
       Disconnect (Handle);
       Hits := Rows (Data);
       if Hits &gt; 0 then
@@ -336,6 +453,59 @@ exceed the IRC message-size limit.
 </section>
 
 <section>
+<title>Reset Factoid</title>
+
+<para>This procedure changes the text of a factoid to a new value.  Another
+auth check is done if the changer is not the creator, because that requires a
+higher auth level than the one already verified by the
+<literal>&cmdname;</literal> task.
+
+<src:fragment id="proc-reset-factoid">
+   procedure Reset_Factoid is
+
+      use &dbname;;
+
+      Data   : DB_Result;
+      Fact   : string := S (Request.Key);
+      Handle : DB_Handle;
+      Msg    : Unbounded_String;
+
+   begin  -- Reset_Factoid
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+      Fetch (Handle, "creator", Factstats_Tbl, "where name=" &amp; Escape (To_Lower (Fact)), Data);
+      if Rows (Data) = 0 then
+         Say ("I don't seem to know a factoid """ &amp; Fact &amp;
+              """ ... if you want to set it, just do ""factoid is definition"".",
+              Request.Destination);
+         return;
+      end if;
+
+      declare
+         Creator : string := Get_Value (Data, 1, "creator");
+         Who     : string := S (Request.Origin);
+      begin
+         if Creator /= Who then
+            if &authname;.Level (Request.Requestor) &lt; &authname;.Bot_Operator_Level then
+               Say ("I'm sorry " &amp; Who &amp; ", that factoid was created by " &amp;
+                    Creator &amp; " and I can't let you change it.  Check with " &amp;
+                    Creator &amp; " or my operator to get it changed.", Request.Destination);
+               return;
+            end if;
+         end if;
+      end;
+
+      Statement (Handle, "delete from " &amp; Factoid_Tbl &amp; " where name=" &amp; Escape (To_Lower (Fact)));
+      Statement (Handle, "insert into " &amp; Factoid_Tbl &amp; " (name,value) values (" &amp;
+                 Escape (To_Lower (Fact)) &amp; "," &amp; Escape (S (Request.Data)) &amp; ")");
+      Say ("I've changed factoid """ &amp; Fact &amp; """!", Request.Destination);
+
+      Disconnect (Handle);
+   end Reset_Factoid;
+</src:fragment>
+</para>
+</section>
+
+<section>
 <title>Set Access Level</title>
 
 <para>This function sets a user's access level.
@@ -355,11 +525,11 @@ exceed the IRC message-size limit.
       Hits := Rows (Data);
       if Hits &gt; 0 then
          Statement (Handle, "update " &amp; UserLvl_Tbl &amp; " set level=" &amp; S (Request.Data) &amp;
-                            "where name='" &amp; To_Lower (S (Request.Key)) &amp; "'");
+                            "where name='" &amp; Escape (To_Lower (S (Request.Key))) &amp; "'");
          Say ("Access level for " &amp; To_Lower (S (Request.Key)) &amp; " updated to " &amp; S (Request.Data), Request.Origin);
       else
          Statement (Handle, "insert into " &amp; UserLvl_Tbl &amp; " (name,level) values ('" &amp; 
-                            To_Lower (S (Request.Key)) &amp; "'," &amp; S (Request.Data) &amp; ")");
+                            Escape (To_Lower (S (Request.Key))) &amp; "'," &amp; S (Request.Data) &amp; ")");
          Say ("Usermask " &amp; To_Lower (S (Request.Key)) &amp; " added with level " &amp; S (Request.Data), Request.Origin);
       end if;
       Disconnect (Handle);
@@ -370,26 +540,112 @@ exceed the IRC message-size limit.
 </section>
 
 <section>
+<title>Set Action</title>
+
+<para>This procedure sets the text associated with an action "factoid".
+
+<src:fragment id="proc-set-action">
+   procedure Set_Action is
+
+      use &dbname;;
+
+      Handle : DB_Handle;
+
+   begin  -- Set_Action
+      Say ("The set-action command is not yet implemented.", Request.Destination);
+   end Set_Action;
+</src:fragment>
+</para>
+</section>
+
+<section>
 <title>Set Factoid</title>
 
-<para>This procedure sets the text associated with a factoid name.  It may
-join other definitions for the same factoid already out there.
+<para>This procedure sets the text associated with a factoid name.  The
+factoid must not already exist.
 
 <src:fragment id="proc-set-factoid">
    procedure Set_Factoid is
 
       use &dbname;;
 
+      Data   : DB_Result;
+      Fact   : string := S (Request.Key);
       Handle : DB_Handle;
+      Hits   : natural;
+      Msg    : Unbounded_String;
 
    begin  -- Set_Factoid
-      return;
-      &dbname;.Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
-
---      Statement (Handle, "insert into " &amp; Factoid_Tbl, " (name,value) values ('" &amp;
---                 To_Lower (Escape (S (Request.Key))) &amp; "','" &amp; Escape (S (Request.Data)) &amp; "')");
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+      Fetch (Handle, "name", Factoid_Tbl, "where name=" &amp; Escape (To_Lower (Fact)), Data);
+      Hits := Rows (Data);
+      if Hits = 0 then
+         Statement (Handle, "insert into " &amp; Factoid_Tbl &amp; " (name,value) values (" &amp;
+                    To_Lower (Escape (Fact)) &amp; "," &amp; Escape (S (Request.Data)) &amp; ")");
+         Statement (Handle, "insert into " &amp; Factstats_Tbl &amp; " (name,creator) values (" &amp;
+                    To_Lower (Escape (Fact)) &amp; "," &amp; Escape (To_Lower (S (Request.Origin))) &amp; ")");
+         Say ("""" &amp; Fact &amp; """ has been added!", Request.Destination);
+      else
+         if Hits = 1 then
+            Msg := US ("I'm sorry, there is already a definition");
+         else
+            Msg := US ("I'm sorry, there are already" &amp; natural'Image (Hits) &amp; " definitions");
+         end if;
+         Msg := Msg &amp; " for """ &amp; Fact &amp;
+              """.  Do a reset (""no, factoid is definition"") if you want to replace ";
+         if Hits = 1 then
+            Msg := Msg &amp; "it, or an add (""factoid is also definition"") to add a second definition.";
+         else
+            Msg := Msg &amp; "them all, or an add (""factoid is also definition"") to add another.";
+         end if;
+         Say (S (Msg), Request.Destination);
+      end if;
       Disconnect (Handle);
    end Set_Factoid;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Set Reply</title>
+
+<para>This procedure sets the text associated with a reply "factoid".
+
+<src:fragment id="proc-set-reply">
+   procedure Set_Reply is
+
+      use &dbname;;
+
+      Handle : DB_Handle;
+
+   begin  -- Set_Reply
+      Say ("The set-reply command is not yet implemented.", Request.Destination);
+   end Set_Reply;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Show Statistics</title>
+
+<para>This procedure tells the user some database statistics.
+
+<src:fragment id="proc-show-stats">
+   procedure Show_Stats is
+
+      use &dbname;;
+
+      Data   : DB_Result;
+      Handle : DB_Handle;
+
+   begin  -- Show_Stats
+      &dbname;.Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+      Fetch (Handle, "count(distinct name)", Factoid_Tbl, "", Data);
+      Disconnect (Handle);
+      if Rows (Data) &gt; 0 then
+         Say ("I currently know " &amp; Get_Value (Data, 1, "count") &amp; " factoids.", Request.Destination);
+      end if;
+   end Show_Stats;
 </src:fragment>
 </para>
 </section>
@@ -440,11 +696,12 @@ output task.  Used to report requests received by the database task.</para>
 
    Message_Limit : constant := 256;
 
-   Factoid_Tbl : constant string := "factoids";
-   Quips_Tbl   : constant string := "quips";
-   QuitMsg_Tbl : constant string := "quitmsgs";
-   Quotes_Tbl  : constant string := "quotes";
-   UserLvl_Tbl : constant string := "usrlevels";
+   Factoid_Tbl   : constant string := "factoids";
+   Factstats_Tbl : constant string := "factstats";
+   Quips_Tbl     : constant string := "quips";
+   QuitMsg_Tbl   : constant string := "quitmsgs";
+   Quotes_Tbl    : constant string := "quotes";
+   UserLvl_Tbl   : constant string := "usrlevels";
 
    Attrib         : Unbounded_String;
    Crash_Request  : &cmdname;.Request_Rec;
@@ -460,13 +717,25 @@ output task.  Used to report requests received by the database task.</para>
 
    <src:fragref linkend="proc-ranquote"/>
 
+   <src:fragref linkend="proc-set-factoid"/>
+
+   <src:fragref linkend="proc-add-factoid"/>
+
+   <src:fragref linkend="proc-factoid-stats"/>
+
    <src:fragref linkend="proc-list-factoids"/>
 
    <src:fragref linkend="proc-fetch-factoid"/>
 
+   <src:fragref linkend="proc-reset-factoid"/>
+
    <src:fragref linkend="proc-set-access"/>
 
-   <src:fragref linkend="proc-set-factoid"/>
+   <src:fragref linkend="proc-set-action"/>
+
+   <src:fragref linkend="proc-set-reply"/>
+
+   <src:fragref linkend="proc-show-stats"/>
 </src:fragment>
 
 </para>
@@ -569,14 +838,16 @@ is defined via <link linkend="database-pkg-spec-context-section">the context
 clause</link>.
 
 <src:fragment id="database-basic-types">
-   type Operation_Type is ( Access_Operation, Fetch_Operation, List_Operation, Quip_Operation,
-                            Quote_Operation, RE_Fetch_Operation, RE_Tell_Operation,
-                            Set_Operation, Shutdown_Operation, Tell_Operation );
+   type Operation_Type is ( Access_Operation, AddFactoid_Operation, FactoidStats_Operation, Fetch_Operation,
+                            List_Operation, Quip_Operation, Quote_Operation, RE_Fetch_Operation, RE_Tell_Operation,
+                            ResetFactoid_Operation, SetAction_Operation, SetFactoid_Operation, SetReply_Operation,
+                            Shutdown_Operation, Stats_Operation, Tell_Operation );
 
    type Request_Rec is record
       Operation:    Operation_Type;
       Destination:  Unbounded_String;
       Origin:       Unbounded_String;
+      Requestor:    Unbounded_String;
       Key:          Unbounded_String;
       Data:         Unbounded_String;
    end record;
