@@ -365,9 +365,10 @@ configuration database table.
 <src:fragment id="proc-exec">
    procedure Exec (CmdType : in &cfgname;.Command_Type;   Proc : in Command_Processor) is
 
-      use &authname;;
+      use &authname;, &cfgname;;
 
       Authorized : Authorization;
+      To         : string := S (Destination);
 
    begin  -- Exec
       Authorized := Permitted (Request.Origin, CmdType);
@@ -378,9 +379,24 @@ configuration database table.
          Info (Command_Name, "Rejecting command """ &amp; Cmd &amp; """ from " &amp; S (Request.Origin) &amp; " because " &amp;
                Authorization'Image (Authorized));
          Cmds_Rejected := Cmds_Rejected + 1;
-         Say ("I'm sorry " &amp; S (Sender.Nick) &amp;
-              ", I don't know you well enough to take orders from you.",
-              S (Destination));
+         case CmdType is
+            when Cmd_Access =&gt;
+               Say ("Only my operator can do that, sorry.", To);
+            when Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List =&gt;
+               Say ("You must have pissed somebody off, cuz you're persona non grata.", To);
+            when Cmd_Forget | Cmd_Rename | Cmd_Reset | Cmd_Set =&gt;
+               Say ("Only known users can update the factoid database, sorry.", To);
+            when Cmd_Quit =&gt;
+               Say ("I'm sorry " &amp; S (Sender.Nick) &amp; ", I don't know you well enough to take orders from you.", To);
+            when Cmd_Quote =&gt;
+               Say ("Here's a quote for you:  get an access level!", To);
+            when Cmd_Stats =&gt;
+               Say ("You'll be able to access the stats soon enough, if you hang around and contribute.", To);
+            when Cmd_Tell =&gt;
+               Say ("That's pretty personal, isn't it?  Let's give you a while, then we'll see.", To);
+            when Cmd_None =&gt;
+               Say ("This is another fine mess you've gotten us into, Stanley!", To);
+         end case;
       end if;
    end Exec;
 </src:fragment>
@@ -512,8 +528,21 @@ configuration database table.
 <src:fragment id="cmd-forget">
    procedure Forget (Cmd     : in string;
                      Sender  : in &ircname;.MsgTo_Rec) is
+
+      Matches : Match_Array (Match_Range);
+
    begin  -- Forget
-      Say ("The forget command is not yet implemented.", S (Destination));
+      Match (Command_Table (&cfgname;.Cmd_Forget).Matcher.all, Cmd, Matches);
+      if Matches (1) = No_Match then
+         Say ("The forget-factoid command is ""forget factoid"".", S (Destination));
+         return;
+      end if;
+      Database_Request.Operation   := &dataname;.Forget_Operation;
+      Database_Request.Key         := US (Cmd (Matches (1).First .. Matches (1).Last));
+      Database_Request.Origin      := Sender.Nick;
+      Database_Request.Requestor   := Request.Origin;
+      Database_Request.Destination := Destination;
+      &dataname;.Requests.Enqueue (Database_Request);
    end Forget;
 </src:fragment>
 </para>
@@ -1027,7 +1056,7 @@ command execution code to build requests to send to other tasks.</para>
       US ("[~]&lt;factoid-name&gt;[?]"),
       US ("tell (&lt;nick&gt;|me) [about] &lt;factoid&gt;"),
       US ("what [is|are] [~]&lt;factoid&gt; [?]"),
---      US ("forget &lt;factoid&gt;"),
+      US ("forget &lt;factoid&gt;"),
 --      US ("rename &lt;from-name&gt; [as|to] &lt;to-name&gt;"),
 --      US ("find &lt;string&gt;"),
       US ("help"),

@@ -85,6 +85,9 @@ database.  Most of them have some associated data value.
       when Fetch_Operation =&gt;
          Fetch_Factoid ("=");
 
+      when Forget_Operation =&gt;
+         Forget_Factoid;
+
       when List_Operation =&gt;
          List_Factoids (S (Request.Data));
 
@@ -388,6 +391,57 @@ between each line.
 </section>
 
 <section>
+<title>Forget Factoid</title>
+
+<para>This procedure deletes the text of a factoid.  Yes, all of it.  A future
+enhancement would be to move it to a "forgotten" table before deleting it.
+Another auth check is done if the changer is not the creator, because that
+requires a higher auth level than the one already verified by the
+<literal>&cmdname;</literal> task.
+
+<src:fragment id="proc-forget-factoid">
+   procedure Forget_Factoid is
+
+      use &dbname;;
+
+      Data   : DB_Result;
+      Fact   : string := S (Request.Key);
+      Handle : DB_Handle;
+      Count  : natural;
+      Msg    : Unbounded_String;
+
+   begin  -- Forget_Factoid
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+      Fetch (Handle, "creator", Factstats_Tbl, "where name=" &amp; Escape (To_Lower (Fact)), Data);
+      if Rows (Data) = 0 then
+         Say ("I don't seem to know a factoid """ &amp; Fact &amp; """, so nothing was forgotten.",
+              Request.Destination);
+         return;
+      end if;
+
+      if Is_Owner_Operator (S (Request.Origin), Get_Value (Data, 1, "creator")) then
+         Fetch (Handle, "count(name)", Factoid_Tbl, "where name=" &amp; Escape (To_Lower (Fact)), Data);
+         if Rows (Data) &gt; 0 then
+            Count := Get_Value (Data, 1, "count");
+         else
+            Count := 1;  -- assuming
+         end if;
+         Statement (Handle, "delete from " &amp; Factoid_Tbl   &amp; " where name=" &amp; Escape (To_Lower (Fact)));
+         Statement (Handle, "delete from " &amp; Factstats_Tbl &amp; " where name=" &amp; Escape (To_Lower (Fact)));
+         Msg := US ("I've forgotten ");
+         if Count &gt; 1 then
+            Msg := Msg &amp; "all" &amp; natural'Image (Count) &amp; " definitions of";
+         end if;
+         Say (S (Msg &amp; " factoid """ &amp; Fact &amp; """!"), Request.Destination);
+      end if;
+
+      Disconnect (Handle);
+   end Forget_Factoid;
+</src:fragment>
+</para>
+</section>
+
+<section>
 <title>List Factoids</title>
 
 <para>This procedure lists factoid names, either those matching a given
@@ -467,7 +521,6 @@ higher auth level than the one already verified by the
       Data   : DB_Result;
       Fact   : string := S (Request.Key);
       Handle : DB_Handle;
-      Msg    : Unbounded_String;
 
    begin  -- Reset_Factoid
       Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
@@ -479,24 +532,12 @@ higher auth level than the one already verified by the
          return;
       end if;
 
-      declare
-         Creator : string := Get_Value (Data, 1, "creator");
-         Who     : string := S (Request.Origin);
-      begin
-         if Creator /= Who then
-            if &authname;.Level (Request.Requestor) &lt; &authname;.Bot_Operator_Level then
-               Say ("I'm sorry " &amp; Who &amp; ", that factoid was created by " &amp;
-                    Creator &amp; " and I can't let you change it.  Check with " &amp;
-                    Creator &amp; " or my operator to get it changed.", Request.Destination);
-               return;
-            end if;
-         end if;
-      end;
-
-      Statement (Handle, "delete from " &amp; Factoid_Tbl &amp; " where name=" &amp; Escape (To_Lower (Fact)));
-      Statement (Handle, "insert into " &amp; Factoid_Tbl &amp; " (name,value) values (" &amp;
-                 Escape (To_Lower (Fact)) &amp; "," &amp; Escape (S (Request.Data)) &amp; ")");
-      Say ("I've changed factoid """ &amp; Fact &amp; """!", Request.Destination);
+      if Is_Owner_Operator (S (Request.Origin), Get_Value (Data, 1, "creator")) then
+         Statement (Handle, "delete from " &amp; Factoid_Tbl &amp; " where name=" &amp; Escape (To_Lower (Fact)));
+         Statement (Handle, "insert into " &amp; Factoid_Tbl &amp; " (name,value) values (" &amp;
+                    Escape (To_Lower (Fact)) &amp; "," &amp; Escape (S (Request.Data)) &amp; ")");
+         Say ("I've changed factoid """ &amp; Fact &amp; """!", Request.Destination);
+      end if;
 
       Disconnect (Handle);
    end Reset_Factoid;
@@ -524,11 +565,11 @@ higher auth level than the one already verified by the
       Hits := Rows (Data);
       if Hits &gt; 0 then
          Statement (Handle, "update " &amp; UserLvl_Tbl &amp; " set level=" &amp; S (Request.Data) &amp;
-                            "where name='" &amp; Escape (To_Lower (S (Request.Key))) &amp; "'");
+                            "where name=" &amp; Escape (To_Lower (S (Request.Key))));
          Say ("Access level for " &amp; To_Lower (S (Request.Key)) &amp; " updated to " &amp; S (Request.Data), Request.Origin);
       else
-         Statement (Handle, "insert into " &amp; UserLvl_Tbl &amp; " (name,level) values ('" &amp; 
-                            Escape (To_Lower (S (Request.Key))) &amp; "'," &amp; S (Request.Data) &amp; ")");
+         Statement (Handle, "insert into " &amp; UserLvl_Tbl &amp; " (name,level) values (" &amp; 
+                            Escape (To_Lower (S (Request.Key))) &amp; "," &amp; S (Request.Data) &amp; ")");
          Say ("Usermask " &amp; To_Lower (S (Request.Key)) &amp; " added with level " &amp; S (Request.Data), Request.Origin);
       end if;
       Disconnect (Handle);
@@ -665,6 +706,28 @@ factoid must not already exist.
 </para>
 </section>
 
+<section>
+<title>Check Owner/Operator Authorization</title>
+<para>
+
+<src:fragment id="func-owner-op">
+   function Is_Owner_Operator (Who     : in string;
+                               Creator : in string) return boolean is
+   begin  -- Is_Owner_Operator
+      if Creator /= Who then
+         if &authname;.Level (Request.Requestor) &lt; &authname;.Bot_Operator_Level then
+            Say ("I'm sorry " &amp; Who &amp; ", that factoid was created by " &amp;
+                 Creator &amp; " and I can't let you change it.  Check with " &amp;
+                 Creator &amp; " or my operator to get it changed.", Request.Destination);
+            return false;
+         end if;
+      end if;
+      return true;
+   end Is_Owner_Operator;
+</src:fragment>
+</para>
+</section>
+
 </section>
 
 <section>
@@ -712,6 +775,8 @@ output task.  Used to report requests received by the database task.</para>
 
    <src:fragref linkend="proc-say"/>
 
+   <src:fragref linkend="func-owner-op"/>
+
    <src:fragref linkend="func-ranselect"/>
 
    <src:fragref linkend="proc-ranquote"/>
@@ -721,6 +786,8 @@ output task.  Used to report requests received by the database task.</para>
    <src:fragref linkend="proc-add-factoid"/>
 
    <src:fragref linkend="proc-factoid-stats"/>
+
+   <src:fragref linkend="proc-forget-factoid"/>
 
    <src:fragref linkend="proc-list-factoids"/>
 
@@ -837,10 +904,14 @@ is defined via <link linkend="database-pkg-spec-context-section">the context
 clause</link>.
 
 <src:fragment id="database-basic-types">
-   type Operation_Type is ( Access_Operation, AddFactoid_Operation, FactoidStats_Operation, Fetch_Operation,
-                            List_Operation, Quip_Operation, Quote_Operation, RE_Fetch_Operation, RE_Tell_Operation,
-                            ResetFactoid_Operation, SetAction_Operation, SetFactoid_Operation, SetReply_Operation,
-                            Shutdown_Operation, Stats_Operation, Tell_Operation );
+   type Operation_Type is ( Access_Operation, AddFactoid_Operation,
+                            FactoidStats_Operation, Fetch_Operation,
+                            Forget_Operation, List_Operation, Quip_Operation,
+                            Quote_Operation, RE_Fetch_Operation,
+                            RE_Tell_Operation, ResetFactoid_Operation,
+                            SetAction_Operation, SetFactoid_Operation,
+                            SetReply_Operation, Shutdown_Operation,
+                            Stats_Operation, Tell_Operation );
 
    type Request_Rec is record
       Operation:    Operation_Type;
