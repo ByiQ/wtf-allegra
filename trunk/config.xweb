@@ -587,7 +587,9 @@ user ID.</entry>
 <para>The configuration values are maintained in a table named &tbl; within
 the program's database.  Here is a shell script that uses the PostgreSQL
 <command>psql</command> utility to create and initialize the table to &prog;'s
-default values.</para>
+default values.  This script is normally run automatically by <ulink
+url="&instpkg;">the program installation process</ulink>, which ensures that
+the database is created before attempting to create a table within it.</para>
 
 <src:fragment id="init-config">
 #!/bin/sh
