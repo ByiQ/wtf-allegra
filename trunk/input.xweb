@@ -3,6 +3,7 @@
                       "file:///opt/litprog/dtd/xweb.dtd" [
 <!ENTITY % entities SYSTEM "entities.inc.dtd">
 %entities;
+<!ENTITY pkg      "&inname;">
 ]>
 
 <article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
@@ -62,51 +63,68 @@ places the request on the command queue.
 
 <src:fragment id="input-loop">
       loop
+         Got_Input := false;
          begin
             IRC.Read (Input_Message);
-Put_Line ("Got " &amp; To_String (Input_Message.Prefix) &amp; ", " &amp; To_String (Input_Message.Command) &amp; ", " &amp; To_String (Input_Message.Params));
+            Got_Input := true;
+            Dbg (Input_Name, "Got " &amp; To_String (Input_Message.Prefix) &amp; ", " &amp; To_String (Input_Message.Command) &amp; ", " &amp; To_String (Input_Message.Params));
+
          exception
             when IRC.Connect_Error =>
                IRC.Close_Server;
-               IRC.Open_Server (Config.Get_Value (Config.Item_Host), positive'Value (Config.Get_Value (Config.Item_Port)));
+               IRC.Open_Server (&cfgname;.Get_Value (&cfgname;.Item_Host), positive'Value (&cfgname;.Get_Value (&cfgname;.Item_Port)));
+               Info (Input_Name, "Reconnect to " &amp; &cfgname;.Get_Value (&cfgname;.Item_Host) &amp; ":" &amp; &cfgname;.Get_Value (&cfgname;.Item_Port));
+
             when others =>
-               null;
+               null;  -- fill me in someday
          end;
-         Ping.Ping_Task.Input_Received;
-         declare
-            Cmd:     string := To_Lower (To_String (Input_Message.Command));
-            Nick:    string := To_Lower (Config.Get_Value (Config.Item_Nick));
-            From:    IRC.MsgTo_Rec;
-            Params:  IRC.Param_Arr;
-            Count:   IRC.Param_Count;
-         begin
-            if    Cmd = "ping"        then
-               Command_Request.Operation := Command.Ping_Operation;
-               Command_Request.Data      := Input_Message.Params;
-               Command.Requests.Enqueue (Command_Request);
-            elsif Cmd = "privmsg"     then
-               if Index (To_Unbounded_String (To_Lower (To_String (Input_Message.Params))), Nick) > 0 then
-                  IRC.Parse_MsgTo (Input_Message.Prefix, From);
-                  IRC.Parse_Params (Input_Message.Params, Params, Count);
-                  Command_Request.Operation := Command.Message_Operation;
-                  Command_Request.Origin    := From.Nick;
-                  Command_Request.Target    := IRC.Null_Field;
-                  Command_Request.Data      := IRC.Null_Field;
-                  if Count &gt;= 1 then
-                     Command_Request.Target    := Params (1);
+
+         if Got_Input then
+            &pingname;.Ping_Task.Input_Received;
+            declare
+               Cmd:     string := To_Lower (To_String (Input_Message.Command));
+               Nick:    string := To_Lower (&cfgname;.Get_Value (&cfgname;.Item_Nick));
+               From:    IRC.MsgTo_Rec;
+               Params:  IRC.Param_Arr;
+               Count:   IRC.Param_Count;
+            begin
+               if    Cmd = "ping"        then
+                  Dbg (Input_Name, "Ping: " &amp; To_String (Input_Message.Params));
+                  Command_Request.Operation := &cmdname;.Ping_Operation;
+                  Command_Request.Origin    := IRC.Null_Field;
+                  Command_Request.Data      := Input_Message.Params;
+                  &cmdname;.Requests.Enqueue (Command_Request);
+               elsif Cmd = "privmsg"     then
+                  if Index (To_Unbounded_String (To_Lower (To_String (Input_Message.Params))), Nick) > 0 then
+                     IRC.Parse_MsgTo (Input_Message.Prefix, From);
+                     IRC.Parse_Params (Input_Message.Params, Params, Count);
+                     Dbg (Input_Name, "Recognized message from " &amp; To_String (From.Nick) &amp; ": " &amp;
+                                      To_String (Input_Message.Params));
+                     Command_Request.Operation := &cmdname;.Message_Operation;
+                     Command_Request.Origin    := From.Nick;
+                     Command_Request.Target    := IRC.Null_Field;
+                     Command_Request.Data      := IRC.Null_Field;
+                     if Count &gt;= 1 then
+                        Command_Request.Target    := Params (1);
+                     end if;
+                     if Count &gt;= 2 then
+                        Command_Request.Data      := Params (2);
+                     end if;
+                     Command.Requests.Enqueue (Command_Request);
                   end if;
-                  if Count &gt;= 2 then
-                     Command_Request.Data      := Params (2);
-                  end if;
-                  Command.Requests.Enqueue (Command_Request);
+               elsif Numeric_Reply (Cmd) then
+                  Dbg (Input_Name, "Reply " &amp; Cmd &amp; ": " &amp; To_String (Input_Message.Params));
+                  Command_Request.Operation := &cmdname;.Reply_Operation;
+                  Command_Request.Reply     := &cmdname;.Reply_Type (Cmd);
+                  Command_Request.Data      := Input_Message.Params;
+                  &cmdname;.Requests.Enqueue (Command_Request);
                end if;
-            elsif Numeric_Reply (Cmd) then
-               Command_Request.Operation := Command.Reply_Operation;
-               Command_Request.Reply     := Command.Reply_Type (Cmd);
-               Command_Request.Data      := Input_Message.Params;
-               Command.Requests.Enqueue (Command_Request);
-            end if;
-         end;
+            end;
+         else
+            Dbg (Input_Name, "Login requested");
+            Command_Request.Operation := &cmdname;.Login_Operation;
+            &cmdname;.Requests.Enqueue (Command_Request);
+         end if;
       end loop;
 </src:fragment>
 
@@ -147,7 +165,7 @@ it is such a response, and returns true if so, false if not.</para>
 <src:fragment id="ck-num-reply">
       function Numeric_Reply (Field:  string) return boolean is
       begin  -- Numeric_Reply
-         return Field'Length = Command.Reply_Type'Length and then
+         return Field'Length = &cmdname;.Reply_Type'Length and then
                 (Is_Digit (Field (1)) and Is_Digit (Field (2)) and Is_Digit (Field (3)));
       end Numeric_Reply;
 </src:fragment>
@@ -185,10 +203,13 @@ library procedure.</para>
 
    <src:fragment id="input-decls">
 
+      &pkg;_Name:  constant string := "&pkg;";
+
 <src:fragref linkend="ck-num-reply"/>
 
+      Got_Input:        boolean;
       Input_Message:    IRC.Message_Rec;
-      Command_Request:  Command.Request_Rec;
+      Command_Request:  &cmdname;.Request_Rec;
 </src:fragment>
 
 The value for <literal>Input_Line_Max</literal> was chosen arbitrarily, as
@@ -208,6 +229,9 @@ declarations.
    task body Input_Task_Type is
 <src:fragref linkend="input-decls"/>
    begin  -- Input_Task_Type
+      IRC.Open_Server (&cfgname;.Get_Value (&cfgname;.Item_Host), positive'Value (&cfgname;.Get_Value (&cfgname;.Item_Port)));
+      Command_Request.Operation := &cmdname;.Login_Operation;
+      &cmdname;.Requests.Enqueue (Command_Request);
 <src:fragref linkend="input-loop"/>
    end Input_Task_Type;
 </src:fragment>
@@ -236,14 +260,19 @@ task.</para>
 </listitem>
 
 <listitem>
-<para><classname>Command</classname> - The command task's package, which
+<para><classname>&cmdname;</classname> - The command task's package, which
 provides the data type for the command-task queue requests, and the
 <methodname>Enqueue</methodname> procedure, which adds the request to the
 command request queue.</para>
 </listitem>
 
 <listitem>
-<para><classname>Ping</classname> - The ping task's package, which provides
+<para><classname>&cfgname;</classname> - The configuration task, used to fetch
+various values from the program configuration database.</para>
+</listitem>
+
+<listitem>
+<para><classname>&pingname;</classname> - The ping task's package, which provides
 the <methodname>Input_Received</methodname> task entry, which the input task
 uses to tell the ping task that some input was seen coming from <quote>the
 link</quote> (in &prog;'s case, the user).</para>
@@ -252,45 +281,31 @@ link</quote> (in &prog;'s case, the user).</para>
 
 Visibility is provided to the standard library packages via a
 <command>use</command> clause; references to items declared in the
-<classname>Command</classname> package must be fully qualified.
+<classname>&cmdname;</classname> package must be fully qualified.
 
 <src:fragment id="input-pkg-body">
 with
    Ada.Text_IO,
    Ada.Characters.Handling,
    Ada.Strings.Unbounded,
-   Command,
-   Config,
-   IRC,
-   Ping;
+   &cmdname;,
+   &cfgname;,
+   &ircname;,
+   &logname;,
+   &pingname;;
 
 use
    Ada.Text_IO,
    Ada.Characters.Handling,
-   Ada.Strings.Unbounded;
+   Ada.Strings.Unbounded,
+   &logname;;
 
 package body Input is
+
+   &pkg;_Name:  constant string := "&pkg;";
+
 <src:fragref linkend="input-task-body"/>
 
-begin  -- Input
-   IRC.Open_Server (Config.Get_Value (Config.Item_Host), positive'Value (Config.Get_Value (Config.Item_Port)));
-   IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("NICK"),
-                               To_Unbounded_String (Config.Get_Value (Config.Item_Nick))));
-   -- Allow testing on pirc
-   declare
-      Rpl:  IRC.Message_Rec;
-   begin
-      IRC.Read (Rpl);
-      if Rpl.Command = "PING" then
-         Rpl.Command := To_Unbounded_String ("PONG");
-         IRC.Write (Rpl);
-      end if;
-   end;
-   IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("USER"),
-                               To_Unbounded_String (Config.Get_Value (Config.Item_UserName) &amp; " 0 * :" &amp; Config.Get_Value (Config.Item_RealName))));
-   delay 2.0;
-   IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("JOIN"),
-                               To_Unbounded_String ("#" &amp; Config.Get_Value (Config.Item_Channel))));
 end Input;
 </src:fragment>
 </para>
