@@ -56,35 +56,13 @@ some few <quote>bootstrap</quote> values are expressed as constants.</para>
 <para>As configuration information is pretty simple, so is this package's API.
 The only complicating factor is that we must ensure in &prog;'s multi-tasking
 environment that the configuration information has been read before any task
-tries to access it.  The interface provides:</para>
-
-<itemizedlist>
-<listitem>
-<para>A procedure for reading the configuration data from its external location.</para>
-</listitem>
-
-<listitem>
-<para>A function which returns a given named configuration value.</para>
-</listitem>
-</itemizedlist>
+tries to access it.  The interface provides only one service, a function which
+returns a given named configuration value.</para>
 
 </section>
 
 <section>
 <title>Service Details</title>
-
-<section>
-<title>The <function>Read</function> Procedure</title>
-
-<src:fragment id="proc-read">
-   procedure Read
-</src:fragment>
-
-<para>The <function>Read</function> procedure reads the configuration from the
-database, and once it has finished reading, sets the guard to allow other
-users to access the configuration values.</para>
-
-</section>
 
 <section>
 <title>The <function>Get_Value</function> Function</title>
@@ -123,13 +101,12 @@ them, the package uses a protected object.</para>
 <title>Access Control</title>
 
 <para>A simple protected object, essentially a semaphore, controls access to
-the configuration values in memory.  The <function>Read</function> procedure
-calls the <function>Data_Available</function> procedure to indicate that the
-data is now in memory and is available to be accessed.  The
-<function>Get_Value</function> function calls the
-<function>Wait_For_Data</function> entry before accessing any values.  This
-ensures that the read operation is complete and the data is actually in memory
-before attempting to use any of the values.</para>
+the configuration values in memory.  The package init code calls the
+<function>Data_Available</function> procedure to indicate that the data is now
+in memory and is available to be accessed.  The <function>Get_Value</function>
+function calls the <function>Wait_For_Data</function> entry before accessing
+any values.  This ensures that the read operation is complete and the data is
+actually in memory before attempting to use any of the values.</para>
 
 <src:fragment id="access-control">
    protected Access_Control is
@@ -156,88 +133,13 @@ before attempting to use any of the values.</para>
 
 
 <section>
-<title>Reading the Configuration Data</title>
-
-<para>The <function>Read</function> procedure is the most complicated part of
-the whole package.  It is responsible for reading the configuration data from
-the program's database, and mapping it into an in-memory form easily
-accessible by the rest of &prog;.  Once that is done, it disconnects the
-database connection and sets the semaphore to indicate that the data is now
-available.</para>
-
-<src:fragment id="read-body">
-<src:fragref linkend="fetch-data"/>
-<src:fragref linkend="map-data"/>
-   DB.Disconnect (Handle);
-   Access_Control.Data_Available;
-</src:fragment>
-
-
-<section>
-<title>Fetch the Data</title>
-
-<para>The first step in this process is to connect to the external database,
-and then fetch the data from it.  It identifies the database and the table
-containing the configuration data by means of constants.</para>
-
-<src:fragment id="fetch-data">
-   DB.Connect (Handle, Host => "", DB => Allegra_DB);
-   DB.Fetch (Handle, "*", Config_Tbl, "", Cfg_Data);
-</src:fragment>
-
-</section>
-
-<section>
-<title>Mapping the Data</title>
-
-<para>Once the data has been fetched, we must convert the value names to the
-enumeration constants used by the application when querying the values.  The
-actual configuration value is then stored in an array indexed by the
-enumeration value.  This is done by a simple linear search of a table, which
-was deemed acceptable because of the small number of values, and the fact that
-the mapping is only done once.  Any unrecognized parameter names are simply
-skipped, so be sure to update the enumeration and the table when adding new
-configuration parameters.</para>
-
-<para>We considered a scheme to use the actual name string for accessing the
-parameters, presumable via a hash table or something similar, but that
-mechanism is overkill in this situation.</para>
-
-<src:fragment id="map-data">
-   for Row in 1 .. DB.Rows (Cfg_Data) loop
-      declare
-         Name:  string := DB.Get_Value (Cfg_Data, Row, "name");
-      begin
-         Item := Item_None;
-         for Index in Cfg_Map'Range loop
-            if Cfg_Map (Index).Name (1 .. Name'Length) = Name then
-               Item := Cfg_Map (Index).Item;
-               exit;
-            end if;
-         end loop;
-         if Item /= Item_None then
-            declare
-               Value_Str:  string := DB.Get_Value (Cfg_Data, Row, "value");
-            begin
-               Config_Values (Item) := To_Unbounded_String (Value_Str);
-            end;
-         end if;         
-      end;
-   end loop;
-</src:fragment>
-
-</section>
-
-</section>
-
-<section>
 <title>Accessing the Configuration Values</title>
 
-<para>Given the preparation done by the <function>Read</function> procedure,
-accessing the values is a very simple job.  We simply ensure that the values
-are present by calling the protected entry <function>Wait_For_Data</function>,
-then using the given enumeration value to index into the configuration table
-for the value.  It is converted from the storage format, which is
+<para>Given the preparation done by the package init code, accessing the
+values is a very simple job.  We simply ensure that the values are present by
+calling the protected entry <function>Wait_For_Data</function>, then using the
+given enumeration value to index into the configuration table for the value.
+It is converted from the storage format, which is
 <literal>Unbounded_String</literal>, into a standard <literal>string</literal>
 value, before returning it.</para>
 
@@ -264,12 +166,11 @@ is quite small, given the few services it offers.</para>
 <section>
 <title>The Package Spec</title>
 
-<para>The package spec defines the <function>Read</function> procedure, the
-<function>Get_Value</function> function, and the enumeration type used by the
-package and its users to identify individual configuration values.  It also
-defines the names of the program's database and the relevant table names.
-Only predefined data types are used, so the spec requires no context
-clause.</para>
+<para>The package spec defines the <function>Get_Value</function> function and
+the enumeration type used by the package and its users to identify individual
+configuration values.  It also defines the names of the program's database and
+the relevant table names.  Only predefined data types are used, so the spec
+requires no context clause.</para>
 
 <src:fragment id="config-pkg-spec">
 package &pkg; is
@@ -293,8 +194,6 @@ package &pkg; is
       Item_UserName
    );
 
-<src:fragref linkend="proc-read"/>;
-
 <src:fragref linkend="func-getv"/>;
 
 end &pkg;;
@@ -306,7 +205,8 @@ end &pkg;;
 <title>The Package Body</title>
 
 <para>The package body is a bit longer, as it makes some local declarations
-used to manage the configuration data.</para>
+used to manage the configuration data, and it contains the initialization code
+which actually reads the configuration values.</para>
 
 <section>
 <title>The Context Clause</title>
@@ -421,10 +321,85 @@ them on the way back out.</para>
 </section>
 
 <section>
+<title>Reading the Configuration Data</title>
+
+<para>The package initialization code is the most complicated part of the
+whole package.  It is responsible for reading the configuration data from the
+program's database, and mapping it into an in-memory form easily accessible by
+the rest of &prog;.  Once that is done, it disconnects the database connection
+and sets the semaphore to indicate that the data is now available.</para>
+
+<src:fragment id="init-body">
+<src:fragref linkend="fetch-data"/>
+<src:fragref linkend="map-data"/>
+   DB.Disconnect (Handle);
+   Access_Control.Data_Available;
+</src:fragment>
+
+<section>
+<title>Fetch the Data</title>
+
+<para>The first step in this process is to connect to the external database,
+and then fetch the data from it.  It identifies the database and the table
+containing the configuration data by means of constants.</para>
+
+<src:fragment id="fetch-data">
+   DB.Connect (Handle, Host => "", DB => Allegra_DB);
+   DB.Fetch (Handle, "*", Config_Tbl, "", Cfg_Data);
+</src:fragment>
+
+</section>
+
+<section>
+<title>Mapping the Data</title>
+
+<para>Once the data has been fetched, we must convert the value names to the
+enumeration constants used by the application when querying the values.  The
+actual configuration value is then stored in an array indexed by the
+enumeration value.  This is done by a simple linear search of a table, which
+was deemed acceptable because of the small number of values, and the fact that
+the mapping is only done once.  Any unrecognized parameter names are simply
+skipped, so be sure to update the enumeration and the table when adding new
+configuration parameters.</para>
+
+<para>We considered a scheme to use the actual name string for accessing the
+parameters, presumable via a hash table or something similar, but that
+mechanism is overkill in this situation.</para>
+
+<src:fragment id="map-data">
+   for Row in 1 .. DB.Rows (Cfg_Data) loop
+      declare
+         Name:  string := DB.Get_Value (Cfg_Data, Row, "name");
+      begin
+         Item := Item_None;
+         for Index in Cfg_Map'Range loop
+            if Cfg_Map (Index).Name (1 .. Name'Length) = Name then
+               Item := Cfg_Map (Index).Item;
+               exit;
+            end if;
+         end loop;
+         if Item /= Item_None then
+            declare
+               Value_Str:  string := DB.Get_Value (Cfg_Data, Row, "value");
+            begin
+               Config_Values (Item) := To_Unbounded_String (Value_Str);
+            end;
+         end if;         
+      end;
+   end loop;
+</src:fragment>
+
+</section>
+
+</section>
+
+<section>
 <title>Compilation Unit</title>
 
 <para>Putting all the code bits together gives us a compilation unit for the
-package body.</para>
+package body.  The package initialization code reads the configuration from
+the database, and once it has finished reading, sets the guard to allow other
+users to access the configuration values.</para>
 
 <src:fragment id="config-pkg-body">
 <src:fragref linkend="context"/>
@@ -437,21 +412,17 @@ package body &pkg; is
 
 <src:fragref linkend="cfg-values"/>
 
-<src:fragref linkend="proc-read"/> is
-
-Handle:    DB.DB_Handle;
-Cfg_Data:  DB.DB_Result;
-Item:      Config_Item;
-
-begin  -- Read
-<src:fragref linkend="read-body"/>
-end Read;
-
 <src:fragref linkend="func-getv"/> is
 begin  -- Get_Value
 <src:fragref linkend="getv-body"/>
 end Get_Value;
 
+Handle:    DB.DB_Handle;
+Cfg_Data:  DB.DB_Result;
+Item:      Config_Item;
+
+begin  -- &pkg;
+<src:fragref linkend="init-body"/>
 end &pkg;;
 </src:fragment>
 
