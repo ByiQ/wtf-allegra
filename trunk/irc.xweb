@@ -1,0 +1,266 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
+                      "file:///opt/litprog/dtd/xweb.dtd" [
+<!ENTITY pkg  "IRC">
+<!ENTITY svc  "IRC">
+<!ENTITY prog "Allegra">
+<!ENTITY pcmd "<command>allegra</command>">
+<!ENTITY site "http://www.niestu.com">
+]>
+
+<article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
+         xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+
+
+<!-- Article meta-data -->
+<articleinfo>
+<title>Simple IRC Communication Interface Package for &prog;</title>
+
+<author>
+<firstname>Chip</firstname>
+<surname>Richards</surname>
+</author>
+
+<address><email>chipr@niestu.com</email></address>
+<publisher>
+<publishername>NiEstu</publishername>
+<address><otheraddr><ulink url="&site;/allegra/alba/"></ulink></otheraddr></address>
+</publisher>
+
+<releaseinfo>Version 1.0</releaseinfo>
+<date>13 December 2003</date>
+
+<legalnotice>
+<para>This code is released under the terms of the <ulink
+url="http://www.gnu.org/licenses/gpl.html">GNU General Public License</ulink>,
+version 2.</para>
+</legalnotice>
+</articleinfo>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--            API  section        -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>API</title>
+
+<section>
+<title>Overview</title>
+
+<para>The &pkg; package provides a simple set of services for communicating
+with &svc; servers.  It is not intended to be a general-purpose &svc;
+communication library, but rather is designed to meet the needs of &prog; in
+as simple and straightforward a manner as possible.  It can:</para>
+
+<itemizedlist>
+<listitem>
+<para>Open a connection with the requested server, on the requested port.</para>
+</listitem>
+
+<listitem>
+<para>Close a server connection.</para>
+</listitem>
+
+<listitem>
+<para>Log in to a connected server with the requested username, nickname, and
+optional password.</para>
+</listitem>
+
+<listitem>
+<para>Log out of a server with the requested parting message after a
+successful login.</para>
+</listitem>
+
+<listitem>
+<para>Join the requested channel on a server after successful login.</para>
+</listitem>
+
+<listitem>
+<para>Read a message from a connected server and parse it into its
+components.</para>
+</listitem>
+
+<listitem>
+<para>Write a message to a connected server, given its components.</para>
+</listitem>
+</itemizedlist>
+
+<para>The primary source document for this package is <ulink
+url="http://www.faqs.org/rfcs/rfc2812.html">RFC 2812</ulink>,
+<citetitle>Internet Relay Chat: Client Protocol</citetitle>.</para>
+
+</section>
+
+<section>
+<title>Service Details</title>
+
+<src:fragment id="proc-open">
+   procedure Open_Server (Handle: out Server_Handle;
+                          Name:   in string;
+                          Port:   in positive)
+</src:fragment>
+
+<para>The <function>Open_Server</function> procedure accepts a server hostname
+and a port number, and if it succeeds in establishing a connection, returns a
+handle that can be used in subsequent service calls.  Raises a
+<literal>Connect_Error</literal> exception if there was a failure during the
+connect.</para>
+
+<src:fragment id="proc-close">
+   procedure Close_Server (Handle: in Server_Handle)
+</src:fragment>
+
+<para>The <function>Close_Server</function> procedure accepts a connected
+server handle, and closes the connection with the server.  Note that it does
+not part from joined channels, nor issue an &svc; <command>quit</command>
+command.  It simply shuts down the connection.  (Though most servers will
+certainly throw you out of channels and log you off if you close your
+connection!)</para>
+
+<src:fragment id="proc-login">
+   procedure Login (Handle: in Server_Handle;
+                    User:   in string;
+                    Nick:   in string;
+                    Pass:   in string := "")
+</src:fragment>
+
+<para>The <function>Login</function> procedure accepts a connected server
+handle, a username, an &svc; nickname, and an optional password, if one is
+required by the server.  It sends the appropriate sequence of messages to the
+server to register a user connection.  Raises a <literal>Nick_Error</literal>
+exception if the nickname is invalid, <literal>Nick_Dupe</literal> if the
+nickname is already in use, and <literal>Connect_Error</literal> if some other
+error occurred.</para>
+
+<src:fragment id="proc-logout">
+   procedure Logout (Handle: in Server_Handle;
+                     Msg:    in string := "")
+</src:fragment>
+
+<para>The <function>Logout</function> procedure accepts a connected server
+handle and an optional termination message.  Most &svc; servers will report
+this message to other users by way of documenting the user's reason for
+quitting.</para>
+
+<src:fragment id="proc-join">
+   procedure Join (Handle: in Server_Handle;
+                   Chan:   in string;
+                   Key:    in string := "")
+</src:fragment>
+
+<para>The <function>Join</function> procedure accepts a connected server
+handle, a channel name, and an optional channel key, and requests that the
+user (who should already be logged in) start listening on that channel.
+Raises a <literal>Connect_Error</literal> exception if the join was not
+successful.</para>
+
+<src:fragment id="proc-read">
+   procedure Read (Handle:  in  Server_Handle;
+                   Message: out Message_Rec)
+</src:fragment>
+
+<para>The <function>Read</function> procedure accepts a connected server
+handle, and waits for a message to arrive from the server.  The message is
+minimally parsed into its component parts and returned.  Raises a
+<literal>Connect_Error</literal> exception if the read fails, usually due to
+an error with the connection.</para>
+
+<src:fragment id="proc-write">
+   procedure Write (Handle:  in Server_Handle;
+                    Message: in Message_Rec)
+</src:fragment>
+
+<para>The <function>Write</function> procedure accepts a connected server
+handle and a low-level message record. It assembles the components (optional
+prefix, command, and command parameters) into an &svc; message and sends it to
+the server.  Raises a <literal>Connect_Error</literal> exception if the write
+fails.</para>
+
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--    Implementation section      -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Implementation</title>
+
+<para>The &pkg; package uses <ulink
+url="http://www.rfc1149.net/devel/adasockets/">the AdaSockets library</ulink>
+to manage the &svc; connection, and to perform I/O operations on it.  As of
+the time of this writing, the version used was the latest, 1.8.4.</para>
+
+<section>
+<title>Connection-Related Services</title>
+
+<section>
+<title>Opening the Server Connection</title>
+
+<para>Opening the connection is fairly simple.  We use the
+<function>Socket</function> procedure to initialize the socket object, then
+call <function>Connect</function> to establish the connection to the given
+server and port.  The default domain (<literal>PF_INET</literal>) and socket
+type (<literal>SOCK_STREAM</literal>) set by <function>Socket</function> are
+correct for &svc; connections, so no additional parameters are needed.</para>
+
+<src:fragment id="open-body">
+   Socket (Handle);
+   Connect (Handle, Name, Port);
+</src:fragment>
+
+<para>The <function>Socket</function> procedure does not raise any advertised
+exceptions, but <function>Connect</function> can raise two--connection
+refused, or <quote>other</quote>.  Either one means we didn't connect, so our
+exception handler for this procedure simply raises
+<literal>Connect_Error</literal>.</para>
+
+<src:fragment id="open-except">
+exception
+   raise Connect_Error;
+</src:fragment>
+
+</section>
+
+<section>
+<title>Closing the Server Connection</title>
+
+<para>Closing the connection is even simpler than opening it.  The
+<function>Shutdown</function> procedure closes an open socket.  It raises no
+exceptions, and its default of closing both directions of the socket is the
+one we want.</para>
+
+<src:fragment id="close-body">
+   Shutdown (Handle);
+</src:fragment>
+
+</section>
+
+<section>
+<title>Logging In to the Server</title>
+
+<para>Logging in requires a bit more logic, because several messages must be
+sent and received to accomplish a correct login.  Note that in this version,
+the reads of the response messages are blocking, so that if something goes
+awry with the connection, like if it hangs, this procedure will in turn hang.
+In practice, this has not been a problem, but a truly correct implementation
+would allow for such derailments.</para>
+
+<para>The first step is to determine whether a password has been provided, and
+if so, send it and wait for the server's reply.</para>
+
+<src:fragment id="login-pass">
+   if Pass'Length > 0 then
+      Write (Handle, Message_Rec'(No_Prefix, US ("PASS"), US (Pass)));
+      Read (Handle, Response);
+   end if;
+</src:fragment>
+
+</section>
+
+</section>
+
+</section>
+
+</article>
