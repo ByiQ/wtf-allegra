@@ -3,9 +3,8 @@
                       "file:///opt/litprog/dtd/xweb.dtd" [
 <!ENTITY pkg  "IRC">
 <!ENTITY svc  "IRC">
-<!ENTITY prog "Allegra">
-<!ENTITY pcmd "<command>allegra</command>">
-<!ENTITY site "http://www.niestu.com">
+<!ENTITY % entities SYSTEM "entities.inc.dtd">
+%entities;
 ]>
 
 <article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
@@ -62,20 +61,6 @@ as simple and straightforward a manner as possible.  It can:</para>
 </listitem>
 
 <listitem>
-<para>Log in to a connected server with the requested username, nickname, and
-optional password.</para>
-</listitem>
-
-<listitem>
-<para>Log out of a server with the requested parting message after a
-successful login.</para>
-</listitem>
-
-<listitem>
-<para>Join the requested channel on a server after successful login.</para>
-</listitem>
-
-<listitem>
 <para>Read a message from a connected server and parse it into its
 components.</para>
 </listitem>
@@ -83,17 +68,31 @@ components.</para>
 <listitem>
 <para>Write a message to a connected server, given its components.</para>
 </listitem>
+
+<listitem>
+<para>Parse a message's command-parameters field into separate
+parameters.</para>
+</listitem>
+
+<listitem>
+<para>Parse a user-style <quote>msgto</quote> field into its
+components.</para>
+</listitem>
 </itemizedlist>
 
-<para>The primary source document for this package is <ulink
-url="http://www.faqs.org/rfcs/rfc2812.html">RFC 2812</ulink>,
-<citetitle>Internet Relay Chat: Client Protocol</citetitle>.</para>
+<para>The package also provides constant values for numeric server replies, at
+least for the ones &prog; cares about.  The primary source document for this
+package is <ulink url="http://www.faqs.org/rfcs/rfc2812.html">RFC
+2812</ulink>, <citetitle>Internet Relay Chat: Client
+Protocol</citetitle>.</para>
 
 </section>
 
 <section>
 <title>Service Details</title>
 
+<section>
+<title>The <function>Open_Server</function> Procedure</title>
 <src:fragment id="proc-open">
    procedure Open_Server (Handle: out Server_Handle;
                           Name:   in string;
@@ -105,9 +104,12 @@ and a port number, and if it succeeds in establishing a connection, returns a
 handle that can be used in subsequent service calls.  Raises a
 <literal>Connect_Error</literal> exception if there was a failure during the
 connect.</para>
+</section>
 
+<section>
+<title>The <function>Close_Server</function> Procedure</title>
 <src:fragment id="proc-close">
-   procedure Close_Server (Handle: in Server_Handle)
+   procedure Close_Server (Handle: in out Server_Handle)
 </src:fragment>
 
 <para>The <function>Close_Server</function> procedure accepts a connected
@@ -116,44 +118,10 @@ not part from joined channels, nor issue an &svc; <command>quit</command>
 command.  It simply shuts down the connection.  (Though most servers will
 certainly throw you out of channels and log you off if you close your
 connection!)</para>
+</section>
 
-<src:fragment id="proc-login">
-   procedure Login (Handle: in Server_Handle;
-                    User:   in string;
-                    Nick:   in string;
-                    Pass:   in string := "")
-</src:fragment>
-
-<para>The <function>Login</function> procedure accepts a connected server
-handle, a username, an &svc; nickname, and an optional password, if one is
-required by the server.  It sends the appropriate sequence of messages to the
-server to register a user connection.  Raises a <literal>Nick_Error</literal>
-exception if the nickname is invalid, <literal>Nick_Dupe</literal> if the
-nickname is already in use, and <literal>Connect_Error</literal> if some other
-error occurred.</para>
-
-<src:fragment id="proc-logout">
-   procedure Logout (Handle: in Server_Handle;
-                     Msg:    in string := "")
-</src:fragment>
-
-<para>The <function>Logout</function> procedure accepts a connected server
-handle and an optional termination message.  Most &svc; servers will report
-this message to other users by way of documenting the user's reason for
-quitting.</para>
-
-<src:fragment id="proc-join">
-   procedure Join (Handle: in Server_Handle;
-                   Chan:   in string;
-                   Key:    in string := "")
-</src:fragment>
-
-<para>The <function>Join</function> procedure accepts a connected server
-handle, a channel name, and an optional channel key, and requests that the
-user (who should already be logged in) start listening on that channel.
-Raises a <literal>Connect_Error</literal> exception if the join was not
-successful.</para>
-
+<section>
+<title>The <function>Read</function> Procedure</title>
 <src:fragment id="proc-read">
    procedure Read (Handle:  in  Server_Handle;
                    Message: out Message_Rec)
@@ -164,7 +132,10 @@ handle, and waits for a message to arrive from the server.  The message is
 minimally parsed into its component parts and returned.  Raises a
 <literal>Connect_Error</literal> exception if the read fails, usually due to
 an error with the connection.</para>
+</section>
 
+<section>
+<title>The <function>Write</function> Procedure</title>
 <src:fragment id="proc-write">
    procedure Write (Handle:  in Server_Handle;
                     Message: in Message_Rec)
@@ -175,6 +146,34 @@ handle and a low-level message record. It assembles the components (optional
 prefix, command, and command parameters) into an &svc; message and sends it to
 the server.  Raises a <literal>Connect_Error</literal> exception if the write
 fails.</para>
+</section>
+
+<section>
+<title>The <function>Parse_Params</function> Procedure</title>
+<src:fragment id="proc-parse-params">
+   procedure Parse_Params (Param_Str:  in  Unbounded_String;
+                           Params:     out Param_Arr;
+                           Count:      out Param_Count)
+</src:fragment>
+
+<para>The <function>Parse_Params</function> procedure accepts an &svc;
+message's command-parameters field as a single string, and parses it into its
+separate constituents.</para>
+
+</section>
+
+<section>
+<title>The <function>Parse_MsgTo</function> Procedure</title>
+<src:fragment id="proc-parse-msgto">
+   procedure Parse_MsgTo (Str:   in  Unbounded_String;
+                          MsgTo: out MsgTo_Rec)
+</src:fragment>
+
+<para>The <function>Parse_MsgTo</function> procedure accepts a string,
+normally taken from a message prefix, and parses it into its separate
+constituents.</para>
+
+</section>
 
 </section>
 
@@ -192,8 +191,10 @@ url="http://www.rfc1149.net/devel/adasockets/">the AdaSockets library</ulink>
 to manage the &svc; connection, and to perform I/O operations on it.  As of
 the time of this writing, the version used was the latest, 1.8.4.</para>
 
+
+<!--++++++++++++++++++++++++++++++++-->
 <section>
-<title>Connection-Related Services</title>
+<title>Managing the Connection</title>
 
 <section>
 <title>Opening the Server Connection</title>
@@ -206,19 +207,8 @@ type (<literal>SOCK_STREAM</literal>) set by <function>Socket</function> are
 correct for &svc; connections, so no additional parameters are needed.</para>
 
 <src:fragment id="open-body">
-   Socket (Handle);
-   Connect (Handle, Name, Port);
-</src:fragment>
-
-<para>The <function>Socket</function> procedure does not raise any advertised
-exceptions, but <function>Connect</function> can raise two--connection
-refused, or <quote>other</quote>.  Either one means we didn't connect, so our
-exception handler for this procedure simply raises
-<literal>Connect_Error</literal>.</para>
-
-<src:fragment id="open-except">
-exception
-   raise Connect_Error;
+   Sockets.Socket (Sockets.Socket_FD (Handle));
+   Sockets.Connect (Sockets.Socket_FD (Handle), Name, Port);
 </src:fragment>
 
 </section>
@@ -232,31 +222,777 @@ exceptions, and its default of closing both directions of the socket is the
 one we want.</para>
 
 <src:fragment id="close-body">
-   Shutdown (Handle);
+   Sockets.Shutdown (Sockets.Socket_FD (Handle));
+</src:fragment>
+
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Input and Output</title>
+
+<section>
+<title>Reading &svc; Messages</title>
+
+<para>The <function>Read</function> procedure uses the AdaSockets
+<function>Get_Line</function> string-oriented input procedure to read a line
+from the server, since &svc; messages are indeed presented as simple lines of
+text.  The line is then parsed into its three constituents--the (optional)
+prefix, <quote>command</quote> (which may also be a reply to an earlier
+command), and the command parameters.  The command parameters are returned as
+a single string.  &prog; does not need them separated.  The parsing function
+conforms to the message format presented in RFC 2812:</para>
+
+<itemizedlist>
+<listitem>
+<para>The prefix is optional.  Its presence is indicated by the first
+character of the message being the ASCII colon character
+(<quote>:</quote>).</para>
+</listitem>
+
+<listitem>
+<para>The prefix, command, and all parameters are separated by a single ASCII
+space character.</para>
+</listitem>
+
+<listitem>
+<para>A maximum of 15 parameters may be present.</para>
+</listitem>
+
+<listitem>
+<para>The message ends with an ASCII CR-LF sequence.</para>
+</listitem>
+</itemizedlist>
+
+<para>Certain liberties are taken from the strict RFC format:</para>
+
+<itemizedlist>
+<listitem>
+<para>The message may be longer than 512 bytes total.  The parser accepts
+whatever length is returned by the AdaSockets <function>Get_Line</function>
+procedure.</para>
+</listitem>
+
+<listitem>
+<para>The CR-LF terminator is not required.  If it is present, it is skipped;
+if not, oh well.</para>
+</listitem>
+</itemizedlist>
+
+<para>Note that since the <function>Get_Line</function> procedure blocks until
+input arrives, the <function>Read</function> procedure is similarly blocking.
+&prog; uses Ada tasking to manage its input and output streams, and the rest
+of the flow of control.  Only the input task actually blocks, while the rest
+of the program continues merrily along.  Since <function>Get_Line</function>
+is a function returning an indeterminate-length string, we enclose it in a
+<quote>declare</quote> block to allow creation of a variable-sized input line.
+Note also that <function>Get_Line</function> strips any CR and LF which might
+be present at the end of the input line, so the parser relies on the end of
+the array (<varname>Input_Line'Last</varname>) to signal the end of the input
+message.</para>
+
+<src:fragment id="read-body">
+   declare
+      Input_Line:  string := Sockets.Get_Line (Handle);
+   begin
+<src:fragref linkend="read-setup"/>
+<src:fragref linkend="read-prefix"/>
+<src:fragref linkend="read-command"/>
+<src:fragref linkend="read-params"/>
+   end;
+</src:fragment>
+
+<section>
+<title>Parsing &svc; Messages</title>
+
+<section>
+<title>Parser Setup</title>
+
+<para>The parser is very simple; it scans character-by-character, looking for
+single ASCII space characters as separators.  It begins life by setting a
+<varname>Scan</varname> variable to be used as an index into the input-line
+array.</para>
+
+<src:fragment id="read-setup">
+      Scan := Input_Line'First;
+</src:fragment>
+
+</section>
+
+<section id="parse-prefix">
+<title>Parsing the Prefix Field</title>
+
+<para>It's always dangerous to believe documentation, but this initial version
+of the parser conforms to the RFC description of the &svc; message format.  It
+begins by setting the result's <varname>Prefix</varname> field to
+<literal>Null_Field</literal>, indicating that no prefix was found yet.  It
+then examines the first character of the message to see if it's a colon.  If
+it is, that means that the following non-blank characters are the prefix.  If
+not, the code falls through to the command-parsing section, leaving the
+<varname>Prefix</varname> field set to its <quote>no prefix</quote>
+value.</para>
+
+<para>Scanning for the prefix value starts by recording the index of the
+character following the colon.  The scan loop terminates either when the end
+of the input line has been reached, or when a space is found.  After the scan,
+the scanner index is checked against the starting position to see if any
+non-blank characters were seen.  If so, they are converted to an unbounded
+string and placed in the result record.  If not, the result's
+<varname>Prefix</varname> field remains set to <literal>Null_Field</literal>.
+Four possibilities exist:</para>
+
+<itemizedlist>
+<listitem>
+<para>The input line is zero length.  In this case, the initial check for
+<varname>Scan</varname> not being past the end of the input line will fail,
+and the remainder of the parsing process will be skipped, resulting in all
+fields set to null.</para>
+</listitem>
+
+<listitem>
+<para>The input line consists of a single colon.  In this case,
+<varname>Scan</varname> and <varname>Start</varname> will be set past the end
+of the input line, the scan loop will not be executed, and the following check
+will fail, leaving the result set to <literal>Null_Field</literal>.</para>
+</listitem>
+
+<listitem>
+<para>The prefix is empty; that is, the initial colon character is followed by
+a space.  In this case, <varname>Scan</varname> and <varname>Start</varname>
+will be set to the index of that space, the scan loop will not be executed,
+and the following check will fail, leaving the result set to
+<literal>Null_Field</literal>.</para>
+</listitem>
+
+<listitem>
+<para>There are non-blank characters following the colon, ending at the end of
+the input line.  In this case, <varname>Start</varname> will be set to the
+index of the first character of the prefix, the scan loop will execute one or
+more times, incrementing <varname>Scan</varname> until it passes the end of
+the input line.  The following check will pass, and the result will be set to
+the characters between the colon and the end of the line.</para>
+</listitem>
+
+<listitem>
+<para>There are non-blank characters following the colon, followed by a space.
+In this case, <varname>Start</varname> will be set to the index of the first
+character of the prefix, the scan loop will execute one or more times,
+incrementing <varname>Scan</varname> until it reaches the space character.
+The following check will pass, and the result will be set to the characters
+between the colon and the space.</para>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="read-prefix">
+      Message.Prefix := Null_Field;
+      if Scan &lt;= Input_Line'Last and then Input_Line (Scan) = ':' then
+         Scan := Scan + 1;
+         Start := Scan;
+         while Scan &lt;= Input_Line'Last and then Input_Line (Scan) /= Space loop
+            Scan := Scan + 1;
+         end loop;
+         if Scan &gt; Start then
+            Message.Prefix := To_Unbounded_String (Input_Line (Start .. Scan - 1));
+         end if;
+      end if;
+</src:fragment>
+</section>
+
+<section>
+<title>Parsing the Command/Response Field</title>
+
+<para>Once the prefix has been dealt with, the code enters the command parsing
+section.  Depending on the results of the prefix scan, the
+<varname>Scan</varname> variable may be in one of these states:</para>
+
+<itemizedlist>
+<listitem>
+<para>Pointing past the end of the input line.  This occurs when the input
+line was a single colon, or when the prefix was not terminated by a space
+character.</para>
+</listitem>
+
+<listitem>
+<para>Pointing at a space character.  This occurs when the prefix was empty,
+or was terminated correctly by a space character.</para>
+</listitem>
+
+<listitem>
+<para>Pointing at the first character of the input line.  This occurs when no
+prefix was present in the input message.  Note that this character may be a
+space; it can in fact be anything but a colon.</para>
+</listitem>
+</itemizedlist>
+
+<para>Each of these cases is dealt with in turn.  As with the prefix parse,
+the result record's <varname>Command</varname> field is set to
+<literal>Null_Field</literal>, indicating that no command has yet been seen.
+The parser then checks whether the scanner index is already past the end of
+the input line.  If so, the command scan is skipped, leaving the result set to
+null.  If not, it checks whether the character <varname>Scan</varname> points
+to is a space, and moves past it if so.</para>
+
+<para>Then the starting position is recorded in <varname>Start</varname>, and
+the scanning loop proceeds in the same manner as the loop in <link
+linkend="parse-prefix">the prefix section</link>.  The conditions it might
+encounter are:</para>
+
+<itemizedlist>
+<listitem>
+<para>The scan index points past the end of the input line.  This can only
+happen if the last character in the line is a space, since if the command
+scanner is entered with the scan index already past the end of line, the
+entire scan is skipped.  In this case, the scan loop is not executed, the
+following check fails, and the result remains null.</para>
+</listitem>
+
+<listitem>
+<para>The scan index points at a space character.  This is taken to be the
+separator <emphasis>after</emphasis> the command field; the scan loop is not
+executed, the following check fails, and the result remains null.  This is,
+according to the RFC, an illegal line format, but the scanner accepts it and
+returns a recognizable result.</para>
+</listitem>
+
+<listitem>
+<para>The scan index points to a non-space character.  This is the expected
+case, and indicates the presence of a command field.  The command field may be
+terminated either by the end of the input line, which indicates that the
+command/response has no parameters, or by a space character, indicating that
+parameters may follow.  In either case, the scan loop executes one or more
+times, the following check passes, and result will be set to the characters
+between the start of the scan and the ending character or the end of the
+line.</para>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="read-command">
+      Message.Command := Null_Field;
+      if Scan &lt;= Input_Line'Last then
+         if Input_Line (Scan) = Space then
+            Scan := Scan + 1;
+         end if;
+         Start := Scan;
+         while Scan &lt;= Input_Line'Last and then Input_Line (Scan) /= Space loop
+            Scan := Scan + 1;
+         end loop;
+         if Scan &gt; Start then
+            Message.Command := To_Unbounded_String (Input_Line (Start .. Scan - 1));
+         end if;
+      end if;
 </src:fragment>
 
 </section>
 
 <section>
-<title>Logging In to the Server</title>
+<title>Parsing the Command Parameter Field</title>
 
-<para>Logging in requires a bit more logic, because several messages must be
-sent and received to accomplish a correct login.  Note that in this version,
-the reads of the response messages are blocking, so that if something goes
-awry with the connection, like if it hangs, this procedure will in turn hang.
-In practice, this has not been a problem, but a truly correct implementation
-would allow for such derailments.</para>
+<para>Once the prefix and command fields have been parsed, a final scan is
+made for the command parameter field, if any.  In our case, only the start of
+the field is of interest; by our definition, the field extends through the end
+of the input line.</para>
 
-<para>The first step is to determine whether a password has been provided, and
-if so, send it and wait for the server's reply.</para>
+<para>As in the prefix and command scanners, the result field is initially set
+to null.  We then check to see if we're already past the end of the line, as
+set either by the prefix or command scan loops.  If not, we skip a space if
+there is one.  No loop need be done, if we are to believe the RFC; simply
+another check to see if we've passed the end of the line.</para>
 
-<src:fragment id="login-pass">
-   if Pass'Length > 0 then
-      Write (Handle, Message_Rec'(No_Prefix, US ("PASS"), US (Pass)));
-      Read (Handle, Response);
+<src:fragment id="read-params">
+      Message.Params := Null_Field;
+      if Scan &lt;= Input_Line'Last then
+         if Input_Line (Scan) = Space then
+            Scan := Scan + 1;
+         end if;
+         if Scan &lt;= Input_Line'Last then
+            Message.Params := To_Unbounded_String (Input_Line (Scan .. Input_Line'Last));
+         end if;
+      end if;
+</src:fragment>
+
+</section>
+
+</section>
+
+</section>
+
+<section>
+<title>Writing &svc; Messages</title>
+
+<para>Writing messages is quite a bit simpler than reading them, consisting of
+putting the three parts of the outgoing message together into a text line and
+writing it.  The only complication is that the prefix part is optional and may
+be omitted.  In fact, as a client, &prog; is not supposed to include prefixes
+in any outgoing messages; this package allows them simply because RFC's are
+not always accurate, and it's simple to do.</para>
+
+<para>The code checks to see if a prefix has been supplied by the caller.
+This is done by determining whether the <varname>Prefix</varname> field is
+null or not.  If it is, no prefix is included in the outgoing message; if it
+is not, a colon is prepended and the prefix is included.  The
+<varname>Command</varname> and <varname>Params</varname> fields are assumed to
+be present.  Perhaps a future release will allow for an empty
+command-parameter field, too.  Note that the <methodname>Put_Line</methodname>
+procedure appends the required CR-LF sequence to the outgoing message.</para>
+
+<src:fragment id="write-body">
+   if Message.Prefix /= Null_Field then
+      Sockets.Put_Line (Handle, ":" &amp; To_String (Message.Prefix) &amp; Space &amp;
+                                To_String (Message.Command) &amp; Space &amp;
+                                To_String (Message.Params));
+   else
+      Sockets.Put_Line (Handle, To_String (Message.Command) &amp; Space &amp;
+                                To_String (Message.Params));
    end if;
 </src:fragment>
 
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Utility Services</title>
+
+<para>These procedures don't actually do anything to communicate with the
+&svc; server.  They are intended to parse certain portions of the server's
+response messages, to save users the trouble of having to parse them.</para>
+
+<section>
+<title>Parsing Parameter Fields</title>
+
+<para>If we are to believe the RFC (and we always do, right?), the parameter
+field has a very simple format.  From one to 15 parameters exist, each
+separated by a single space.  If a parameter starts with a colon, it is a
+<quote>trailing</quote>, meaning that the rest of the string is a single
+parameter.  In our code, we strip leading and trailing blanks from such a
+string, as well as the leading colon.  Also, if we reach the maximum number of
+parameters, the last parameter is built from the rest of the string, thus
+avoiding the question of what to do if we have more than the maximum allowable
+number of parameters.</para>
+
+<para>Our parser is a bit more liberal than the RFC requires, as it allows any
+number of spaces between parameter fields.  We initialize the parse loop by
+setting the parameter count, which also functions as the index into the result
+array, and by setting the scanning index.  The value <quote>1</quote> which we
+use as the start of the scan is defined in the Ada Reference Manual, section
+A.4.5, as being the lower bound of unbounded strings.  The parse loop then
+goes on to find the start and end of the next parameter, and place it into the
+result array.</para>
+
+<src:fragment id="parse-params-body">
+   Count := 0;
+   Scan := 1;
+   loop
+<src:fragref linkend="pparse-find-start"/>
+<src:fragref linkend="pparse-find-end"/>
+<src:fragref linkend="pparse-set-result"/>
+   end loop;
+</src:fragment>
+
+<section>
+<title>Find Parameter Start</title>
+
+<para>To find the start of the next parameter, we scan for a non-space
+character within the bounds of the parameter string.  The scanning loop stops
+when either a non-space character is found or the end of the string is passed.
+If we pass the end of the string without finding a non-space character, then
+parsing is terminated.  Otherwise, we record the position of the non-space
+character, and move on to finding the end of the parameter.</para>
+
+<src:fragment id="pparse-find-start">
+      while Scan &lt;= Length (Param_Str) and then Element (Param_Str, Scan) = Space loop
+         Scan := Scan + 1;
+      end loop;
+      exit when Scan &gt; Length (Param_Str);
+      Start := Scan;
+</src:fragment>
+
+</section>
+
+<section>
+<title>Find Parameter End</title>
+
+<para>If the parameter starts with a colon, that indicates that the remainder
+of the parameter string is to be taken as a single parameter.  We move the
+starting position past the colon, and set the scan index past the end of the
+parameter string.  If the first character of the parameter is not a colon, we
+check to see if we're on the <quote>last</quote> parameter, as defined by the
+maximum set in the RFC, represented here by the constant
+<literal>Max_Params</literal>. If we are, we forget about scanning for the
+next non-space character, and simply take the remainder of the string as a
+single parameter, in effect simulating a leading colon.  If neither of those
+conditions are true, we scan for the next space character, within the bounds
+of the string.  Thus the next parameter can legally end either at the next
+space, or at the end of the string.</para>
+
+<src:fragment id="pparse-find-end">
+      if Element (Param_Str, Start) = ':' then
+         Start := Start + 1;
+         Scan := Length (Param_Str) + 1;
+      elsif Count &gt;= Max_Params - 1 then
+         Scan := Length (Param_Str) + 1;
+      else
+         while Scan &lt;= Length (Param_Str) and then Element (Param_Str, Scan) /= Space loop
+            Scan := Scan + 1;
+         end loop;
+      end if;
+</src:fragment>
+
+</section>
+
+<section>
+<title>Set Parameter Result</title>
+
+<para>When this code is entered, <varname>Start</varname> is set past the end
+of the string, or to the position of the first character of the next
+parameter.  <varname>Scan</varname> is set to the next position beyond the end
+of the parameter, which may be one position past the end of the string, or to
+the position of the following space character.  If the starting position is
+within the string, a new parameter is registered by incrementing the parameter
+count and extracting the slice of the parameter string between the start and
+end positions.</para>
+
+<src:fragment id="pparse-set-result">
+      if Start &lt;= Length (Param_Str) then
+         Count := Count + 1;
+         Params (Count) := Trim (To_Unbounded_String (Slice (Param_Str, Start, Scan - 1)), Side => Ada.Strings.Both);
+      end if;
+</src:fragment>
+
+</section>
+
+</section>
+
+<section>
+<title>Parsing MsgTo Fields</title>
+
+<para>A <quote>msgto</quote> field as defined in the RFC can actually have a
+variety of formats, but here we are concerned with only one of them:
+<literal>nickname!user@host</literal>.  That form appears in the prefix field
+of a server message, to indicate the originator of a message.  When we wish to
+reply to that same originator, as in a private message response, we'll want at
+least the nickname portion; the other two portions are just as easily
+gathered, so we split the whole thing up with one call.</para>
+
+<para>We take a pretty simplistic approach to parsing this string.  Start by
+setting all three result components to null.  If there's a bang
+(<quote>!</quote>), it marks the end of the nickname portion; if not, the
+entire thing is taken as the nickname, and the user and host portions remain
+null.  We insist on at least one character before the bang; if it's the first
+character of the string, we leave the nick portion set to null.  If a bang is
+found, then look for an at-sign (<quote>@</quote>).  If one is found, it marks
+the end of the user portion, and the rest of the string is the hostname.  If
+none is found, then the entire rest of the string is taken as the username.
+In all cases, the end of the string ends the scan.</para>
+
+<src:fragment id="parse-msgto-body">
+   MsgTo.Nick := Null_Field;
+   MsgTo.User := Null_Field;
+   MsgTo.Host := Null_Field;
+   Scan := 1;
+   while Scan &lt;= Length (Str) and then Element (Str, Scan) /= '!' loop
+      Scan := Scan + 1;
+   end loop;
+   if Scan &lt;= Length (Str) then
+      MsgTo.Nick := Trim (To_Unbounded_String (Slice (Str, 1, Scan - 1)), Side => Ada.Strings.Both);
+      Scan := Scan + 1;
+      Start := Scan;
+      while Scan &lt;= Length (Str) and then Element (Str, Scan) /= '@' loop
+         Scan := Scan + 1;
+      end loop;
+      if Scan &lt;= Length (Str) then
+         MsgTo.User := Trim (To_Unbounded_String (Slice (Str, Start, Scan - 1)), Side => Ada.Strings.Both);
+         MsgTo.Host := Trim (To_Unbounded_String (Slice (Str, Scan + 1, Length (Str))), Side => Ada.Strings.Both);
+      else
+         MsgTo.User := Trim (To_Unbounded_String (Slice (Str, Start, Length (Str))), Side => Ada.Strings.Both);
+      end if;
+   else
+      MsgTo.Nick := Str;
+   end if;
+</src:fragment>
+</section>
+
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--        Packaging section       -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Packaging</title>
+
+<para>Now that we have the code in hand, all that remains is to present it to
+the compiler in a way that allows it to do its work.  First, the package spec,
+which provides the visible external declarations of the service procedures and
+supporting types and constants.</para>
+
+<section>
+<title>The Package Spec</title>
+
+<section>
+<title>Context Clause</title>
+<para>The package spec imports two packages in its context clause:</para>
+
+<itemizedlist>
+<listitem>
+<para><classname>Ada.Strings.Unbounded</classname> - Present here for the data
+type <literal>Unbounded_String</literal>, which is the type of the message
+record fields.</para>
+</listitem>
+
+<listitem>
+<para><classname>Sockets</classname> - Used for the data type
+<literal>Socket_FD</literal>, which is used as the socket-handle type by the
+package service procedures.</para>
+</listitem>
+</itemizedlist>
+</section>
+
+<section>
+<title>Reply Constants</title>
+
+<para>The package provides symbolic constants for various numeric server
+replies, based on their RFC names, so the users don't have to put <quote>magic
+numbers</quote> into their code.</para>
+
+<src:fragment id="reply-constants">
+   RPL_ENDOFNAMES   : string := "366";
+   RPL_ENDOFMOTD    : string := "376";
+</src:fragment>
+</section>
+
+<section>
+<title>Compilation Unit</title>
+
+<para>The package spec defines these constants, types, and exceptions:</para>
+
+<itemizedlist>
+<listitem>
+<para><literal>Null_Field</literal> - a constant, used to indicate unset
+message fields.</para>
+</listitem>
+
+<listitem>
+<para><literal>Max_Params</literal> - a constant which defines the maximum
+number of separate parameters allowed in a command-parameters field.</para>
+</listitem>
+
+<listitem>
+<para>The numeric-reply constants, which give symbolic names as defined by the
+RFC to certain expected server responses.</para>
+</listitem>
+
+<listitem>
+<para><literal>Server_Handle</literal> - a type which is just a re-exporting
+of the AdaSockets type <literal>Socket_FD</literal> for users of the &pkg;
+package.</para>
+</listitem>
+
+<listitem>
+<para><literal>Message_Rec</literal> - a type used by the message I/O
+procedures, which holds the three constituent parts of an &svc;
+message.</para>
+</listitem>
+
+<listitem>
+<para><literal>Param_Count</literal> - a type defining the numeric range of
+the count of separate parameters which may be found in a command-parameters
+field.</para>
+</listitem>
+
+<listitem>
+<para><literal>Param_Arr</literal> - a type which holds parsed command
+parameters</para>
+</listitem>
+
+<listitem>
+<para><literal>MsgTo_Rec</literal> - a type which holds the three components
+of a user-type <quote>msgto</quote> field.</para>
+</listitem>
+
+<listitem>
+<para><literal>Connect_Error</literal> - an exception, raised when an error
+occurs during connection or I/O.</para>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="irc-pkg-spec">
+
+with
+   Ada.Strings.Unbounded,
+   Sockets;
+
+use
+   Ada.Strings.Unbounded;
+
+package &pkg; is
+
+   Null_Field:  constant Unbounded_String := Null_Unbounded_String;
+
+   Max_Params:  constant natural := 15;
+
+<src:fragref linkend="reply-constants"/>
+
+   subtype Server_Handle is Sockets.Socket_FD;
+
+   type Message_Rec is record
+      Prefix:   Unbounded_String := Null_Field;
+      Command:  Unbounded_String;
+      Params:   Unbounded_String;
+   end record;
+
+   subtype Param_Count is natural range 0 .. Max_Params;
+
+   type Param_Arr is array ( 1 .. Max_Params ) of Unbounded_String;
+
+   type MsgTo_Rec is record
+      Nick:   Unbounded_String;
+      User:   Unbounded_String;
+      Host:   Unbounded_String;
+   end record;
+
+   Connect_Error:  exception;
+
+<src:fragref linkend="proc-open"/>;
+
+<src:fragref linkend="proc-close"/>;
+
+<src:fragref linkend="proc-read"/>;
+
+<src:fragref linkend="proc-write"/>;
+
+<src:fragref linkend="proc-parse-params"/>;
+
+<src:fragref linkend="proc-parse-msgto"/>;
+
+end &pkg;;
+</src:fragment>
+
+</section>
+
+</section>
+
+<section>
+<title>The Package Body</title>
+
+<para>The package body assembles the various pieces of service code into a
+compilation unit.  It also declares a constant used in the I/O
+procedures.</para>
+
+<section>
+<title>Exception Handler</title>
+
+<para>Several of the AdaSockets subroutines raise exceptions when errors
+occur; the &pkg; procedures map those into its sole exception,
+<literal>Connect_Error</literal>.  Thus this simple exception handler is used
+in those procedures which are subject to <quote>predictable</quote>
+exceptions.</para>
+
+<src:fragment id="exceptions">
+exception
+   when others =&gt;
+      raise Connect_Error;
+</src:fragment>
+
+</section>
+
+<section>
+<title>Scanning Variables</title>
+
+<para>Three of the procedures use the same local variables for scanning string
+contents.</para>
+
+<itemizedlist>
+<listitem>
+<para><varname>Start</varname> - An index into the input string, marking the
+start of the current field being parsed.</para>
+</listitem>
+
+<listitem>
+<para><varname>Scan</varname> - An index into the input string, which is used
+to examine characters in succession, and to mark the end of a field.</para>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="scan-vars">
+   Scan:   positive;
+   Start:  positive;
+</src:fragment>
+
+</section>
+
+<section>
+<title>Compilation Unit</title>
+
+<para>The body imports the same two external packages as the spec, but uses
+procedures and functions from them rather than types.</para>
+
+<src:fragment id="irc-pkg-body">
+with
+   Ada.Strings.Unbounded,
+   Sockets;
+
+use
+   Ada.Strings.Unbounded;
+
+package body &pkg; is
+
+   Space: constant character := ' ';
+
+<src:fragref linkend="proc-open"/> is
+begin  -- Open_Server
+<src:fragref linkend="open-body"/>
+
+<src:fragref linkend="exceptions"/>
+end Open_Server;
+
+<src:fragref linkend="proc-close"/> is
+begin  -- Close_Server
+<src:fragref linkend="close-body"/>
+end Close_Server;
+
+<src:fragref linkend="proc-read"/> is
+
+<src:fragref linkend="scan-vars"/>
+
+begin  -- Read
+<src:fragref linkend="read-body"/>
+
+<src:fragref linkend="exceptions"/>
+end Read;
+
+<src:fragref linkend="proc-write"/> is
+begin  -- Write
+<src:fragref linkend="write-body"/>
+
+<src:fragref linkend="exceptions"/>
+end Write;
+
+<src:fragref linkend="proc-parse-params"/> is
+
+<src:fragref linkend="scan-vars"/>
+
+begin  -- Parse_Params
+<src:fragref linkend="parse-params-body"/>
+end Parse_Params;
+
+<src:fragref linkend="proc-parse-msgto"/> is
+
+<src:fragref linkend="scan-vars"/>
+
+begin  -- Parse_MsgTo
+<src:fragref linkend="parse-msgto-body"/>
+end Parse_MsgTo;
+
+end &pkg;;
+</src:fragment>
 </section>
 
 </section>
