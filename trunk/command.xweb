@@ -563,7 +563,8 @@ configuration database table.
             delay 1.0;
          end if;
       end loop;
-      Say ("The shortcut string is """ &amp; &cfgname;.Get_Value (&cfgname;.Item_Shorthand) &amp; """", S (Destination));
+      Say ("The shortcut string is """ &amp; &cfgname;.Get_Value (&cfgname;.Item_Shorthand) &amp;
+           """; a leading ""~"" in a factoid name treats it as a regexp.", S (Destination));
    end Help;
 </src:fragment>
 </para>
@@ -635,8 +636,22 @@ configuration database table.
 <src:fragment id="cmd-rename">
    procedure Rename (Cmd     : in string;
                      Sender  : in &ircname;.MsgTo_Rec) is
+
+      Matches : Match_Array (Match_Range);
+
    begin  -- Rename
-      Say ("The rename command is not yet implemented.", S (Destination));
+      Match (Command_Table (&cfgname;.Cmd_Rename).Matcher.all, Cmd, Matches);
+      if Matches (1) = No_Match or Matches (3) = No_Match then
+         Say ("The rename-factoid command is ""rename oldname to newname"".", S (Destination));
+         return;
+      end if;
+      Database_Request.Operation   := &dataname;.Rename_Operation;
+      Database_Request.Key         := US (Cmd (Matches (1).First .. Matches (1).Last));
+      Database_Request.Data        := US (Cmd (Matches (3).First .. Matches (3).Last));
+      Database_Request.Origin      := Sender.Nick;
+      Database_Request.Requestor   := Request.Origin;
+      Database_Request.Destination := Destination;
+      &dataname;.Requests.Enqueue (Database_Request);
    end Rename;
 </src:fragment>
 </para>
@@ -868,7 +883,7 @@ configuration database table.
       Enter (Cmd_List,     "^list(\s+\S.*)?$",                                    List'Access);
       Enter (Cmd_Quit,     "^quit$",                                              Quit'Access);
       Enter (Cmd_Quote,    "^quote$",                                             Quote'Access);
-      Enter (Cmd_Rename,   "^rename\s+(\S.*)\s+(as\s+|to\s+)?(\S.*)$",            Rename'Access);
+      Enter (Cmd_Rename,   "^rename\s+(\S.*)\s+(as|to)\s+(\S.*)$",                Rename'Access);
       Enter (Cmd_Reset,    "^no,\s*(\S.*?)\s+(is|are)\s+(\S.*)$",                 Reset'access);
       Enter (Cmd_Set,      "^(\S.*?)\s+(is|are)\s+(\S.*)$",                       Set'Access);
       Enter (Cmd_Stats,    "^stats(\s+\S.*)?$",                                   Stats'Access);
@@ -1057,7 +1072,7 @@ command execution code to build requests to send to other tasks.</para>
       US ("tell (&lt;nick&gt;|me) [about] &lt;factoid&gt;"),
       US ("what [is|are] [~]&lt;factoid&gt; [?]"),
       US ("forget &lt;factoid&gt;"),
---      US ("rename &lt;from-name&gt; [as|to] &lt;to-name&gt;"),
+      US ("rename &lt;from-name&gt; (as|to) &lt;to-name&gt;"),
 --      US ("find &lt;string&gt;"),
       US ("help"),
       US ("list [regexp]"),
