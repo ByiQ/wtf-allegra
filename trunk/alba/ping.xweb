@@ -13,15 +13,35 @@ the output queue.</simpara>
 <section>
 <title>Ping Loop</title>
 <para>
-The heart of the ping task is an endless loop, which delays a certain amount
-of time, then places a message on the output queue.
+The heart of the ping task is an endless loop, which waits a certain amount of
+time for the command task to signal that some input has been received.  If
+such a signal is received before the end of the waiting interval, the task
+notes that fact by resetting its <quote>missed-input</quote> counter to zero,
+and then begins waiting again.  If no such signal is received before the
+interval has passed, it checks to see if too many such timeouts have occurred.
+If so, it sends one sort of message, which represents the action in &pprog; of
+resetting the link to the server.  If not, it increments its counter, sends a
+ping message (in this simulator, simply by placing a different sort of message
+on the output queue) and waits again.
 
 <src:fragment id="ping-loop">
       loop
-         delay Ping_Delay;
-         Output_Request.Operation := Output.Output_Operation;
-         Output_Request.Data := To_Unbounded_String ("Ping after" &amp; Duration'Image (Ping_Delay) &amp; " seconds");
-         Output.Requests.Enqueue (Output_Request);
+         select
+            accept Input_Received;
+               Missed := 0;
+         or
+            delay Ping_Delay;
+            Missed := Missed + 1;
+            if Missed >= Max_Missed_Pings then
+               Output_Request.Data := To_Unbounded_String ("Link timed out after " &amp;
+                                                           Duration'Image (Ping_Delay * Duration (Missed)) &amp; " seconds");
+               Missed := 0;
+            else
+               Output_Request.Data := To_Unbounded_String ("Ping after" &amp; Duration'Image (Ping_Delay) &amp; " seconds");
+            end if;
+            Output_Request.Operation := Output.Output_Operation;
+            Output.Requests.Enqueue (Output_Request);
+         end select;
       end loop;
 </src:fragment>
 
@@ -43,24 +63,38 @@ this method was deemed acceptable.</simpara>
 <title>Ping Task Declarations</title>
 
 <para>
-The ping loop uses these two variables:
+The ping loop uses these constants and variables:
 
 <itemizedlist>
 <listitem>
-<simpara><literal>Ping_Delay</literal> - A statically initialized variable
+<simpara><varname>Max_Missed_Pings</varname> - A constant giving the maximum
+number of timeouts that are allowed before the link is considered
+<quote>dead</quote>.</simpara>
+</listitem>
+
+<listitem>
+<simpara><varname>Ping_Delay</varname> - A statically initialized variable
 giving the length of the delay interval in seconds.</simpara>
 </listitem>
 
 <listitem>
-<simpara><literal>Output_Request</literal> - The request variable to be placed
+<simpara><varname>Missed</varname> - A statically initialized variable which
+counts the number of delay intervals which have passed without receiving any
+input.</simpara>
+</listitem>
+
+<listitem>
+<simpara><varname>Output_Request</varname> - The request variable to be placed
 on the output task's request queue.  Its value is set to a predefined string.
 In &pprog;, it would be a valid IRC <quote>ping</quote> message.</simpara>
 </listitem>
 </itemizedlist>
 
 <src:fragment id="ping-decls">
+      Max_Missed_Pings: constant := 2;
       Ping_Delay:  Duration := 60.0;
 
+      Missed: natural := 0;
       Output_Request:  Output.Request_Rec;
 </src:fragment>
 
@@ -129,17 +163,20 @@ end Ping;
 
 <para>
 The ping task's package spec is similar to that of <link
-linkend="ping-task">the ping task</link>; they are both a little different
+linkend="input-task">the input task</link>; they are both a little different
 from the specs of the other task packages.  Since the command task needs to be
 able to abort the ping task when a <quote>quit</quote> command is processed,
 it needs a way to identify the ping task to the <command>abort</command>
 statement.  Thus the ping and input task package's specs declare a task type,
 and a variable of that type, instead of the anonymous task types of most of
-the other tasks.
+the other tasks.  In addition, the ping task has an entry, used by the input
+task to signal the arrival of input.
 
 <src:fragment id="ping-pkg-spec">
 package Ping is
-   task type Ping_Task_Type;
+   task type Ping_Task_Type is
+      entry Input_Received;
+   end Ping_Task_Type;
    Ping_Task:  Ping_Task_Type;
 end Ping;
 </src:fragment>

@@ -27,8 +27,8 @@
 <address><otheraddr><ulink url="&site;/allegra/alba/"></ulink></otheraddr></address>
 </publisher>
 
-<releaseinfo>Version 1.0</releaseinfo>
-<date>24 November 2003</date>
+<releaseinfo>Version 1.1</releaseinfo>
+<date>13 December 2003</date>
 
 <legalnotice>
 <para>This code is released under the terms of the <ulink
@@ -378,6 +378,12 @@ task's box.</simpara>
 IRC server denote a single socket.  One line is used only for input, the other
 only for output.  In &prog;, the role of the IRC server is played by the
 standard input and output streams.</simpara>
+</listitem>
+
+<listitem>
+<simpara>The dotted line connecting the input task to the ping task is the
+task-entry call that the input task makes to let the ping task know that input
+has been received.</simpara>
 </listitem>
 
 <listitem>

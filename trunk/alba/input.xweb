@@ -28,6 +28,7 @@ places the request on the command queue.
 <src:fragment id="input-loop">
       loop
          Get_Line (Input_Line, Input_Length);
+         Ping.Ping_Task.Input_Received;
          Command_Request.Data := To_Unbounded_String (Input_Line (1 .. Input_Length));
          Command.Requests.Enqueue (Command_Request);
       end loop;
@@ -147,6 +148,13 @@ provides the data type for the command-task queue requests, and the
 <methodname>Enqueue</methodname> procedure, which adds the request to the
 command request queue.</simpara>
 </listitem>
+
+<listitem>
+<simpara><classname>Ping</classname> - The ping task's package, which provides
+the <methodname>Input_Received</methodname> task entry, which the input task
+uses to tell the ping task that some input was seen coming from <quote>the
+link</quote> (in &prog;'s case, the user).</simpara>
+</listitem>
 </itemizedlist>
 
 Visibility is provided to the standard library packages via a
@@ -157,7 +165,8 @@ Visibility is provided to the standard library packages via a
 with
    Ada.Text_IO,
    Ada.Strings.Unbounded,
-   Command;
+   Command,
+   Ping;
 
 use
    Ada.Text_IO,
