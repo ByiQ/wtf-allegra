@@ -63,8 +63,8 @@ field to a format that can be written to its output stream, and writes it.
          Requests.Dequeue (Request);
          case Request.Operation is
             when Shutdown_Operation =&gt;
-               Dbg (Output_Name, "Writing QUIT");
-               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("QUIT"), To_Unbounded_String (":Quit requested")));
+               Dbg (Output_Name, "Writing QUIT """ &amp; To_String (Request.Data) &amp; """");
+               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("QUIT"), ":" &amp; Request.Data));
                exit;
 
             when Nick_Operation =&gt;
