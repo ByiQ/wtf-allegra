@@ -109,6 +109,18 @@ database connection, and disconnects it.</para>
 </section>
 
 <section>
+<title>The <function>Escape</function> Function</title>
+
+<src:fragment id="func-escape">
+   function Escape (S : string) return string
+</src:fragment>
+
+<para>The <function>Escape</function> function prepares a string value for use
+as a SQL string value, mostly by escaping single-quotes.</para>
+
+</section>
+
+<section>
 <title>The <function>Fetch</function> Procedure</title>
 
 <src:fragment id="proc-fetch">
@@ -407,7 +419,8 @@ occurs during connection or I/O.</para>
 <src:fragment id="db-pkg-spec">
 
 with
-   PGAda.Database;
+   PGAda.Database,
+   PGAda.Syntax;
 
 package &pkg; is
 
@@ -418,6 +431,8 @@ package &pkg; is
    Connect_Error:  exception;
 
 <src:fragref linkend="proc-conn"/>;
+
+<src:fragref linkend="func-escape"/> renames PGAda.Syntax.Escape;
 
 <src:fragref linkend="proc-disconn"/>;
 
