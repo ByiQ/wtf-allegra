@@ -1,0 +1,422 @@
+
+
+<!-- The Command task -->
+<section id="command-task">
+<title>The Command Task</title>
+
+<simpara>The command task is the brains of the program.  It interprets input
+commands and dispatches requests for information to the database and file
+access tasks, as well as handling some commands itself.  In &prog;, the input
+comes from the user on the standard input stream; in &pprog;, commands come
+from users on the IRC server.</simpara>
+
+<section>
+<title>Command Loop</title>
+<para>
+The heart of the command task is an endless loop.  It removes a request from
+the command queue, parses its content as a command, then executes the command.
+<link linkend="cmd-set">The command set</link> for &prog; is very simple,
+consisting of an initial letter that determines where the remaining data in
+the string is to be dispatched.  In addition, it recognizes a
+<quote>quit</quote> command, causing it to send shutdown operations to its
+subordinate tasks, manually abort the ping and input tasks, and then terminate
+its loop, and thus its task, causing the termination of the application
+process.
+
+<src:fragment id="command-loop">
+      loop
+         Requests.Dequeue (Request);
+<src:fragref linkend="command-parse"/>
+<src:fragref linkend="command-execute"/>
+      end loop;
+</src:fragment>
+
+The task spends most of its time sitting on the
+<methodname>Dequeue</methodname> statement, waiting for a command request to
+be placed in its queue by one of the other tasks.  (In &prog;, only <link
+linkend="input-task">the input task</link> puts requests on the command
+queue.)
+</para>
+
+<section>
+<title>Command Parsing</title>
+
+<para>
+Since <link linkend="cmd-set">the commands</link> have a very simple format,
+parsing them is straightforward.  The parser scans for the first non-blank
+character, then interprets that as a command.  (If no non-blank character is
+found, the request is discarded.)  The parser then scans for the next
+non-blank after the command letter, and uses the rest of the string starting
+with that character as the data, if the command requires data.  If there isn't
+a non-blank character after the command character, then the data is set to the
+null string.
+
+<src:fragment id="command-parse">
+         Cmd_At := Index_Non_Blank (Request.Data);
+         if Cmd_At &gt; 0 then
+            Command := Element (Request.Data, Cmd_At);
+            if Cmd_At &lt; Length (Request.Data) then
+               Data := To_Unbounded_String (Slice (Request.Data, Cmd_At + 1, Length (Request.Data)));
+               Data_At := Index_Non_Blank (Data);
+               if Data_At &gt; 0 then
+                  Data := To_Unbounded_String (Slice (Data, Data_At, Length (Data)));
+               else
+                  Data := Null_Unbounded_String;
+               end if;
+            else
+               Data := Null_Unbounded_String;
+            end if;
+         end if;
+</src:fragment>
+</para>
+
+<simpara>The <methodname>Index_Non_Blank</methodname> function returns the
+character position of the first character within its unbounded-string argument
+that is not a space character; its operation, and those of the other
+unbounded-string functions used in this code, are described in <ulink
+url="http://www.adapower.com/rm95/arm95_228.html#SEC228">the Ada Reference
+Manual, section A.4.5</ulink>.  If no non-blank character is present, the
+function returns zero.</simpara>
+
+<simpara>The <methodname>Element</methodname> function is used to fetch the
+command character from the unbounded <literal>Data</literal> string, once its
+position has been determined.</simpara>
+
+<simpara>The test <literal>Cmd_At &lt; Length (Request.Data)</literal>
+determines whether any data string follows the command character.  If it is
+false, no data was given, and the data string is set to the constant
+<literal>Null_Unbounded_String</literal>, causing the eventual user, the
+output task, to print nothing.</simpara>
+
+<simpara>Once the command character has been found, the
+<methodname>Slice</methodname> function is used to return the remainder of the
+string, so it can be scanned for the next non-blank character, which is taken
+as the first character of actual data.  The
+<methodname>To_Unbounded_String</methodname> function must be used, since
+<methodname>Slice</methodname> returns a plain fixed-length string value.
+This <quote>tail</quote> of the input line is stored temporarily back in the
+variable <literal>Data</literal>.</simpara>
+
+<simpara><methodname>Slice</methodname> is used once again when (if) a
+non-blank character is found following the command character, to extract the
+actual data string starting with its first non-blank character.  It is again
+converted to an unbounded string and stored back in
+<literal>Data</literal>.</simpara>
+</section>
+
+<section>
+<title>Command Execution</title>
+
+<para>
+The command having been parsed into the <literal>Command</literal> and
+<literal>Data</literal> variables, the command task now attempts to recognize
+and execute the command.  The <command>case</command> statement that
+recognizes the command has four types of alternative.
+
+<itemizedlist>
+<listitem>
+<simpara>The first alternative is the <quote>internal command</quote> handler.
+In this simulator, all that does is prepend the string
+<quote><literal>Internal command:</literal> </quote> to the input string and
+place it on the output queue.</simpara>
+</listitem>
+
+<listitem>
+<simpara>The next two alternatives are <quote>dispatch</quote> commands.
+Their commands send a data string to the database access task or the file
+access task.</simpara>
+</listitem>
+
+<listitem>
+<simpara>The fourth alternative processes the <quote>quit</quote> command.  It
+dispatches shutdown messages to those subordinate tasks which have request
+queues, aborts the input and ping tasks (which do not have request queues),
+and then terminates itself.  This causes the application to exit.</simpara>
+</listitem>
+
+<listitem>
+<simpara>The final alternative handles all unrecognized commands, by adding an
+error message to the output queue.</simpara>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="command-execute">
+         case Command is
+
+            when 'c' =&gt;
+               Output_Request.Operation := Output.Output_Operation;
+               Output_Request.Data := "Internal command: " &amp; Data;
+               Output.Requests.Enqueue (Output_Request);
+
+            when 'd' =&gt;
+               Database_Request.Operation := Database.Database_Operation;
+               Database_Request.Data := Data;
+               Database.Requests.Enqueue (Database_Request);
+
+            when 'f' =&gt;
+               File_Request.Operation := File.File_Operation;
+               File_Request.Data := Data;
+               File.Requests.Enqueue (File_Request);
+
+            when 'q' =&gt;
+               Database_Request.Operation := Database.Shutdown_Operation;
+               File_Request.Operation     := File.Shutdown_Operation;
+               Output_Request.Operation   := Output.Shutdown_Operation;
+               Database.Requests.Enqueue (Database_Request);
+               File.Requests.Enqueue     (File_Request);
+               Output.Requests.Enqueue   (Output_Request);
+               abort Input.Input_Task;
+               abort Ping.Ping_Task;
+               exit;
+
+            when others =&gt;
+               Output_Request.Operation := Output.Output_Operation;
+               Output_Request.Data := To_Unbounded_String ("Unrecognized command '" &amp; Command &amp; "' ignored");
+               Output.Requests.Enqueue (Output_Request);               
+
+         end case;
+</src:fragment>
+
+</para>
+
+<simpara>It may be argued that it would be <quote>cleaner</quote> in some ways
+for the input and ping tasks to have their own <quote>back-channel</quote>
+queues, to accept the shutdown command at the very least, if not other as yet
+unforeseen command operations, instead of having the command task forcibly
+<quote>shoot them in the head</quote> as it does now.  However, monitoring
+both that queue and their primary input source (the IRC socket, in the case of
+the input task, and the clock in the ping task) would complicate the logic,
+and seems a high price to pay for something that can be solved in this fairly
+straightforward manner using standard Ada facilities.  Suggestions are
+welcome, however.</simpara>
+
+</section>
+</section>
+
+<section>
+<title>Command Task Declarations</title>
+
+<para>
+The command loop uses these variables:
+
+<itemizedlist>
+<listitem>
+<simpara><literal>Request</literal> - A local item of the type of the
+command-queue entries, used to receive the next item taken from the request
+queue.  It has only one field, <literal>Data</literal>, which contains the
+command string to be parsed.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Database_Request</literal>, <literal>File_Request</literal>,
+and <literal>Output_Request</literal> - Request-queue variables for each of
+the three subordinate tasks that the command task talks to.  Used by the
+command execution code to build requests to send to other tasks.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Cmd_At</literal> and <literal>Data_At</literal> - Indices
+within the command string of the location of the command character and the
+start of the data, respectively.  Used by the parser to locate the separate
+pieces of the command.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Command</literal> - The command letter, set by the parser
+and used by the execution code to determing which action to take.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Data</literal> - The data portion of the command string, set
+by the parser and used by the execution code when building an outgoing
+request.</simpara>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="command-decls">
+      Request:           Request_Rec;
+      Database_Request:  Database.Request_Rec;
+      File_Request:      File.Request_Rec;
+      Output_Request:    Output.Request_Rec;
+      Cmd_At:            natural;
+      Data_At:           natural;
+      Command:           character;
+      Data:              Unbounded_String;
+</src:fragment>
+
+</para>
+</section>
+
+<section>
+<title>Command Task Body</title>
+<para>
+The task's body contains only the processing loop, and its required
+declarations:
+
+<src:fragment id="command-task-body">
+
+   task body Command_Task is
+<src:fragref linkend="command-decls"/>
+
+   begin  -- Command_Task
+<src:fragref linkend="command-loop"/>
+   end Command_Task;
+
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Command Task Package</title>
+
+<section>
+<title>Command Package Body</title>
+<para>
+For compilation purposes, the task is contained in a package.  The package
+body contains only the (anonymous) task object.  The external dependencies
+are:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname> - Provides several
+functions, and one constant, used by the command processor during recognition
+and execution of the commands.</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>Database</classname>, <classname>File</classname>, and
+<classname>Output</classname> - Lets the command task see the request queues
+of these other tasks, and place requests on them.</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>Input</classname> and <classname>Ping</classname> - Lets
+the command task see these task objects so they can be aborted when the
+program terminates.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library package via a
+<command>use</command> clause; references to items declared in the local
+packages must be fully qualified.
+
+<src:fragment id="command-pkg-body">
+with
+   Ada.Strings.Unbounded,
+   Database,
+   File,
+   Input,
+   Output,
+   Ping;
+
+use
+   Ada.Strings.Unbounded;
+
+package body Command is
+<src:fragref linkend="command-task-body"/>
+end Command;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Command Package Spec</title>
+
+<simpara>The command request queue and its supporting types are declared in the
+package spec so they can be used by other packages.</simpara>
+
+<section>
+<title>Command Package Spec Basic Type Declarations</title>
+<para>
+The spec declares the command-queue request record type and its supporting
+operation type.  The command request record contains only a data string (the
+<literal>Data</literal> field).  The data is the command as issued by the
+user.  The <literal>Unbounded_String</literal>type of the
+<literal>Data</literal> field is defined via <link
+linkend="command-pkg-spec-context-section">the context clause</link>.  The
+spec also declares the task which comprises the body of the package.
+
+<src:fragment id="command-basic-types">
+   type Request_Rec is record
+      Data:       Unbounded_String;
+   end record;
+
+   task Command_Task;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Command Queue Declaration</title>
+<para>
+The spec instatiates the generic library package <literal>PQueue</literal>
+using <literal>Request_Rec</literal> as its data-item type, and then declares
+the actual command queue itself, as an item of that new queue type.
+
+<src:fragment id="command-queue-decl">
+   package Command_Queue_Pkg is new PQueue (Request_Rec);
+
+   Requests:  Command_Queue_Pkg.Protected_Queue_Type;
+</src:fragment></para>
+</section>
+
+<section id="command-pkg-spec-context-section">
+<title>Command Package Spec Context Clause</title>
+<para>
+The command task's package spec depends on these two packages:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname>, which provides the
+<literal>Unbounded_String</literal> type used for the request record's data.
+</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>PQueue</classname>, a local library package, which is not
+defined in this document.  It is a generic package which implements a simple
+protected queue type.  The code was adapted from Cohen's book <citetitle
+pubwork="book">Ada as a Second Language</citetitle>.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library package via a
+<command>use</command> clause; references to items declared in the
+<classname>PQueue</classname> package (whose instantiation is called
+<literal>Command_Queue_Pkg</literal>) must be fully qualified.
+
+<src:fragment id="command-pkg-spec-context">
+with
+   Ada.Strings.Unbounded,
+   PQueue;
+
+use
+   Ada.Strings.Unbounded;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Package Spec Proper</title>
+<para>
+
+The package spec puts together the context clause and the declarations to make
+a compilation unit.
+
+<src:fragment id="command-pkg-spec">
+<src:fragref linkend="command-pkg-spec-context"/>
+
+package Command is
+
+<src:fragref linkend="command-basic-types"/>
+
+<src:fragref linkend="command-queue-decl"/>
+
+end Command;
+</src:fragment>
+</para>
+</section>
+
+</section>
+</section>
+</section>
