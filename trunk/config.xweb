@@ -1,7 +1,6 @@
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
                       "file:///opt/litprog/dtd/xweb.dtd" [
-<!ENTITY pkg      "Config">
 <!ENTITY svc      "configuration">
 <!ENTITY dbname   "allegra">
 <!ENTITY tbl      "config">
@@ -9,6 +8,7 @@
 <!ENTITY nick     "&prog;">
 <!ENTITY % entities SYSTEM "entities.inc.dtd">
 %entities;
+<!ENTITY pkg      "&cfgname;">
 ]>
 
 <article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
@@ -459,7 +459,7 @@ configuration item, such as <literal>Allegra</literal>.</para>
 
 </section>
 
-<section>
+<section id="cfg-value-list">
 <title>Use of Values</title>
 
 <para>This table gives the meanings of the configuration values. </para>
@@ -488,8 +488,8 @@ the program will need read access to the files in that directory.</entry>
 <row>
 <entry>channel</entry>
 <entry>The name of the IRC channel where the info-bot is to perform its
-function.  Do not include the leading <quote>#</quote> character.From 1 to 49
-characters which obey the IRC rules for valid channel names.  (See <ulink
+function.  Do not include the leading <quote>#</quote> character.  From 1 to
+49 characters which obey the IRC rules for valid channel names.  (See <ulink
 url="http://www.faqs.org/rfcs/rfc2812.html">RFC 2812</ulink>).</entry>
 </row>
 <row>
@@ -503,9 +503,10 @@ Internet hostname is allowed.</entry>
 <entry>loglevel</entry>
 <entry>The amount of information that is to be included in the log.  The
 values are <literal>none</literal> (log nothing), <literal>err</literal> (log
-only serious errors), <literal>warn</literal> (log errors and warnings), and
-<literal>info</literal> (log errors, warnings, and informational
-messages).</entry>
+only serious errors), <literal>warn</literal> (log errors and warnings),
+<literal>info</literal> (log errors, warnings, and informational messages),
+and <literal>dbg</literal> (log all information about program
+activity).</entry>
 </row>
 <row>
 <entry>logpath</entry>
