@@ -9,17 +9,29 @@
 
 <!-- Task packages -->
 <!ENTITY cmdpkg    "command.html">
+<!ENTITY cmdname   "Command">
 <!ENTITY datapkg   "database.html">
+<!ENTITY dataname  "Database">
 <!ENTITY filepkg   "file.html">
+<!ENTITY filename  "File">
 <!ENTITY inpkg     "input.html">
+<!ENTITY inname    "Input">
 <!ENTITY outpkg    "output.html">
+<!ENTITY outname   "Output">
 <!ENTITY pingpkg   "ping.html">
+<!ENTITY pingname  "Ping">
 
 <!-- Utility packages -->
 <!ENTITY cfgpkg    "config.html">
+<!ENTITY cfgname   "Config">
 <!ENTITY dbpkg     "db.html">
+<!ENTITY dbname    "DB">
 <!ENTITY instpkg   "install.html">
+<!ENTITY instname  "Install">
 <!ENTITY ircpkg    "irc.html">
+<!ENTITY ircname   "IRC">
+<!ENTITY logpkg    "log.html">
+<!ENTITY logname   "Log">
 
 <!-- Reference -->
 <!ENTITY refman    "refman.html">
