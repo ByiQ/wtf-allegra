@@ -94,14 +94,13 @@ Protocol</citetitle>.</para>
 <section>
 <title>The <function>Open_Server</function> Procedure</title>
 <src:fragment id="proc-open">
-   procedure Open_Server (Handle: out Server_Handle;
-                          Name:   in string;
-                          Port:   in positive)
+   procedure Open_Server (Name:  in string;
+                          Port:  in positive)
 </src:fragment>
 
 <para>The <function>Open_Server</function> procedure accepts a server hostname
-and a port number, and if it succeeds in establishing a connection, returns a
-handle that can be used in subsequent service calls.  Raises a
+and a port number, and if it succeeds in establishing a connection, sets the
+handle which is used in subsequent service calls.  Raises a
 <literal>Connect_Error</literal> exception if there was a failure during the
 connect.</para>
 </section>
@@ -109,43 +108,38 @@ connect.</para>
 <section>
 <title>The <function>Close_Server</function> Procedure</title>
 <src:fragment id="proc-close">
-   procedure Close_Server (Handle: in out Server_Handle)
+   procedure Close_Server
 </src:fragment>
 
-<para>The <function>Close_Server</function> procedure accepts a connected
-server handle, and closes the connection with the server.  Note that it does
-not part from joined channels, nor issue an &svc; <command>quit</command>
-command.  It simply shuts down the connection.  (Though most servers will
-certainly throw you out of channels and log you off if you close your
-connection!)</para>
+<para>The <function>Close_Server</function> procedure closes the connection
+with the server.  Note that it does not part from joined channels, nor issue
+an &svc; <command>quit</command> command.  It simply shuts down the
+connection.  (Though most servers will certainly throw you out of channels and
+log you off if you close your connection!)</para>
 </section>
 
 <section>
 <title>The <function>Read</function> Procedure</title>
 <src:fragment id="proc-read">
-   procedure Read (Handle:  in  Server_Handle;
-                   Message: out Message_Rec)
+   procedure Read (Message: out Message_Rec)
 </src:fragment>
 
-<para>The <function>Read</function> procedure accepts a connected server
-handle, and waits for a message to arrive from the server.  The message is
-minimally parsed into its component parts and returned.  Raises a
-<literal>Connect_Error</literal> exception if the read fails, usually due to
-an error with the connection.</para>
+<para>The <function>Read</function> procedure waits for a message to arrive
+from the server.  The message is minimally parsed into its component parts and
+returned.  Raises a <literal>Connect_Error</literal> exception if the read
+fails, usually due to an error with the connection.</para>
 </section>
 
 <section>
 <title>The <function>Write</function> Procedure</title>
 <src:fragment id="proc-write">
-   procedure Write (Handle:  in Server_Handle;
-                    Message: in Message_Rec)
+   procedure Write (Message: in Message_Rec)
 </src:fragment>
 
-<para>The <function>Write</function> procedure accepts a connected server
-handle and a low-level message record. It assembles the components (optional
-prefix, command, and command parameters) into an &svc; message and sends it to
-the server.  Raises a <literal>Connect_Error</literal> exception if the write
-fails.</para>
+<para>The <function>Write</function> procedure accepts a low-level message
+record. It assembles the components (optional prefix, command, and command
+parameters) into an &svc; message and sends it to the server.  Raises a
+<literal>Connect_Error</literal> exception if the write fails.</para>
 </section>
 
 <section>
@@ -540,10 +534,15 @@ procedure appends the required CR-LF sequence to the outgoing message.</para>
 
 <src:fragment id="write-body">
    if Message.Prefix /= Null_Field then
+Put_Line ("Putting :" &amp; To_String (Message.Prefix) &amp; Space &amp;
+                                To_String (Message.Command) &amp; Space &amp;
+                                To_String (Message.Params));
       Sockets.Put_Line (Handle, ":" &amp; To_String (Message.Prefix) &amp; Space &amp;
                                 To_String (Message.Command) &amp; Space &amp;
                                 To_String (Message.Params));
    else
+Put_Line ("Putting " &amp; To_String (Message.Command) &amp; Space &amp;
+                                To_String (Message.Params));
       Sockets.Put_Line (Handle, To_String (Message.Command) &amp; Space &amp;
                                 To_String (Message.Params));
    end if;
@@ -738,21 +737,21 @@ supporting types and constants.</para>
 
 <section>
 <title>Context Clause</title>
-<para>The package spec imports two packages in its context clause:</para>
 
-<itemizedlist>
-<listitem>
-<para><classname>Ada.Strings.Unbounded</classname> - Present here for the data
-type <literal>Unbounded_String</literal>, which is the type of the message
-record fields.</para>
-</listitem>
+<para>The package spec's context clause imports the package
+<classname>Ada.Strings.Unbounded</classname> for the data type
+<literal>Unbounded_String</literal>, which is the type of the message record
+fields.  It provides visibility for that package's contents via a
+<command>use</command> clause.</para>
 
-<listitem>
-<para><classname>Sockets</classname> - Used for the data type
-<literal>Socket_FD</literal>, which is used as the socket-handle type by the
-package service procedures.</para>
-</listitem>
-</itemizedlist>
+<src:fragment id="context">
+with
+   Ada.Strings.Unbounded;
+
+use
+   Ada.Strings.Unbounded;
+</src:fragment>
+
 </section>
 
 <section>
@@ -790,12 +789,6 @@ RFC to certain expected server responses.</para>
 </listitem>
 
 <listitem>
-<para><literal>Server_Handle</literal> - a type which is just a re-exporting
-of the AdaSockets type <literal>Socket_FD</literal> for users of the &pkg;
-package.</para>
-</listitem>
-
-<listitem>
 <para><literal>Message_Rec</literal> - a type used by the message I/O
 procedures, which holds the three constituent parts of an &svc;
 message.</para>
@@ -825,12 +818,7 @@ occurs during connection or I/O.</para>
 
 <src:fragment id="irc-pkg-spec">
 
-with
-   Ada.Strings.Unbounded,
-   Sockets;
-
-use
-   Ada.Strings.Unbounded;
+<src:fragref linkend="context"/>
 
 package &pkg; is
 
@@ -839,8 +827,6 @@ package &pkg; is
    Max_Params:  constant natural := 15;
 
 <src:fragref linkend="reply-constants"/>
-
-   subtype Server_Handle is Sockets.Socket_FD;
 
    type Message_Rec is record
       Prefix:   Unbounded_String := Null_Field;
@@ -883,7 +869,8 @@ end &pkg;;
 <title>The Package Body</title>
 
 <para>The package body assembles the various pieces of service code into a
-compilation unit.  It also declares a constant used in the I/O
+compilation unit.  It also declares the <varname>Handle</varname> variable,
+which represents the server connection, and a constant used in the I/O
 procedures.</para>
 
 <section>
@@ -931,20 +918,24 @@ to examine characters in succession, and to mark the end of a field.</para>
 <section>
 <title>Compilation Unit</title>
 
-<para>The body imports the same two external packages as the spec, but uses
-procedures and functions from them rather than types.</para>
+<para>The body imports two external packages, using various procedures and
+functions from them.</para>
 
 <src:fragment id="irc-pkg-body">
 with
+   Ada.Text_IO,
    Ada.Strings.Unbounded,
    Sockets;
 
 use
+   Ada.Text_IO,
    Ada.Strings.Unbounded;
 
 package body &pkg; is
 
    Space: constant character := ' ';
+
+   Handle:  Sockets.Socket_FD;
 
 <src:fragref linkend="proc-open"/> is
 begin  -- Open_Server
