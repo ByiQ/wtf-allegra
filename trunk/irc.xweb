@@ -534,15 +534,10 @@ procedure appends the required CR-LF sequence to the outgoing message.</para>
 
 <src:fragment id="write-body">
    if Message.Prefix /= Null_Field then
-Put_Line ("Putting :" &amp; To_String (Message.Prefix) &amp; Space &amp;
-                                To_String (Message.Command) &amp; Space &amp;
-                                To_String (Message.Params));
       Sockets.Put_Line (Handle, ":" &amp; To_String (Message.Prefix) &amp; Space &amp;
                                 To_String (Message.Command) &amp; Space &amp;
                                 To_String (Message.Params));
    else
-Put_Line ("Putting " &amp; To_String (Message.Command) &amp; Space &amp;
-                                To_String (Message.Params));
       Sockets.Put_Line (Handle, To_String (Message.Command) &amp; Space &amp;
                                 To_String (Message.Params));
    end if;
