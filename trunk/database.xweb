@@ -3,6 +3,7 @@
                       "file:///opt/litprog/dtd/xweb.dtd" [
 <!ENTITY % entities SYSTEM "entities.inc.dtd">
 %entities;
+<!ENTITY pkg      "&dataname;">
 ]>
 
 <article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
@@ -53,11 +54,7 @@ If it is a shutdown request, the loop terminates, which terminates the task.
 <src:fragment id="database-loop">
       loop
          Requests.Dequeue (Request);
-         exit when Request.Operation = Shutdown_Operation;
-         Output_Request.Operation := Output.Message_Operation;
-         Output_Request.Destination := Request.Destination;
-         Output_Request.Data := "Database request: " &amp; Request.Data;
-         Output.Requests.Enqueue (Output_Request);
+         <src:fragref linkend="process-request"/>
       end loop;
 </src:fragment>
 
@@ -66,6 +63,79 @@ The task spends most of its time sitting on the
 request to be placed in its queue by <link linkend="command-task">the command
 task</link>.
 </para>
+
+<section>
+<title>Request Processing</title>
+
+<para>All requests except for shutdown lead to some sort of action in the
+database.  Most of them have some associated data value.
+
+<src:fragment id="process-request">
+   case Request.Operation is
+
+      when Quip_Operation =&gt;
+         Output_Request.Operation := &outname;.Message_Operation;
+         Output_Request.Destination := Request.Destination;
+         Output_Request.Data := Random_Select (Quips_Tbl);
+         Output.Requests.Enqueue (Output_Request);
+
+      when Shutdown_Operation =&gt;
+         Output_Request.Operation := &outname;.Shutdown_Operation;
+         Output_Request.Data := Random_Select (QuitMsg_Tbl);
+         Output.Requests.Enqueue (Output_Request);
+         exit;
+
+   end case;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Random String Selection</title>
+
+<para>This function returns a string selected at random from the given table.
+The table is assumed to have an integer field named <quote>nums</quote> which
+gives the index of the item, by which it is selected, and a string field named
+<quote>msg</quote>, which contains the string value to be returned.  It is not
+a particularly fast operation, since it does a database connect and two
+selects, but that's the price of fame.
+
+<src:fragment id="func-ranselect">
+   function Random_Select (Table : in string) return Unbounded_String is
+
+      use Ada.Numerics.Float_Random, &dbname;;
+
+      Count  : natural;
+      Data   : DB_Result;
+      Handle : DB_Handle;
+      Index  : positive;
+
+   begin  -- Random_Select
+      &dbname;.Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+
+      Fetch (Handle, "count(msg)", Table, "", Data);
+      if Rows (Data) &gt; 0 then
+         Count := Get_Value (Data, 1, "count");
+      else
+         Count := 0;
+      end if;
+      if Count &lt; 1 then
+         return Null_Unbounded_String;
+      end if;
+
+      Index := (integer (float (Count) * Random (Randoms)) mod Count) + 1;
+      Fetch (Handle, "msg", Table, "where num=" &amp; positive'Image (Index), Data);
+      Disconnect (Handle);
+      if Rows (Data) &gt; 0 then
+         return To_Unbounded_String (Source =&gt; Get_Value (Data, 1, "msg"));
+      else
+         return Null_Unbounded_String;
+      end if;
+   end Random_Select;
+</src:fragment>
+</para>
+</section>
+
 </section>
 
 <section>
@@ -88,8 +158,15 @@ output task.  Used to report requests received by the database task.</para>
 </itemizedlist>
 
 <src:fragment id="database-decls">
-      Request:           Request_Rec;
-      Output_Request:    Output.Request_Rec;
+   Quips_Tbl   : constant string := "quips";
+   QuitMsg_Tbl : constant string := "quitmsgs";
+
+   Crash_Request  : &cmdname;.Request_Rec;
+   Randoms        : Ada.Numerics.Float_Random.Generator;
+   Request        : Request_Rec;
+   Output_Request : &outname;.Request_Rec;
+
+   <src:fragref linkend="func-ranselect"/>
 </src:fragment>
 
 </para>
@@ -107,7 +184,15 @@ declarations:
 <src:fragref linkend="database-decls"/>
 
    begin  -- Database_Task
+      Ada.Numerics.Float_Random.Reset (Randoms);
 <src:fragref linkend="database-loop"/>
+
+   exception
+      when E: others =>
+         Err (Database_Name, "Exception:  " &amp; Ada.Exceptions.Exception_Information (E));
+         Crash_Request.Operation := &cmdname;.Crash_Operation;
+         Crash_Request.Data      := To_Unbounded_String (Database_Name);
+         &cmdname;.Requests.Enqueue (Crash_Request);
    end Database_Task;
 
 </src:fragment>
@@ -143,11 +228,18 @@ Visibility is provided to the standard library package via a
 
 <src:fragment id="database-pkg-body">
 with
+   Ada.Exceptions,
+   Ada.Numerics.Float_Random,
    Ada.Strings.Unbounded,
-   Output;
+   &cfgname;,
+   &cmdname;,
+   &dbname;,
+   &logname;,
+   &outname;;
 
 use
-   Ada.Strings.Unbounded;
+   Ada.Strings.Unbounded,
+   &logname;;
 
 package body Database is
 <src:fragref linkend="database-task-body"/>
@@ -174,7 +266,7 @@ is defined via <link linkend="database-pkg-spec-context-section">the context
 clause</link>.
 
 <src:fragment id="database-basic-types">
-   type Operation_Type is ( Shutdown_Operation, Database_Operation );
+   type Operation_Type is ( Shutdown_Operation, Quip_Operation );
 
    type Request_Rec is record
       Operation:    Operation_Type;
@@ -248,6 +340,8 @@ a compilation unit.
 <src:fragref linkend="database-pkg-spec-context"/>
 
 package Database is
+
+   &pkg;_Name:  constant string := "&pkg;";
 
 <src:fragref linkend="database-basic-types"/>
 
