@@ -2,7 +2,6 @@
 <!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
                       "file:///opt/litprog/dtd/xweb.dtd" [
 <!ENTITY svc      "configuration">
-<!ENTITY dbname   "allegra">
 <!ENTITY tbl      "config">
 <!ENTITY namelen  "16">
 <!ENTITY nick     "&prog;">
@@ -175,9 +174,8 @@ requires no context clause.</para>
 <src:fragment id="config-pkg-spec">
 package &pkg; is
 
-   Allegra_DB:     string := "&dbname;";
+   Allegra_DB:     string := "&progdb;";
    Config_Tbl:     string := "&tbl;";
-   Factoid_Tbl:    string := "factoids";
 
    type Config_Item is
    (
@@ -565,7 +563,7 @@ the database is created before attempting to create a table within it.</para>
 
 <src:fragment id="init-config">
 #!/bin/sh
-psql --dbname &dbname; --file - &lt;&lt;eof
+psql --dbname &progdb; --file - &lt;&lt;eof
 <src:fragref linkend="schema"/>
 INSERT INTO &tbl; VALUES ('armpath',   '/usr/share/doc/ada-reference-manual/html/arm95tc1');
 INSERT INTO &tbl; VALUES ('channel',   'Ada');
