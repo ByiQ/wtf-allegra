@@ -93,7 +93,7 @@ places the request on the command queue.
             begin
                if    Cmd = "ping"        then
                   Dbg (Input_Name, "Ping: " &amp; To_String (Input_Message.Params));
-                  Command_Request.Operation := &cmdname;.Ping_Operation;
+                  Command_Request.Operation := &cmdname;.Pong_Operation;
                   Command_Request.Data      := Input_Message.Params;
                   &cmdname;.Requests.Enqueue (Command_Request);
                elsif Cmd = "privmsg"     then
