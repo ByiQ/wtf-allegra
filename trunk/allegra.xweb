@@ -1,0 +1,272 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
+                      "file:///opt/litprog/dtd/xweb.dtd" [
+<!ENTITY % entities SYSTEM "entities.inc.dtd">
+%entities;
+]>
+
+<article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
+         xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+
+
+<!-- Article meta-data -->
+<articleinfo>
+<title>The &prog; InfoBot</title>
+
+<author>
+<firstname>Chip</firstname>
+<surname>Richards</surname>
+</author>
+
+<address><email>chipr@niestu.com</email></address>
+<publisher>
+<publishername>NiEstu</publishername>
+<address><otheraddr><ulink url="&site;/allegra/"></ulink></otheraddr></address>
+</publisher>
+
+<releaseinfo>Version 1.0</releaseinfo>
+<date>30 December 2003</date>
+
+<legalnotice>
+<para>This code is released under the terms of the <ulink
+url="http://www.gnu.org/licenses/gpl.html">GNU General Public License</ulink>,
+version 2.</para>
+</legalnotice>
+</articleinfo>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--      Introduction section      -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Background</title>
+
+<para>&prog; naming</para>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--     Code building section      -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Building &prog;</title>
+
+<para>&prog; has been verified to work correctly under Linux 2.4.22, using
+the GNAT that comes as part of GCC 3.3.2.  It demands nothing unusual from its
+platform, however, and should build and run on a wide variety of
+platforms.</para>
+
+<para>There are actually two <quote>ways</quote> to build &prog; from
+source: the official way, and the easy way.</para>
+
+<section>
+<title>The Official Way</title>
+
+<para>Since &prog; is a <ulink
+url="http://www.faqs.org/faqs/literate-programming-faq/">literate
+program</ulink>, the official program source is an XML document, which
+contains both the Ada source code and its documentation.  To build a usable
+document file, you must <quote>weave</quote> the XML source into your desired
+viewing format.  To build an executable, you must <quote>tangle</quote> the
+XML source into Ada source files, then compile those sources.  The official
+distribution package includes the XML source files and a makefile to perform
+the above steps.</para>
+
+<para>
+The <quote>extra</quote> requirements for building &prog;, beyond those
+commonly found on a Unix or comparable system set up for Ada development, are
+these:
+
+<itemizedlist>
+<listitem>
+<para><ulink
+url="http://docbook.sourceforge.net/projects/litprog/">LitProg</ulink> -
+Norman Walsh's XML literate programming toolset.  It includes stylesheets
+which permit an <ulink url="http://www.w3.org/Style/XSL/">XSLT</ulink>
+processor to perform the tangle and weave operations on the XML source, to
+produce the actual source and documentation.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="http://xmlsoft.org/XSLT/">xsltproc</ulink> - Part of
+<ulink url="http://www.gnome.org/">the GNOME Project</ulink>, used by the
+makefile to apply the LitProg tangle and weave stylesheets to the XML source,
+transforming them into documentation and source.  Any conforming XSLT
+stylesheet processor should work.</para>
+</listitem>
+
+<listitem>
+<para></para>
+</listitem>
+</itemizedlist>
+</para>
+
+<section>
+<title>Building the Documentation</title>
+<para>The makefile produces the documentation in HTML format, using the
+weave stylesheet with <command>xsltproc</command>.  Different stylesheets
+could be used to produce the document in several other formats besides HTML.
+To create the HTML documentation, use the following command:</para>
+
+<para><command>make doc</command></para>
+
+<para>Note that the <command>xsltproc</command> commands to produce the
+document seem as of the time of this writing to be very processor-intensive,
+and take several minutes to execute on the development system.</para>
+</section>
+
+<section>
+<title>Building the Code</title>
+<para>To produce the &prog; executable program, and as a consequence, the
+Ada source code files, the makefile uses the tangle stylesheet to produce the
+Ada source, then invokes <command>gnatmake</command> to build the executable.
+Since its <quote>all</quote> target is set up to do this, you can invoke this
+sequence with this simple command:</para>
+
+<para><command>make</command></para>
+
+<para>That should produce an executable, usually called &pcmd; (but which may
+have other names on other platforms), which is the &prog; program itself.  See
+<ulink url="&refman;">the reference-manual section</ulink> for details on how
+to run it.</para>
+
+<para>In contrast to making the documentation, tangling the source is a
+pretty speedy operation with <command>xsltproc</command>: on the 700mHz Athlon
+system where &prog; was initially developed, the entire tangling and
+compilation process takes around ?? seconds.</para>
+
+<para>You can also make any individual Ada source file, or several of them,
+by naming them on the <command>make</command> command line:</para>
+
+<para><command>make input.ads input.adb allegra.adb</command></para>
+
+<para>Note that if you name sources like that, the makefile does not
+automatically compile them.</para>
+</section>
+
+</section>
+
+<section>
+<title>The Easy Way</title>
+
+<para>In addition to the official XML source files, the distribution includes
+a package containing the pre-woven documentation and pre-tangled source code.
+The documentation is standard HTML and should be viewable by any number of
+tools, such as <ulink url="http://lynx.browser.org/">Lynx</ulink> or <ulink
+url="http://www.mozilla.org/">Mozilla</ulink>.  The source code is standard
+Ada, and should build correctly using whatever technique you use to build Ada
+programs on your system.  On the author's <ulink
+url="http://www.debian.org/">Debian GNU/Linux</ulink> system, <ulink
+url="http://libre.act-europe.fr/">GNAT</ulink> is the favored compiler, and
+&prog; can be built with this command:</para>
+
+<para><command>gnatmake</command> &pcmd;</para>
+
+<para>That should produce an executable, usually called &pcmd; (but which may
+have other names on other platforms), which is the &prog; program itself.  See
+<ulink url="&refman;">the reference-manual section</ulink> for details on how
+to run it.</para>
+
+</section>
+
+</section>
+
+<section>
+<title>Supporting Packages</title>
+
+<para>The &prog; application uses several supporting packages.  They fall into
+two broad classes:  task packages and utility packages.</para>
+
+<section>
+<title>Task Packages</title>
+
+<itemizedlist>
+<listitem>
+<para><ulink url="&cmdpkg;"><classname>Command</classname></ulink> - The
+command processor and central brains of the bot.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&datapkg;"><classname>Database</classname></ulink> -
+Provides database access services.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&filepkg;"><classname>File</classname></ulink> - Provides
+file access services, primarily for ARM lookups.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&inpkg;"><classname>Input</classname></ulink> - Provides IRC
+input services.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&outpkg;"><classname>Output</classname></ulink> - Provides
+IRC output services.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&pingpkg;"><classname>Ping</classname></ulink> - Monitors the
+server connection by generating periodic pings.</para>
+</listitem>
+</itemizedlist>
+
+</section>
+
+<section>
+<title>Utility Packages</title>
+
+<itemizedlist>
+<listitem>
+<para><ulink url="&cfgpkg;"><classname>Config</classname></ulink> - The
+application's configuration interface.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&dbpkg;"><classname>DB</classname></ulink> - Low-level
+database access services.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&ircpkg;"><classname>IRC</classname></ulink> - Low-level IRC
+I/O services.</para>
+</listitem>
+</itemizedlist>
+
+</section>
+
+</section>
+
+<section>
+<title>The Main Procedure</title>
+
+<para>
+Since all of the real processing of &prog; is done in the various tasks, the
+main procedure has a null body, and terminates immediately.  The application
+continues to execute until all its tasks have terminated, which occurs when
+the operator enters a <quote>quit</quote> command.  The main procedure causes
+the elaboration of the task packages by referencing each one in its context
+clause.
+
+<src:fragment id="allegra-pkg-body">
+
+with
+   Command,
+   Database,
+   File,
+   Input,
+   Output,
+   Ping;
+
+procedure &prog; is
+begin  -- &prog;
+   null;
+end &prog;;
+</src:fragment>
+</para>
+
+</section>
+
+</article>
