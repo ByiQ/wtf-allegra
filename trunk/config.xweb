@@ -2,8 +2,9 @@
 <!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
                       "file:///opt/litprog/dtd/xweb.dtd" [
 <!ENTITY svc      "configuration">
-<!ENTITY ctbl     "config">
 <!ENTITY atbl     "cmdlevels">
+<!ENTITY ctbl     "config">
+<!ENTITY utbl     "usrlevels">
 <!ENTITY namelen  "16">
 <!ENTITY nick     "&prog;">
 <!ENTITY % entities SYSTEM "entities.inc.dtd">
@@ -232,6 +233,7 @@ package &pkg; is
    Allegra_DB:     string := "&progdb;";
    Config_Tbl:     string := "&ctbl;";
    Cmd_Auth_Tbl:   string := "&atbl;";
+   UserLvl_Tbl:    string := "&utbl;";
 
    type Config_Item is
    (
@@ -243,6 +245,7 @@ package &pkg; is
       Item_LogPath,
       Item_Nick,
       Item_Port,
+      Item_Quips,
       Item_RealName,
       Item_Shorthand,
       Item_UserName
@@ -399,6 +402,7 @@ mapping records whose size is set by its initialization clause.</para>
       ("logpath         ", Item_LogPath),
       ("nick            ", Item_Nick),
       ("port            ", Item_Port),
+      ("quips           ", Item_Quips),
       ("realname        ", Item_RealName),
       ("shorthand       ", Item_Shorthand),
       ("username        ", Item_UserName)
@@ -520,7 +524,6 @@ mechanism is overkill in this situation.</para>
       end;
    end loop;
 </src:fragment>
-
 
 <src:fragment id="map-auth">
    for Row in 1 .. DB.Rows (Auth_Data) loop
@@ -737,6 +740,12 @@ url="http://www.faqs.org/rfcs/rfc2812.html">RFC 2812</ulink>).</entry>
 how to log in to the IRC server.  An integer between 1 and 65535.</entry>
 </row>
 <row>
+<entry>quips</entry>
+<entry>Determines whether the program outputs a <quote>quip</quote> (a useless
+comment) when it recognizes its nick in a non-comment channel message.  Either
+<quote>on</quote> or <quote>off</quote>.</entry>
+</row>
+<row>
 <entry>realname</entry>
 <entry>The <quote>real name</quote> to be used by the bot, as passed in the
 IRC <command>USER</command> command.  May contain embedded spaces.</entry>
@@ -785,6 +794,7 @@ INSERT INTO &ctbl; VALUES ('loglevel',  'error');
 INSERT INTO &ctbl; VALUES ('logpath',   '/var/log/allegra.log');
 INSERT INTO &ctbl; VALUES ('nick',      '&nick;');
 INSERT INTO &ctbl; VALUES ('port',      '6667');
+INSERT INTO &ctbl; VALUES ('quips',     'on');
 INSERT INTO &ctbl; VALUES ('realname',  'Allegra InfoBot');
 INSERT INTO &ctbl; VALUES ('shorthand', '!');
 INSERT INTO &ctbl; VALUES ('username',  'allegra');
