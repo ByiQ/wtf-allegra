@@ -91,7 +91,7 @@ places the request on the command queue.
                if    Cmd = "ping"        then
                   Dbg (Input_Name, "Ping: " &amp; To_String (Input_Message.Params));
                   Command_Request.Operation := &cmdname;.Ping_Operation;
-                  Command_Request.Origin    := IRC.Null_Field;
+                  Command_Request.Origin    := (IRC.Null_Field, IRC.Null_Field, IRC.Null_Field);
                   Command_Request.Data      := Input_Message.Params;
                   &cmdname;.Requests.Enqueue (Command_Request);
                elsif Cmd = "privmsg"     then
@@ -101,7 +101,7 @@ places the request on the command queue.
                      Dbg (Input_Name, "Recognized message from " &amp; To_String (From.Nick) &amp; ": " &amp;
                                       To_String (Input_Message.Params));
                      Command_Request.Operation := &cmdname;.Message_Operation;
-                     Command_Request.Origin    := From.Nick;
+                     Command_Request.Origin    := From;
                      Command_Request.Target    := IRC.Null_Field;
                      Command_Request.Data      := IRC.Null_Field;
                      if Count &gt;= 1 then
