@@ -75,8 +75,8 @@ places the request on the command queue.
                IRC.Open_Server (&cfgname;.Get_Value (&cfgname;.Item_Host), positive'Value (&cfgname;.Get_Value (&cfgname;.Item_Port)));
                Info (Input_Name, "Reconnect to " &amp; &cfgname;.Get_Value (&cfgname;.Item_Host) &amp; ":" &amp; &cfgname;.Get_Value (&cfgname;.Item_Port));
 
-            when others =>
-               null;  -- fill me in someday
+            when E: others =>
+               Err (Input_Name, "Other exception " &amp; Ada.Exceptions.Exception_Information (E) &amp; " in " &amp; Input_Name);
          end;
 
          if Got_Input then
@@ -291,6 +291,7 @@ Visibility is provided to the standard library packages via a
 
 <src:fragment id="input-pkg-body">
 with
+   Ada.Exceptions,
    Ada.Text_IO,
    Ada.Characters.Handling,
    Ada.Strings.Unbounded,
