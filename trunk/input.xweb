@@ -82,26 +82,32 @@ places the request on the command queue.
          if Got_Input then
             &pingname;.Ping_Task.Input_Received;
             declare
-               Cmd:     string := To_Lower (To_String (Input_Message.Command));
-               Nick:    string := To_Lower (&cfgname;.Get_Value (&cfgname;.Item_Nick));
-               From:    IRC.MsgTo_Rec;
-               Params:  IRC.Param_Arr;
-               Count:   IRC.Param_Count;
+               Cmd       : string := To_Lower (To_String (Input_Message.Command));
+               Nick      : string := To_Lower (&cfgname;.Get_Value (&cfgname;.Item_Nick));
+               Message   : Unbounded_String := To_Unbounded_String (To_Lower (To_String (Input_Message.Params)));
+               Shorthand : string := &cfgname;.Get_Value (&cfgname;.Item_Shorthand);
+               Params    : IRC.Param_Arr;
+               Count     : IRC.Param_Count;
+               Has_SHand : boolean;
+               Has_Nick  : boolean;
             begin
                if    Cmd = "ping"        then
                   Dbg (Input_Name, "Ping: " &amp; To_String (Input_Message.Params));
                   Command_Request.Operation := &cmdname;.Ping_Operation;
-                  Command_Request.Origin    := (IRC.Null_Field, IRC.Null_Field, IRC.Null_Field);
                   Command_Request.Data      := Input_Message.Params;
                   &cmdname;.Requests.Enqueue (Command_Request);
                elsif Cmd = "privmsg"     then
-                  if Index (To_Unbounded_String (To_Lower (To_String (Input_Message.Params))), Nick) > 0 then
-                     IRC.Parse_MsgTo (Input_Message.Prefix, From);
+                  Has_SHand := Shorthand'Length &gt; 0 and then Index (Message, Shorthand) > 0;
+                  Has_Nick  := Index (Message, Nick) > 0;
+                  if Has_SHand or else Has_Nick then
                      IRC.Parse_Params (Input_Message.Params, Params, Count);
-                     Dbg (Input_Name, "Recognized message from " &amp; To_String (From.Nick) &amp; ": " &amp;
+                     Has_SHand := not Has_Nick and then Count &gt;= 2 and then Index (Params (2), Shorthand) = 1;
+                  end if;
+                  if Has_SHand or else Has_Nick then
+                     Dbg (Input_Name, "Recognized message from " &amp; To_String (Input_Message.Prefix) &amp; ": " &amp;
                                       To_String (Input_Message.Params));
                      Command_Request.Operation := &cmdname;.Message_Operation;
-                     Command_Request.Origin    := From;
+                     Command_Request.Origin    := Input_Message.Prefix;
                      Command_Request.Target    := IRC.Null_Field;
                      Command_Request.Data      := IRC.Null_Field;
                      if Count &gt;= 1 then
