@@ -1,3 +1,22 @@
+
+<!-- Common constants -->
 <!ENTITY prog "Allegra">
 <!ENTITY pcmd "<command>allegra</command>">
 <!ENTITY site "http://www.niestu.com">
+
+<!-- The main page -->
+<!ENTITY main      "allegra.html">
+
+<!-- Task packages -->
+<!ENTITY cmdpkg    "command.html">
+<!ENTITY datapkg   "database.html">
+<!ENTITY filepkg   "file.html">
+<!ENTITY inpkg     "input.html">
+<!ENTITY outpkg    "output.html">
+<!ENTITY pingpkg   "ping.html">
+
+<!-- Utility packages -->
+<!ENTITY cfgpkg    "config.html">
+<!ENTITY dbpkg     "db.html">
+<!ENTITY instpkg   "install.html">
+<!ENTITY ircpkg    "irc.html">
