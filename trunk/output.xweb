@@ -88,6 +88,10 @@ field to a format that can be written to its output stream, and writes it.
             when Ping_Operation =&gt;
                Dbg (Output_Name, "Writing PING: " &amp; To_String (Request.Data));
                IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PING"), Request.Data));
+
+            when Pong_Operation =&gt;
+               Dbg (Output_Name, "Writing PONG: " &amp; To_String (Request.Data));
+               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PONG"), Request.Data));
          end case;         
       end loop;
 </src:fragment>
@@ -207,7 +211,7 @@ the package.
 
 <src:fragment id="output-basic-types">
    type Operation_Type is ( Shutdown_Operation, Nick_Operation, User_Operation, Join_Operation,
-                            Message_Operation, Ping_Operation );
+                            Message_Operation, Ping_Operation, Pong_Operation );
 
    type Request_Rec is record
       Operation:    Operation_Type;
