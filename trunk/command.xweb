@@ -78,6 +78,44 @@ queue.)
 <section>
 <title>Command Parsing</title>
 
+<section>
+<title>Recognizing Commands</title>
+
+<para>&prog;'s commands come in IRC messages, either sent in the channel, or
+as direct private messages.  To begin with, channel messages are only passed
+to the &pkg; task by the &inname; task if they contain the program's nick.
+Private messages are always passed.  If the nick occurs at the start of the
+message, and is followed by one of several separator characters, then the rest
+of the message is taken as a command.  Private messages are always assumed to
+be commands, though they are allowed (but not required) to have the same
+leading-nick syntax as channel messages.</para>
+
+<para>Passed channel messages which don't match the required command syntax
+will trigger a quip if that option is enabled in the configuration.</para>
+</section>
+
+
+<section>
+<title>Check For Leading-Nick Format</title>
+
+<para>This function checks for the leading-nick message format, and returns
+true if the input message matches that format.</para>
+
+<src:fragment id="func-leadnick">
+function Leading_Nick (Msg : in string;   Nick:  in string) return boolean is
+begin  -- Leading_Nick
+   if Msg'Length &gt; Nick'Length + 1 then
+      if Index (To_Lower (Msg), Nick) = 1 and Is_In (Msg (Nick'Length + 1), Separators) then
+         return true;
+      end if;
+   end if;
+   return false;
+end Leading_Nick;
+</src:fragment>
+</section>
+
+<section>
+<function>Command Request Handling</function>
 <para>
 Since <link linkend="cmd-set">the commands</link> have a very simple format,
 parsing them is straightforward.  The parser scans for the first non-blank
@@ -96,46 +134,42 @@ null string.
             when Ping_Operation =&gt;
                Output_Request.Operation := &outname;.Ping_Operation;
                Output_Request.Data      := Request.Data;
-               Destination := Request.Origin;
+               Destination := Request.Origin.Nick;
                Command := Cmd_Pong;
 
             when Message_Operation =&gt;
                declare
+                  Comment:  string := To_String (Request.Data);
                   Nick:  string := To_Lower (Config.Get_Value (Config.Item_Nick));
                   type Message_Type is ( PrivMsg, ChanMsg );
                   MsgFor:  Message_Type;
                begin
-                  Comment := Request.Data;
-                  if Length (Comment) > Nick'Length + 1 then
-                     if Index (To_Unbounded_String (To_Lower (To_String (Comment))), Nick) = 1 and
-                       (Element (Comment, Nick'Length + 1) = ':' or
-                        Element (Comment, Nick'Length + 1) = ',') then
-                        Comment := Trim (To_Unbounded_String (Slice (Comment, Nick'Length + 2, Length (Comment))),
-                                         Side => Ada.Strings.Both);
-                     end if;
-                  end if;
+                  IsCommand := false;
                   if To_Lower (To_String (Request.Target)) = Nick then
                      MsgFor := PrivMsg;
-                     Destination := Request.Origin;
+                     Destination := Request.Origin.Nick;
+                     IsCommand := true;
                   else
                      MsgFor := ChanMsg;
                      Destination := Request.Target;
                   end if;
-                  if    Index (To_Unbounded_String (To_Lower (To_String (Comment))), "data") = 1 then
-                     Command := Cmd_Data;
-                  elsif Index (To_Unbounded_String (To_Lower (To_String (Comment))), "file") = 1 then
-                     Command := Cmd_File;
-                  elsif Index (To_Unbounded_String (To_Lower (To_String (Comment))), "quit") = 1 then
-                     Command := Cmd_Quit;
+                  if Leading_Nick (Comment, Nick) then
+                     IsCommand := MsgFor = ChanMsg;
+                  end if;
+
+                  if IsCommand then
+                     declare
+                        CmdStr : string := Trim (Comment (Nick'Length + 2 .. Comment'Length), Side => Ada.Strings.Both);
+                     begin
+                        if Index (CmdStr, "quit") = 1 then
+                           Command := Cmd_Quit;
+                        else
+                           Output_Request.Data := To_Unbounded_String (CmdStr);
+                           Command := Cmd_Process;
+                        end if;
+                     end;
                   else
-                     Output_Request.Operation := &outname;.Message_Operation;
-                     if MsgFor = PrivMsg then
-                        Output_Request.Data := "You said """ &amp; Comment &amp; """";
-                     else
-                        Output_Request.Data := "I saw " &amp; Request.Origin &amp;
-                                               " say """ &amp; Comment &amp; """";
-                     end if;
-                     Command := Cmd_Echo;
+                     Command := Cmd_None;
                   end if;
                end;
 
@@ -177,6 +211,8 @@ non-blank character is found following the command character, to extract the
 actual data string starting with its first non-blank character.  It is again
 converted to an unbounded string and stored back in
 <literal>Data</literal>.</para>
+</section>
+
 </section>
 
 <section>
@@ -232,39 +268,39 @@ error message to the output queue.</para>
                Output_Request.Data      := To_Unbounded_String ("#" &amp; &cfgname;.Get_Value (&cfgname;.Item_Channel));
                &outname;.Requests.Enqueue (Output_Request);
 
-            when Cmd_Pong | Cmd_Echo =&gt;
+            when Cmd_Pong =&gt;
                Dbg (Command_Name, "Pong to " &amp; To_String (Destination));
                Output_Request.Destination := Destination;
                &outname;.Requests.Enqueue (Output_Request);
 
-            when Cmd_Data =&gt;
-               Dbg (Command_Name, "DB request to " &amp; To_String (Destination) &amp; ": " &amp;
-                                  To_String (Comment));
-               Database_Request.Operation := Database.Database_Operation;
-               Database_Request.Destination := Destination;
-               Database_Request.Data := Comment;
-               Database.Requests.Enqueue (Database_Request);
-
-            when Cmd_File =&gt;
-               Dbg (Command_Name, "File request to " &amp; To_String (Destination) &amp; ": " &amp;
-                                  To_String (Comment));
-               File_Request.Operation := File.File_Operation;
-               File_Request.Destination := Destination;
-               File_Request.Data := Comment;
-               File.Requests.Enqueue (File_Request);
+            when Cmd_Process =&gt;
+               Dbg (Command_Name, "Processing command " &amp; To_String (Output_Request.Data));
+               Output_Request.Operation := Output.Message_Operation;
+               Output_Request.Destination := Destination;
+               Output_Request.Data := To_Unbounded_String ("That command isn't implemented yet.");
+               &outname;.Requests.Enqueue (Output_Request);
 
             when Cmd_Quit =&gt;
-               Info (Command_Name, "Shutdown request");
-               Database_Request.Operation := Database.Shutdown_Operation;
-               File_Request.Operation     := File.Shutdown_Operation;
-               Output_Request.Operation   := &outname;.Shutdown_Operation;
-               Database.Requests.Enqueue (Database_Request);
-               File.Requests.Enqueue     (File_Request);
-               Output.Requests.Enqueue   (Output_Request);
-               abort Input.Input_Task;
-               abort Ping.Ping_Task;
-               &logname;.WrapUp;
-               exit;
+               if Auth.Permitted (Request.Origin, &cfgname;.Cmd_Quit) then
+                  Info (Command_Name, "Executing shutdown request from " &amp; To_String (Request.Origin.Nick));
+                  Database_Request.Operation := Database.Shutdown_Operation;
+                  File_Request.Operation     := File.Shutdown_Operation;
+                  Output_Request.Operation   := &outname;.Shutdown_Operation;
+                  Database.Requests.Enqueue (Database_Request);
+                  File.Requests.Enqueue     (File_Request);
+                  Output.Requests.Enqueue   (Output_Request);
+                  abort Input.Input_Task;
+                  abort Ping.Ping_Task;
+                  delay 3.0;
+                  &logname;.WrapUp;
+                  exit;
+               else
+                  Info (Command_Name, "Rejecting shutdown request from " &amp; To_String (Request.Origin.Nick));
+                  Output_Request.Operation := Output.Message_Operation;
+                  Output_Request.Destination := Destination;
+                  Output_Request.Data := To_Unbounded_String ("I'm sorry, I don't know you well enough to take orders from you.");
+                  &outname;.Requests.Enqueue (Output_Request);
+               end if;
 
             when Cmd_None =&gt;
                null;
@@ -328,6 +364,8 @@ request.</para>
 </itemizedlist>
 
 <src:fragment id="command-decls">
+      Separators:  Character_Set := To_Set (",:~");
+
       Request:           Request_Rec;
       Database_Request:  Database.Request_Rec;
       File_Request:      File.Request_Rec;
@@ -335,6 +373,9 @@ request.</para>
       Comment:           Unbounded_String;
       Destination:       Unbounded_String;
       Command:           Command_Type;
+      IsCommand:         boolean;
+
+<src:fragref linkend="func-leadnick"/>
 </src:fragment>
 
 </para>
@@ -353,6 +394,10 @@ declarations:
 
    begin  -- Command_Task
 <src:fragref linkend="command-loop"/>
+
+   exception
+      when E: others =>
+         Err (Command_Name, "Exception:  " &amp; Ada.Exceptions.Exception_Information (E));
    end Command_Task;
 
 </src:fragment>
@@ -396,7 +441,11 @@ packages must be fully qualified.
 <src:fragment id="command-pkg-body">
 with
    Ada.Characters.Handling,
+   Ada.Exceptions,
+   Ada.Strings.Fixed,
+   Ada.Strings.Maps,
    Ada.Strings.Unbounded,
+   &authname;,
    &cfgname;,
    &dataname;,
    &filename;,
@@ -407,6 +456,8 @@ with
 
 use
    Ada.Characters.Handling,
+   Ada.Strings.Fixed,
+   Ada.Strings.Maps,
    Ada.Strings.Unbounded,
    &logname;;
 
@@ -441,13 +492,13 @@ spec also declares the task which comprises the body of the package.
 
    type Request_Rec is record
       Operation:  Operation_Type;
-      Origin:     Unbounded_String;
+      Origin:     &ircname;.MsgTo_Rec;
       Target:     Unbounded_String;
       Data:       Unbounded_String;
       Reply:      Reply_Type;
    end record;
 
-   type Command_Type is ( Cmd_None, Cmd_Login, Cmd_Pong, Cmd_File, Cmd_Data, Cmd_Echo, Cmd_Quit );
+   type Command_Type is ( Cmd_None, Cmd_Login, Cmd_Pong, Cmd_Process, Cmd_Quit );
 
    task Command_Task;
 </src:fragment>
@@ -496,7 +547,8 @@ Visibility is provided to the standard library package via a
 <src:fragment id="command-pkg-spec-context">
 with
    Ada.Strings.Unbounded,
-   PQueue;
+   PQueue,
+   &ircname;;
 
 use
    Ada.Strings.Unbounded;
@@ -521,7 +573,6 @@ package Command is
 <src:fragref linkend="command-basic-types"/>
 
 <src:fragref linkend="command-queue-decl"/>
-
 end Command;
 </src:fragment>
 </para>
