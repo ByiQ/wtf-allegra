@@ -3,6 +3,7 @@
                       "file:///opt/litprog/dtd/xweb.dtd" [
 <!ENTITY % entities SYSTEM "entities.inc.dtd">
 %entities;
+<!ENTITY pkg      "&pingname;">
 ]>
 
 <article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
@@ -67,8 +68,8 @@ on the output queue) and waits again.
             delay Ping_Delay;
             Missed := Missed + 1;
             if Missed >= Max_Missed_Pings then
-               Put_Line ("Link timed out after " &amp;
-                         Duration'Image (Ping_Delay * Duration (Missed)) &amp; " seconds");
+               Info (Ping_Name, "Link timed out after " &amp;
+                     Duration'Image (Ping_Delay * Duration (Missed)) &amp; " seconds");
                IRC.Close_Server;
                Missed := 0;
             else
@@ -186,15 +187,19 @@ Visibility is provided to the standard library package via a
 with
    Ada.Strings.Unbounded,
    Ada.Text_IO,
-   Config,
-   IRC,
-   Output;
+   &cfgname;,
+   &ircname;,
+   &logname;,
+   &outname;;
 
 use
    Ada.Strings.Unbounded,
-   Ada.Text_IO;
+   &logname;;
 
 package body Ping is
+
+   &pkg;_Name:  constant string := "&pkg;";
+
 <src:fragref linkend="ping-task-body"/>
 end Ping;
 </src:fragment>
