@@ -1,8 +1,12 @@
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
                       "file:///opt/litprog/dtd/xweb.dtd" [
-<!ENTITY pkg  "Config">
-<!ENTITY svc  "configuration">
+<!ENTITY pkg      "Config">
+<!ENTITY svc      "configuration">
+<!ENTITY dbname   "allegra">
+<!ENTITY tbl      "config">
+<!ENTITY namelen  "16">
+<!ENTITY nick     "&prog;">
 <!ENTITY % entities SYSTEM "entities.inc.dtd">
 %entities;
 ]>
@@ -62,26 +66,6 @@ tries to access it.  The interface provides:</para>
 <listitem>
 <para>A function which returns a given named configuration value.</para>
 </listitem>
-
-<listitem>
-<para>A function which returns the number of alternate nicknames in the
-configuration.</para>
-</listitem>
-
-<listitem>
-<para>A function which returns a given alternate nickname from the
-configuration.</para>
-</listitem>
-
-<listitem>
-<para>A function which returns the number of alternate hostnames in the
-configuration.</para>
-</listitem>
-
-<listitem>
-<para>A function which returns a given alternate hostname/port combination
-from the configuration.</para>
-</listitem>
 </itemizedlist>
 
 </section>
@@ -106,7 +90,7 @@ users to access the configuration values.</para>
 <title>The <function>Get_Value</function> Function</title>
 
 <src:fragment id="func-getv">
-   function Get_Value (Name:  Config_Item)
+   function Get_Value (Item:  Config_Item)
    return string
 </src:fragment>
 
@@ -115,63 +99,6 @@ configuration value.  This is for accessing everything except nicknames and
 hostnames.</para>
 
 </section>
-
-<section>
-<title>The <function>N_Nicks</function> Function</title>
-</section>
-
-<src:fragment id="func-nnicks">
-   function N_Nicks
-   return natural
-</src:fragment>
-
-<para>The <function>N_Nicks</function> function returns the number of
-alternate nicknames present in the configuration database.</para>
-
-</section>
-
-<section>
-<title>The <function>Get_Nick</function> Function</title>
-
-<src:fragment id="func-getn">
-   function Get_Nick (Num:  positive)
-   return string
-</src:fragment>
-
-<para>The <function>Get_Nick</function> function returns the requested nick
-from the configuration database.  If the <varname>Num</varname> parameter is
-out of the range 1 and the value returned by the <function>N_Nicks</function>
-function, <function>Get_Nick</function> returns an empty string.</para>
-
-</section>
-
-<section>
-<title>The <function>N_Hosts</function> Function</title>
-</section>
-
-<src:fragment id="func-nhosts">
-   function N_Hosts
-   return natural
-</src:fragment>
-
-<para>The <function>N_Hosts</function> function returns the number of
-alternate hostnames present in the configuration database.</para>
-
-</section>
-
-<section>
-<title>The <function>Get_Host</function> Function</title>
-
-<src:fragment id="func-geth">
-   function Get_Host (Num:  positive)
-   return Host_Rec
-</src:fragment>
-
-<para>The <function>Get_Host</function> function returns the requested
-hostname record from the configuration database.  If the
-<varname>Num</varname> parameter is out of the range 1 and the value returned
-by the <function>N_Hosts</function> function, <function>Get_Host</function>
-returns a record with an empty hostname and no ports.</para>
 
 </section>
 
@@ -198,10 +125,11 @@ them, the package uses a protected object.</para>
 <para>A simple protected object, essentially a semaphore, controls access to
 the configuration values in memory.  The <function>Read</function> procedure
 calls the <function>Data_Available</function> procedure to indicate that the
-data is now in memory and is available to be accessed.  All the data-access
-functions call the <function>Wait_For_Data</function> entry before accessing
-any values.  This ensures that the read operation is complete and the data is
-actually in memory before attempting to use any of the values.</para>
+data is now in memory and is available to be accessed.  The
+<function>Get_Value</function> function calls the
+<function>Wait_For_Data</function> entry before accessing any values.  This
+ensures that the read operation is complete and the data is actually in memory
+before attempting to use any of the values.</para>
 
 <src:fragment id="access-control">
    protected Access_Control is
@@ -231,31 +159,456 @@ actually in memory before attempting to use any of the values.</para>
 <title>Reading the Configuration Data</title>
 
 <para>The <function>Read</function> procedure is the most complicated part of
-the whole package.  It is responsible for reading the three parts of the
-configuration and assembling them into an in-memory database easily accessible
-by the rest of &prog;.  The three parts are:</para>
+the whole package.  It is responsible for reading the configuration data from
+the program's database, and mapping it into an in-memory form easily
+accessible by the rest of &prog;.  Once that is done, it disconnects the
+database connection and sets the semaphore to indicate that the data is now
+available.</para>
+
+<src:fragment id="read-body">
+<src:fragref linkend="fetch-data"/>
+<src:fragref linkend="map-data"/>
+   DB.Disconnect (Handle);
+   Access_Control.Data_Available;
+</src:fragment>
+
+
+<section>
+<title>Fetch the Data</title>
+
+<para>The first step in this process is to connect to the external database,
+and then fetch the data from it.  It identifies the database and the table
+containing the configuration data by means of constants.</para>
+
+<src:fragment id="fetch-data">
+   DB.Connect (Handle, Host => "", DB => Allegra_DB);
+   DB.Fetch (Handle, "*", Config_Tbl, "", Cfg_Data);
+</src:fragment>
+
+</section>
+
+<section>
+<title>Mapping the Data</title>
+
+<para>Once the data has been fetched, we must convert the value names to the
+enumeration constants used by the application when querying the values.  The
+actual configuration value is then stored in an array indexed by the
+enumeration value.  This is done by a simple linear search of a table, which
+was deemed acceptable because of the small number of values, and the fact that
+the mapping is only done once.  Any unrecognized parameter names are simply
+skipped, so be sure to update the enumeration and the table when adding new
+configuration parameters.</para>
+
+<para>We considered a scheme to use the actual name string for accessing the
+parameters, presumable via a hash table or something similar, but that
+mechanism is overkill in this situation.</para>
+
+<src:fragment id="map-data">
+   for Row in 1 .. DB.Rows (Cfg_Data) loop
+      declare
+         Name:  string := DB.Get_Value (Cfg_Data, Row, "name");
+      begin
+         Item := Item_None;
+         for Index in Cfg_Map'Range loop
+            if Cfg_Map (Index).Name (1 .. Name'Length) = Name then
+               Item := Cfg_Map (Index).Item;
+               exit;
+            end if;
+         end loop;
+         if Item /= Item_None then
+            declare
+               Value_Str:  string := DB.Get_Value (Cfg_Data, Row, "value");
+            begin
+               Config_Values (Item) := To_Unbounded_String (Value_Str);
+            end;
+         end if;         
+      end;
+   end loop;
+</src:fragment>
+
+</section>
+
+</section>
+
+<section>
+<title>Accessing the Configuration Values</title>
+
+<para>Given the preparation done by the <function>Read</function> procedure,
+accessing the values is a very simple job.  We simply ensure that the values
+are present by calling the protected entry <function>Wait_For_Data</function>,
+then using the given enumeration value to index into the configuration table
+for the value.  It is converted from the storage format, which is
+<literal>Unbounded_String</literal>, into a standard <literal>string</literal>
+value, before returning it.</para>
+
+<src:fragment id="getv-body">
+   Access_Control.Wait_For_Data;
+   return To_String (Config_Values (Item));
+</src:fragment>
+
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--        Packaging section       -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Packaging</title>
+
+<para>Packaging the code for compilation is straightforward.  The package spec
+is quite small, given the few services it offers.</para>
+
+
+<section>
+<title>The Package Spec</title>
+
+<para>The package spec defines the <function>Read</function> procedure, the
+<function>Get_Value</function> function, and the enumeration type used by the
+package and its users to identify individual configuration values.  It also
+defines the names of the program's database and the relevant table names.
+Only predefined data types are used, so the spec requires no context
+clause.</para>
+
+<src:fragment id="config-pkg-spec">
+package &pkg; is
+
+   Allegra_DB:     string := "&dbname;";
+   Config_Tbl:     string := "&tbl;";
+   Factoid_Tbl:    string := "factoids";
+
+   type Config_Item is
+   (
+      Item_None,
+      Item_ARMPath,
+      Item_Channel,
+      Item_Host,
+      Item_LogLevel,
+      Item_LogPath,
+      Item_Nick,
+      Item_Port,
+      Item_RealName,
+      Item_Shorthand,
+      Item_UserName
+   );
+
+<src:fragref linkend="proc-read"/>;
+
+<src:fragref linkend="func-getv"/>;
+
+end &pkg;;
+</src:fragment>
+
+</section>
+
+<section>
+<title>The Package Body</title>
+
+<para>The package body is a bit longer, as it makes some local declarations
+used to manage the configuration data.</para>
+
+<section>
+<title>The Context Clause</title>
+
+<para>The package uses two external packages for their types and
+subroutines.</para>
 
 <itemizedlist>
 <listitem>
-<para>A list of <quote>named</quote> configuration parameters.  That is,
-single values associated with a single name.</para>
+<para><classname>Ada.Strings.Unbounded</classname> - The configuration values
+are stored as unbounded strings, so the type and conversion routines are used
+to convert them to and from standard strings.  Visibility is provided via a
+<command>use</command> clause.</para>
 </listitem>
 
 <listitem>
-<para>The list of alternate nicknames.  These are used when the primary
-nickname is already in use, to allow &prog; to log in even though a nick
-collision occurs.</para>
-</listitem>
-
-<listitem>
-<para>The list of alternate hostnames and ports.  These are used when the
-primary hostname and port does not allow a connection, to allow &prog; to
-connect through an alternate entry.</para>
+<para><classname>DB</classname> - Provides access to the external database
+where the configuration values are stored.  Only read access is performed;
+write access is provided by a separate application.</para>
 </listitem>
 </itemizedlist>
 
+<src:fragment id="context">
+with
+   Ada.Strings.Unbounded,
+   DB;
+
+use
+   Ada.Strings.Unbounded;
+</src:fragment>
+
+</section>
+
+<section>
+<title>The Mapping Table</title>
+
+<para>A statically-initialized table is used to map between a configuration
+value's symbolic name as stored in the database, and the enumeration value
+used to identify it in the application.  One constant and three types are used
+to support the table.</para>
+
+<itemizedlist>
+<listitem>
+<para><literal>Name_Len_Max</literal> - an integer constant, which must be as
+large as or larger than the maximum size of the <literal>name</literal> field
+in the database.</para>
+</listitem>
+
+<listitem>
+<para><literal>Item_Name</literal> - a fixed-length string type, whose upper
+bound is set by <literal>Name_Len_Max</literal>.</para>
+</listitem>
+
+<listitem>
+<para><literal>Config_Mapping_Rec</literal> - a record that pairs the item name
+strings with their enumeration values.</para>
+</listitem>
+
+<listitem>
+<para><literal>Cfg_Map_Array</literal> - an unconstrained array type of
+mapping records.</para>
+</listitem>
+
+<listitem>
+<para><literal>Cfg_Map</literal> - the mapping table itself, an array of
+mapping records whose size is set by its initialization clause.</para>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="mapping">
+   Name_Len_Max:  constant := &namelen;;
+
+   subtype Item_Name is string (1 .. Name_Len_Max);
+
+   type Config_Mapping_Rec is record
+      Name:  Item_Name;
+      Item:  Config_Item;
+   end record;
+
+   type Cfg_Map_Array is array ( positive range &lt;&gt; ) of Config_Mapping_Rec;
+
+   Cfg_Map:  Cfg_Map_Array :=
+   (
+      ("                ", Item_None),
+      ("armpath         ", Item_ARMPath),
+      ("channel         ", Item_Channel),
+      ("host            ", Item_Host),
+      ("loglevel        ", Item_LogLevel),
+      ("logpath         ", Item_LogPath),
+      ("nick            ", Item_Nick),
+      ("port            ", Item_Port),
+      ("realname        ", Item_RealName),
+      ("shorthand       ", Item_Shorthand),
+      ("username        ", Item_UserName)
+   );
+</src:fragment>
+
+</section>
+
+<section>
+<title>The Configuration Values</title>
+
+<para>The actual configuration values are read into an array, indexed by the
+configuration item enumeration type.  The array elements are unbounded
+strings, which are converted from standard strings on the way in, and back to
+them on the way back out.</para>
+
+<src:fragment id="cfg-values">
+   Config_Values:  array ( Config_Item ) of Unbounded_String;
+</src:fragment>
+
+</section>
+
+<section>
+<title>Compilation Unit</title>
+
+<para>Putting all the code bits together gives us a compilation unit for the
+package body.</para>
+
+<src:fragment id="config-pkg-body">
+<src:fragref linkend="context"/>
+
+package body &pkg; is
+
+<src:fragref linkend="access-control"/>
+
+<src:fragref linkend="mapping"/>
+
+<src:fragref linkend="cfg-values"/>
+
+<src:fragref linkend="proc-read"/> is
+
+Handle:    DB.DB_Handle;
+Cfg_Data:  DB.DB_Result;
+Item:      Config_Item;
+
+begin  -- Read
+<src:fragref linkend="read-body"/>
+end Read;
+
+<src:fragref linkend="func-getv"/> is
+begin  -- Get_Value
+<src:fragref linkend="getv-body"/>
+end Get_Value;
+
+end &pkg;;
+</src:fragment>
+
 </section>
 
 </section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--        Database section        -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>The Configuration Database</title>
+
+<section>
+<title>Database Schema</title>
+
+<para>The configuration database schema can be illustrated by the following
+SQL <command>CREATE TABLE</command> statament:</para>
+
+<src:fragment id="schema">
+   CREATE TABLE &tbl;
+   (
+      name  varchar (&namelen;),
+      value text
+   );
+</src:fragment>
+
+<para>The two fields contain the name of the configuration value, such as
+<literal>username</literal> or <literal>nick</literal>, and the value of the
+configuration item, such as <literal>Allegra</literal>.</para>
+
+</section>
+
+<section>
+<title>Use of Values</title>
+
+<para>This table gives the meanings of the configuration values. </para>
+
+<table frame="all">
+<title>Configuration Values</title>
+<tgroup cols="2">
+<colspec colnum="1" align="center"/>
+<colspec colnum="2" align="left"/>
+
+<thead>
+<row>
+<entry>Item&nbsp;Name</entry>
+<entry align="center">Value</entry>
+</row>
+</thead>
+
+<tbody>
+<row>
+<entry>armpath</entry>
+<entry>The pathname of the directory where the ARM (Ada Reference Manual) text
+(in HTML format) is located.  Set to null if you do not have the ARM installed
+on your system.  Any legal pathname (without any filename portion) is allowed;
+the program will need read access to the files in that directory.</entry>
+</row>
+<row>
+<entry>channel</entry>
+<entry>The name of the IRC channel where the info-bot is to perform its
+function.  Do not include the leading <quote>#</quote> character.From 1 to 49
+characters which obey the IRC rules for valid channel names.  (See <ulink
+url="http://www.faqs.org/rfcs/rfc2812.html">RFC 2812</ulink>).</entry>
+</row>
+<row>
+<entry>host</entry>
+<entry>The name of the IRC host, or dispatcher, to which the bot should
+connect in order to find its home channel.  Used in conjuction with the
+<literal>port</literal> value during the connection process.  Any valid
+Internet hostname is allowed.</entry>
+</row>
+<row>
+<entry>loglevel</entry>
+<entry>The amount of information that is to be included in the log.  The
+values are <literal>none</literal> (log nothing), <literal>err</literal> (log
+only serious errors), <literal>warn</literal> (log errors and warnings), and
+<literal>info</literal> (log errors, warnings, and informational
+messages).</entry>
+</row>
+<row>
+<entry>logpath</entry>
+<entry>The system pathname of the log file into which log messages are
+written.  If the loglevel is <literal>none</literal>, this pathname is
+ignored.  Any legal pathname (including the filename portion) is allowed; the
+program will need write access to the file.</entry>
+</row>
+<row>
+<entry>nick</entry>
+<entry>The IRC nickname the bot is to use when logging in to the server.  From
+1 to 9 characters which obey the IRC rules for valid nicknames.  (See <ulink
+url="http://www.faqs.org/rfcs/rfc2812.html">RFC 2812</ulink>).</entry>
+</row>
+<row>
+<entry>port</entry>
+<entry>Used in conjuction with the <literal>host</literal> value to determine
+how to log in to the IRC server.  An integer between 1 and 65535.</entry>
+</row>
+<row>
+<entry>realname</entry>
+<entry>The <quote>real name</quote> to be used by the bot, as passed in the
+IRC <command>USER</command> command.  May contain embedded spaces.</entry>
+</row>
+<row>
+<entry>shorthand</entry>
+<entry>The shorthand character used to address the bot in the channel.  If
+this character is the first one of a channel message, the bot treats it as if
+the message had started with its nickname.  Thus, <quote>!help</quote> is
+interpreted the same as <quote>&nick;: help</quote>.  We recommend picking
+something unusual, that's not likely to be found at the beginning of a message
+by accident.</entry>
+</row>
+<row>
+<entry>username</entry>
+<entry>The IRC username sent to the server via the <command>USER</command>
+command.  Should be a short string with no embedded spaces, similar to a Unix
+user ID.</entry>
+</row>
+</tbody>
+
+</tgroup>
+</table>
+
+</section>
+
+<section>
+<title>Creating and Initializing the Configuration Database</title>
+
+<para>The configuration values are maintained in a table named &tbl; within
+the program's database.  Here is a shell script that uses the PostgreSQL
+<command>psql</command> utility to create and initialize the table to &prog;'s
+default values.</para>
+
+<src:fragment id="init-config">
+#!/bin/sh
+psql --dbname &dbname; --file - &lt;&lt;eof
+<src:fragref linkend="schema"/>
+INSERT INTO &tbl; VALUES ('armpath',   '/usr/share/doc/ada-reference-manual/html/arm95tc1');
+INSERT INTO &tbl; VALUES ('channel',   'Ada');
+INSERT INTO &tbl; VALUES ('host',      'irc.freenode.net');
+INSERT INTO &tbl; VALUES ('loglevel',  'error');
+INSERT INTO &tbl; VALUES ('logpath',   '/var/log/allegra.log');
+INSERT INTO &tbl; VALUES ('nick',      '&nick;');
+INSERT INTO &tbl; VALUES ('port',      '6667');
+INSERT INTO &tbl; VALUES ('realname',  'Allegra InfoBot');
+INSERT INTO &tbl; VALUES ('shorthand', '!');
+INSERT INTO &tbl; VALUES ('username',  'allegra');
+eof
+</src:fragment>
+
+</section>
+
+</section>
+
 
 </article>
