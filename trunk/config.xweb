@@ -1,0 +1,261 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
+                      "file:///opt/litprog/dtd/xweb.dtd" [
+<!ENTITY pkg  "Config">
+<!ENTITY svc  "configuration">
+<!ENTITY % entities SYSTEM "entities.inc.dtd">
+%entities;
+]>
+
+<article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
+         xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+
+<!-- Article meta-data -->
+<articleinfo>
+<title>&prog; Configuration Package</title>
+
+<author>
+<firstname>Chip</firstname>
+<surname>Richards</surname>
+</author>
+
+<address><email>chipr@niestu.com</email></address>
+<publisher>
+<publishername>NiEstu</publishername>
+<address><otheraddr><ulink url="&site;/allegra/"></ulink></otheraddr></address>
+</publisher>
+
+<releaseinfo>Version 1.0</releaseinfo>
+<date>29 December 2003</date>
+
+<legalnotice>
+<para>This code is released under the terms of the <ulink
+url="http://www.gnu.org/licenses/gpl.html">GNU General Public License</ulink>,
+version 2.</para>
+</legalnotice>
+</articleinfo>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--            API  section        -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>API</title>
+
+<section>
+<title>Overview</title>
+
+<para>This package provides &prog; with program configuration information.
+Most of the information is kept in tables in the program's database, though
+some few <quote>bootstrap</quote> values are expressed as constants.</para>
+
+<para>As configuration information is pretty simple, so is this package's API.
+The only complicating factor is that we must ensure in &prog;'s multi-tasking
+environment that the configuration information has been read before any task
+tries to access it.  The interface provides:</para>
+
+<itemizedlist>
+<listitem>
+<para>A procedure for reading the configuration data from its external location.</para>
+</listitem>
+
+<listitem>
+<para>A function which returns a given named configuration value.</para>
+</listitem>
+
+<listitem>
+<para>A function which returns the number of alternate nicknames in the
+configuration.</para>
+</listitem>
+
+<listitem>
+<para>A function which returns a given alternate nickname from the
+configuration.</para>
+</listitem>
+
+<listitem>
+<para>A function which returns the number of alternate hostnames in the
+configuration.</para>
+</listitem>
+
+<listitem>
+<para>A function which returns a given alternate hostname/port combination
+from the configuration.</para>
+</listitem>
+</itemizedlist>
+
+</section>
+
+<section>
+<title>Service Details</title>
+
+<section>
+<title>The <function>Read</function> Procedure</title>
+
+<src:fragment id="proc-read">
+   procedure Read
+</src:fragment>
+
+<para>The <function>Read</function> procedure reads the configuration from the
+database, and once it has finished reading, sets the guard to allow other
+users to access the configuration values.</para>
+
+</section>
+
+<section>
+<title>The <function>Get_Value</function> Function</title>
+
+<src:fragment id="func-getv">
+   function Get_Value (Name:  Config_Item)
+   return string
+</src:fragment>
+
+<para>The <function>Get_Value</function> function returns the requested named
+configuration value.  This is for accessing everything except nicknames and
+hostnames.</para>
+
+</section>
+
+<section>
+<title>The <function>N_Nicks</function> Function</title>
+</section>
+
+<src:fragment id="func-nnicks">
+   function N_Nicks
+   return natural
+</src:fragment>
+
+<para>The <function>N_Nicks</function> function returns the number of
+alternate nicknames present in the configuration database.</para>
+
+</section>
+
+<section>
+<title>The <function>Get_Nick</function> Function</title>
+
+<src:fragment id="func-getn">
+   function Get_Nick (Num:  positive)
+   return string
+</src:fragment>
+
+<para>The <function>Get_Nick</function> function returns the requested nick
+from the configuration database.  If the <varname>Num</varname> parameter is
+out of the range 1 and the value returned by the <function>N_Nicks</function>
+function, <function>Get_Nick</function> returns an empty string.</para>
+
+</section>
+
+<section>
+<title>The <function>N_Hosts</function> Function</title>
+</section>
+
+<src:fragment id="func-nhosts">
+   function N_Hosts
+   return natural
+</src:fragment>
+
+<para>The <function>N_Hosts</function> function returns the number of
+alternate hostnames present in the configuration database.</para>
+
+</section>
+
+<section>
+<title>The <function>Get_Host</function> Function</title>
+
+<src:fragment id="func-geth">
+   function Get_Host (Num:  positive)
+   return Host_Rec
+</src:fragment>
+
+<para>The <function>Get_Host</function> function returns the requested
+hostname record from the configuration database.  If the
+<varname>Num</varname> parameter is out of the range 1 and the value returned
+by the <function>N_Hosts</function> function, <function>Get_Host</function>
+returns a record with an empty hostname and no ports.</para>
+
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--    Implementation section      -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Implementation</title>
+
+<para>Given the simple requirements of &prog;, the configuration module is
+correspondingly simple.  It uses the <classname>DB</classname> package
+services to read the configuration data from the program's database.  To
+synchronize access to the values, specifically to ensure that the values have
+been read from the database before allowing any application calls to fetch
+them, the package uses a protected object.</para>
+
+
+<section>
+<title>Access Control</title>
+
+<para>A simple protected object, essentially a semaphore, controls access to
+the configuration values in memory.  The <function>Read</function> procedure
+calls the <function>Data_Available</function> procedure to indicate that the
+data is now in memory and is available to be accessed.  All the data-access
+functions call the <function>Wait_For_Data</function> entry before accessing
+any values.  This ensures that the read operation is complete and the data is
+actually in memory before attempting to use any of the values.</para>
+
+<src:fragment id="access-control">
+   protected Access_Control is
+      procedure Data_Available;
+      entry Wait_For_Data;
+   private
+      Is_Available:  boolean := false;
+   end Access_Control;
+
+   protected body Access_Control is
+      procedure Data_Available is
+      begin
+         Is_Available := true;
+      end Data_Available;
+
+      entry Wait_For_Data when Is_Available is
+      begin
+         null;
+      end Wait_For_Data;
+   end Access_Control;
+</src:fragment>
+
+</section>
+
+
+<section>
+<title>Reading the Configuration Data</title>
+
+<para>The <function>Read</function> procedure is the most complicated part of
+the whole package.  It is responsible for reading the three parts of the
+configuration and assembling them into an in-memory database easily accessible
+by the rest of &prog;.  The three parts are:</para>
+
+<itemizedlist>
+<listitem>
+<para>A list of <quote>named</quote> configuration parameters.  That is,
+single values associated with a single name.</para>
+</listitem>
+
+<listitem>
+<para>The list of alternate nicknames.  These are used when the primary
+nickname is already in use, to allow &prog; to log in even though a nick
+collision occurs.</para>
+</listitem>
+
+<listitem>
+<para>The list of alternate hostnames and ports.  These are used when the
+primary hostname and port does not allow a connection, to allow &prog; to
+connect through an alternate entry.</para>
+</listitem>
+</itemizedlist>
+
+</section>
+
+</section>
+
+</article>
