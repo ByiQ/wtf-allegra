@@ -3,11 +3,14 @@
 <!ENTITY prog "Allegra">
 <!ENTITY pcmd "<command>allegra</command>">
 <!ENTITY site "http://www.niestu.com">
+<!ENTITY progdb "allegra">
 
 <!-- The main page -->
 <!ENTITY main      "allegra.html">
 
 <!-- Task packages -->
+<!ENTITY authpkg   "auth.html">
+<!ENTITY authname  "Auth">
 <!ENTITY cmdpkg    "command.html">
 <!ENTITY cmdname   "Command">
 <!ENTITY datapkg   "database.html">
