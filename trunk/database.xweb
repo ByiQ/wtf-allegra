@@ -431,13 +431,12 @@ exceed the IRC message-size limit.
                   Msg := US (" - and:  ");
                   delay 2.0;
                   First := true;
+               end if;
+               if First then
+                  Append (Msg, Name);
+                  First := false;
                else
-                  if First then
-                     Append (Msg, Name);
-                     First := false;
-                  else
-                     Append (Msg, ", " &amp; Name);
-                  end if;
+                  Append (Msg, ", " &amp; Name);
                end if;
             end;
          end loop;
