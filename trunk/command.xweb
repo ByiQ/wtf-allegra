@@ -170,8 +170,7 @@ require, based on the request's operation type.  The operations are:
 <listitem>
 <para><literal>Crash_Operation</literal> - Received when another task has
 suffered an unhandled exception.  The request's <varname>Data</varname> field
-contains the text of the exception information, to be logged if
-desired.</para>
+contains the name of the task which crased, to be logged if desired.</para>
 </listitem>
 
 <listitem>
@@ -247,13 +246,19 @@ and the <varname>Data</varname> field contains the reply's parameter(s).</para>
                Do_Exit := false;
                Process_Command (Command, Sender);
                exit when Do_Exit;
-            else
-            -- Quips go here
+            elsif &cfgname;.Get_Value (&cfgname;.Item_Quips) = "on" then
+               Database_Request.Operation := &dataname;.Quip_Operation;
+               Database_Request.Destination := Destination;
+               &dataname;.Requests.Enqueue (Database_Request);
             end if;
          end;
 
       when Crash_Operation =&gt;
-         Err (Command_Name, "Crash:  " &amp; To_String (Request.Data));
+         Err (Command_Name, "Crashed:  " &amp; To_String (Request.Data));
+         Output_Request.Operation := Output.Message_Operation;
+         Output_Request.Destination := To_Unbounded_String ("#" &amp; &cfgname;.Get_Value (&cfgname;.Item_Channel));
+         Output_Request.Data := To_Unbounded_String ("I'm not feeling well ... think I'll go lie down.");
+         &outname;.Requests.Enqueue (Output_Request);
          Shutdown;
          exit;
 
@@ -282,17 +287,20 @@ requests to the tasks which accept them, and aborts the tasks which don't,
 waits a bit for the whole thing to settle down (which should eventually be
 replaced by a wait for the appropriate server reply code in response to the
 logout request), then closes the log.  It is called when it accepts a
-<quote>quit</quote> command, or when this or another task crashes.
+<quote>quit</quote> command, or when this or another task crashes.</para>
+
+<para>Note that no shutdown request is sent to the &outname; task.  That's
+because its shutdown operation is initiated by the &dataname; task, due to the
+desire to have a random <quote>quit</quote> message, drawn from a
+configuration database table.
 
 <src:fragment id="proc-shutdown">
    procedure Shutdown is
    begin  -- Shutdown
       Database_Request.Operation := &dataname;.Shutdown_Operation;
       File_Request.Operation     := &filename;.Shutdown_Operation;
-      Output_Request.Operation   := &outname;.Shutdown_Operation;
       &dataname;.Requests.Enqueue (Database_Request);
       &filename;.Requests.Enqueue (File_Request);
-      &outname;.Requests.Enqueue  (Output_Request);
       abort &inname;.Input_Task;
       abort &pingname;.Ping_Task;
       delay 3.0;
