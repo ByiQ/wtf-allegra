@@ -1,0 +1,234 @@
+
+
+<!-- The Output task -->
+<section id="output-task">
+<title>The Output Task</title>
+
+<simpara>The output task is the portal through which all output intended to be
+sent to the IRC server is channeled.  (I hate to use the word
+<quote>portal</quote> due to the over-use it has undergone in the context of
+the World-Wide Web, but it's the right word to use here.)  In &prog;, the
+socket connection to the IRC server is represented by the standard output
+stream, allowing the user to play the role of the IRC server, visually
+verifying that the various parts of the program are functioning
+correctly.</simpara>
+
+<section>
+<title>Output Loop</title>
+<para>
+The heart of the output task is an endless loop.  It removes a request from
+the output queue and checks the <literal>Operation</literal> field to
+determine whether the task is being asked to shut down.  If so, the loop, and
+thus the task, terminates.  If not, it converts the <literal>Data</literal>
+field to a format that can be written to its output stream, and writes it.
+
+<src:fragment id="output-loop">
+      loop
+         Requests.Dequeue (Request);
+         exit when Request.Operation = Shutdown_Operation;
+         Put_Line (To_String (Request.Data));
+      end loop;
+</src:fragment>
+
+The task spends most of its time sitting on the
+<methodname>Dequeue</methodname> statement, waiting for an output request to
+be placed in its queue by one of the other tasks.
+</para>
+</section>
+
+<section>
+<title>Output Task Declarations</title>
+
+<para>
+The output loop uses only the <literal>Request</literal> variable, which is a
+local item of the type of output-queue entries, used to receive the next item
+taken from the request queue.
+
+<src:fragment id="output-decls">
+      Request:  Request_Rec;
+</src:fragment>
+
+Its <literal>Operation</literal> field has one of these values:
+
+<itemizedlist>
+<listitem>
+<simpara><literal>Shutdown_Operation</literal> when the command task has
+processed a <quote>quit</quote> command, in which case the
+<literal>Data</literal> field is undefined.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Output_Operation</literal> when the <literal>Data</literal>
+field contains a string to be written to the output stream.</simpara>
+</listitem>
+</itemizedlist>
+</para>
+</section>
+
+<section>
+<title>Output Task Body</title>
+<para>
+The task's body contains only the processing loop, and its required
+declarations:
+
+<src:fragment id="output-task-body">
+   task body Output_Task is
+<src:fragref linkend="output-decls"/>
+   begin  -- Output_Task
+<src:fragref linkend="output-loop"/>
+   end Output_Task;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Output Task Package</title>
+
+<section>
+<title>Output Package Body</title>
+<para>
+For compilation purposes, the task is contained in a package.  The package
+body contains only the (anonymous) task object.  The external dependencies
+are:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Text_IO</classname> - Provides the procedure
+<methodname>Put_Line</methodname>, which is used to write strings to the
+standard output stream for the user to inspect.</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname> - Provides the function
+<methodname>To_String</methodname>, used to convert the unbounded output
+string to the fixed-length string format required by the standard output
+library.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library packages via a
+<command>use</command> clause; references to items declared in the
+<classname>PQueue</classname> package must be fully qualified.
+
+<src:fragment id="output-pkg-body">
+with
+   Ada.Text_IO,
+   Ada.Strings.Unbounded;
+
+use
+   Ada.Text_IO,
+   Ada.Strings.Unbounded;
+
+package body Output is
+<src:fragref linkend="output-task-body"/>
+end Output;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Output Package Spec</title>
+
+<simpara>The output request queue and its supporting types are declared in the
+package spec so they can be used by other packages.</simpara>
+
+<section>
+<title>Output Package Spec Basic Type Declarations</title>
+<para>
+The spec declares the output-queue request record type and its supporting
+operation type.  It contains an operation (the <literal>Operation</literal>
+field) and its data (the <literal>Data</literal> field), which is not used by
+all operations.  The data is the string to be written to the output stream, if
+the operation is <literal>Output_Operation</literal>.  The
+<literal>Unbounded_String</literal> type of the <literal>Data</literal> field
+is defined via <link linkend="output-pkg-spec-context-section">the context
+clause</link>.  The spec also declares the task which comprises the body of
+the package.
+
+<src:fragment id="output-basic-types">
+   type Operation_Type is ( Shutdown_Operation, Output_Operation );
+
+   type Request_Rec is record
+      Operation:  Operation_Type;
+      Data:       Unbounded_String;
+   end record;
+
+   task Output_Task;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Output Queue Declaration</title>
+<para>
+The spec instatiates the generic library package <literal>PQueue</literal>
+using <literal>Request_Rec</literal> as its data-item type, and then
+declares the actual output queue itself, as an item of that new queue type.
+
+<src:fragment id="output-queue-decl">
+   package Output_Queue_Pkg is new PQueue (Request_Rec);
+
+   Requests:  Output_Queue_Pkg.Protected_Queue_Type;
+</src:fragment></para>
+</section>
+
+<section id="output-pkg-spec-context-section">
+<title>Output Package Spec Context Clause</title>
+<para>
+The output task's package spec depends on these two packages:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname>, which provides the
+<literal>Unbounded_String</literal> type used for the request record's data.
+</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>PQueue</classname>, a local library package, which is not
+defined in this document.  It is a generic package which implements a simple
+protected queue type.  The code was adapted from Cohen's book <citetitle
+pubwork="book">Ada as a Second Language</citetitle>.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library package via a
+<command>use</command> clause; references to items declared in the
+<classname>PQueue</classname> package (whose instantiation is called
+<literal>Output_Queue_Pkg</literal>) must be fully qualified.
+
+<src:fragment id="output-pkg-spec-context">
+with
+   Ada.Strings.Unbounded,
+   PQueue;
+
+use
+   Ada.Strings.Unbounded;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Package Spec Proper</title>
+<para>
+
+The package spec puts together the context clause and the declarations to make
+a compilation unit.
+
+<src:fragment id="output-pkg-spec">
+<src:fragref linkend="output-pkg-spec-context"/>
+
+package Output is
+
+<src:fragref linkend="output-basic-types"/>
+
+<src:fragref linkend="output-queue-decl"/>
+
+end Output;
+</src:fragment>
+</para>
+</section>
+
+</section>
+</section>
+</section>

@@ -1,0 +1,190 @@
+
+
+<!-- The Input task -->
+<section id="input-task">
+<title>The Input Task</title>
+
+<simpara>The input task is the starting point for all on-line activity.  In
+&prog;, the socket connection to the IRC server is represented by the standard
+input stream, allowing the user to play the role of the IRC server, using
+<link linkend="cmd-set">a set of simple commands</link> to simulate actions
+and exercise the various parts of the program.  In &pprog;, this task has the
+additional responsibility of deciding whether a given message from the server
+is actually intended for the bot, or is regular channel traffic.  This
+decision is required because the bot appears to the server as just another IRC
+user, and all users on a channel get all messages sent to the channel by every
+user.  For &prog;, every input from the user is intended for the program, so
+no such decision need be made.  Once input is recognized as being directed at
+the bot, it is formatted (very simply) and placed on the command task's
+request queue.</simpara>
+
+<section>
+<title>Input Loop</title>
+<para>
+The heart of the input task is an endless loop, which reads input, processes
+it (in this case, simply by converting it to the command-request format), and
+places the request on the command queue.
+
+<src:fragment id="input-loop">
+      loop
+         Get_Line (Input_Line, Input_Length);
+         Command_Request.Data := To_Unbounded_String (Input_Line (1 .. Input_Length));
+         Command.Requests.Enqueue (Command_Request);
+      end loop;
+</src:fragment>
+
+The task spends most of its time sitting on the
+<methodname>Get_Line</methodname> statement, waiting for the user to enter a
+command.  This simulates the real program's behavior of sitting on a socket
+read.  The loop is terminated when the task is aborted by the command task,
+when it recognizes a <quote>quit</quote> command.
+</para>
+
+<simpara id="no-prompt">Note that the input task does not issue any prompt to
+let the user know that it is ready to accept input.  If we simply added a
+<methodname>Put</methodname> or <methodname>Put_Line</methodname> call before
+the <methodname>Get_Line</methodname>, the results would be unsatisfactory, if
+perhaps instructive.  (Yes, we tried it during development.  Don't laugh.)
+The problem is, because of the concurrent nature of task execution, the order
+in which the prompt, and the output from the previous command, are written to
+the standard output stream is indeterminate.  Just as often, the prompt is
+written before the pending output line, producing a very unappealing and
+confusing transcript.</simpara>
+
+<simpara>Even if we used the output queue instead of direct I/O calls, the
+order could not be predicted without additional synchronization among the
+tasks.  Such a mechanism would be simple to implement, but since there is no
+analogue of it in &pprog;, it was not deemed sufficiently important to be
+included.  So you just have to trust that &prog; is ready to accept input
+after execution begins.  If you absolutely must have a prompt, well, you have
+the source, so have fun!</simpara>
+</section>
+
+<section>
+<title>Input Task Declarations</title>
+
+<para>
+The input loop uses these three variables:
+
+<itemizedlist>
+<listitem>
+<simpara><literal>Input_Line</literal> - The string which contains the input from the
+user.  This simulates a message from the IRC server, though the commands have
+a much simpler format than IRC messages.  Its size is set by the
+<literal>Input_Line_Max</literal> constant.  Its value is set by the standard
+<methodname>Get_Line</methodname> library function.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Input_Length</literal> - The length in characters of the
+line the user has typed.  Set by the standard
+<methodname>Get_Line</methodname> library function.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Command_Request</literal> - The request variable to be
+placed on the command task's request queue.  Its value is simply copied from
+the input line via the <methodname>To_Unbounded_String</methodname> standard
+library procedure.</simpara>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="input-decls">
+      Input_Line_Max:  constant := 256;
+
+      Input_Line:       string (1 .. Input_Line_Max);
+      Input_Length:     natural;
+      Command_Request:  Command.Request_Rec;
+</src:fragment>
+
+The value for <literal>Input_Line_Max</literal> was chosen arbitrarily, as
+being <quote>big enough</quote> to accomodate any line the user is likely to
+type during testing.  If the user enters more characters than this, it will be
+returned as multiple lines.  So, don't do that!
+</para>
+</section>
+
+<section>
+<title>Input Task Body</title>
+<para>
+The task's body contains only the processing loop, and its required
+declarations.
+
+<src:fragment id="input-task-body">
+   task body Input_Task_Type is
+<src:fragref linkend="input-decls"/>
+   begin  -- Input_Task_Type
+<src:fragref linkend="input-loop"/>
+   end Input_Task_Type;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Input Task Package</title>
+<para>
+For compilation purposes, the task is contained in a package.  The task is its
+only content, since no other packages depend on it.  The external dependencies
+are:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Text_IO</classname> - Provides the procedure
+<methodname>Get_Line</methodname>, which is used to read commands from the
+user.</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname> - Provides the function
+<methodname>To_Unbounded_String</methodname>, used to convert the fixed-length
+input command string to the unbounded-string format required by the command
+task.</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>Command</classname> - The command task's package, which
+provides the data type for the command-task queue requests, and the
+<methodname>Enqueue</methodname> procedure, which adds the request to the
+command request queue.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library packages via a
+<command>use</command> clause; references to items declared in the
+<classname>Command</classname> package must be fully qualified.
+
+<src:fragment id="input-pkg-body">
+with
+   Ada.Text_IO,
+   Ada.Strings.Unbounded,
+   Command;
+
+use
+   Ada.Text_IO,
+   Ada.Strings.Unbounded;
+
+package body Input is
+<src:fragref linkend="input-task-body"/>
+end Input;
+</src:fragment>
+</para>
+
+<para>
+The input task's package spec is similar to that of <link
+linkend="ping-task">the ping task</link>; they are both a little different
+from the specs of the other task packages.  Since the command task needs to be
+able to abort the input task when a <quote>quit</quote> command is processed,
+it needs a way to identify the input task to the <command>abort</command>
+statement.  Thus the input and ping task package's specs declare a task type,
+and a variable of that type, instead of the anonymous task types of most of
+the other tasks.
+
+<src:fragment id="input-pkg-spec">
+package Input is
+   task type Input_Task_Type;
+   Input_Task:  Input_Task_Type;
+end Input;
+</src:fragment>
+</para>
+</section>
+</section>
