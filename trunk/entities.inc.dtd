@@ -20,3 +20,6 @@
 <!ENTITY dbpkg     "db.html">
 <!ENTITY instpkg   "install.html">
 <!ENTITY ircpkg    "irc.html">
+
+<!-- Reference -->
+<!ENTITY refman    "refman.html">
