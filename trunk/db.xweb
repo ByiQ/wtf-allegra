@@ -1,0 +1,497 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
+                      "file:///opt/litprog/dtd/xweb.dtd" [
+<!ENTITY pkg  "DB">
+<!ENTITY svc  "database">
+<!ENTITY % entities SYSTEM "entities.inc.dtd">
+%entities;
+]>
+
+<article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
+         xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+
+<!-- Article meta-data -->
+<articleinfo>
+<title>Simple Database Access Package for &prog;</title>
+
+<author>
+<firstname>Chip</firstname>
+<surname>Richards</surname>
+</author>
+
+<address><email>chipr@niestu.com</email></address>
+<publisher>
+<publishername>NiEstu</publishername>
+<address><otheraddr><ulink url="&site;/allegra/alba/"></ulink></otheraddr></address>
+</publisher>
+
+<releaseinfo>Version 1.0</releaseinfo>
+<date>29 December 2003</date>
+
+<legalnotice>
+<para>This code is released under the terms of the <ulink
+url="http://www.gnu.org/licenses/gpl.html">GNU General Public License</ulink>,
+version 2.</para>
+</legalnotice>
+</articleinfo>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--            API  section        -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>API</title>
+
+<section>
+<title>Overview</title>
+
+<para>This package provides a simple abstraction for database access, so that
+implementation-specific code need not be embedded in the rest of &prog;'s
+code.  The API is based on a Perl module I wrote several years ago named
+<literal>SimpleDB</literal>, which I have used to good effect in several
+applications; seemed as good a starting point as any.  The services provided
+are very simple:</para>
+
+<itemizedlist>
+<listitem>
+<para>Connect to a database, given the hostname and database name.</para>
+</listitem>
+
+<listitem>
+<para>Disconnect an established database connection.</para>
+</listitem>
+
+<listitem>
+<para>Execute a SQL <command>SELECT</command> statement that is expected to return
+result values.</para>
+</listitem>
+
+<listitem>
+<para>Execute a SQL statement that is not expected to return result
+values.</para>
+</listitem>
+</itemizedlist>
+
+</section>
+
+
+<section>
+<title>Service Details</title>
+
+<section>
+<title>The <function>Connect</function> Procedure</title>
+
+<src:fragment id="proc-conn">
+   procedure Connect (Handle:  out DB_Handle;
+                      Host:    in  string;
+                      DB:      in  string)
+</src:fragment>
+
+<para>The <function>Connect</function> function accepts a hostname and a
+database name, connects to that database on the given host, and returns a
+handle to the connection which may be used to execute SQL statements.  Other
+connection parameters such as login name, port, and password, are set to
+default values.  Raises a <literal>Connect_Error</literal> exception if
+something goes awry during the connection.</para>
+
+</section>
+
+<section>
+<title>The <function>Disconnect</function> Procedure</title>
+
+<src:fragment id="proc-disconn">
+   procedure Disconnect (Handle:  in out DB_Handle)
+</src:fragment>
+
+<para>The <function>Disconnect</function> procedure accepts a handle to a
+database connection, and disconnects it.</para>
+
+</section>
+
+<section>
+<title>The <function>Fetch</function> Procedure</title>
+
+<src:fragment id="proc-fetch">
+   procedure Fetch (Handle:  in  DB_Handle;
+                    Fields:  in  string;
+                    Table:   in  string;
+                    Clause:  in  string;
+                    Result:  out DB_Result)
+</src:fragment>
+
+<para>The <function>Fetch</function> procedure accepts a connected database
+handle, and the three major components of a SQL <command>SELECT</command>
+statement.  It assembles the statement, submits it to the server, then returns
+the handle to the results.</para>
+
+</section>
+
+<section>
+<title>The <function>Get_Value</function> (String, by Column Number) Function</title>
+
+<src:fragment id="func-getv-cs">
+   function Get_Value (Result:  in DB_Result;
+                       Row:     in positive;
+                       Col:     in positive)
+   return string
+</src:fragment>
+
+<para>This version of the <function>Get_Value</function> function returns a
+single string value from a set of returned values, given the row and column
+numbers, each starting with 1.</para>
+
+</section>
+
+<section>
+<title>The <function>Get_Value</function> (Integer, by Column Number) Function</title>
+
+<src:fragment id="func-getv-ci">
+   function Get_Value (Result:  in DB_Result;
+                       Row:     in positive;
+                       Col:     in positive)
+   return integer
+</src:fragment>
+
+<para>This version of the <function>Get_Value</function> function returns a
+single integer value from a set of returned values, given the row and column
+numbers, each starting with 1.</para>
+
+</section>
+
+<section>
+<title>The <function>Get_Value</function> (String, by Field Name) Function</title>
+
+<src:fragment id="func-getv-fs">
+   function Get_Value (Result:  in DB_Result;
+                       Row:     in positive;
+                       Field:   in string)
+   return string
+</src:fragment>
+
+<para>This version of the <function>Get_Value</function> function returns a
+single string value from a set of returned values, given the row number,
+starting with 1, and the field name.</para>
+
+</section>
+
+<section>
+<title>The <function>Get_Value</function> (Integer, by Field Name) Function</title>
+
+<src:fragment id="func-getv-fi">
+   function Get_Value (Result:  in DB_Result;
+                       Row:     in positive;
+                       Field:   in string)
+   return integer
+</src:fragment>
+
+<para>This version of the <function>Get_Value</function> function returns a
+single integer value from a set of returned values, given the row number,
+starting with 1, and the field name.</para>
+
+</section>
+
+<section>
+<title>The <function>Rows</function> Function</title>
+
+<src:fragment id="func-rows">
+   function Rows (Result:  in DB_Result) return natural
+</src:fragment>
+
+<para>The <function>Rows</function> function returns the number of rows in a
+database result as returned by <function>Fetch</function>.</para>
+
+</section>
+
+<section>
+<title>The <function>Cols</function> Function</title>
+
+<src:fragment id="func-cols">
+   function Cols (Result:  in DB_Result) return natural
+</src:fragment>
+
+<para>The <function>Cols</function> function returns the number of columns in
+a database result as returned by <function>Fetch</function>.</para>
+
+</section>
+
+<section>
+<title>The <function>Statement</function> Procedure</title>
+
+<src:fragment id="proc-stmt">
+   procedure Statement (Handle:  in DB_Handle;
+                        Stmt:    in string)
+</src:fragment>
+
+<para>The <function>Statement</function> procedure accepts a connected
+database handle and a complete SQL statement.  It submits the statement to the
+server, and ignores any result.  This is useful for SQL statements other than
+<command>SELECT</command>, such as <command>INSERT</command>,
+<command>DELETE</command>, or <command>DROP</command>.</para>
+
+</section>
+
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--    Implementation section      -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Implementation</title>
+
+<para>The &pkg; package uses <ulink
+url="http://www.rfc1149.net/devel/pgada/">the PGAda library</ulink> to manage
+the &svc; connection, and to perform database access operations on it.  As of
+the time of this writing, the version used was the latest, 0.0.1.  M. Tardieu
+doesn't seem to have touched the package in many a year, and I'd really prefer
+to use something more current, but <ulink
+url="http://home.cogeco.ca/~ve3wwg/software.html#APQ">APQ</ulink> gets an
+exception during initialization, presumably because I'm building it with a
+newer version of GNAT that the one it was last verified with.  And <ulink
+url="http://gnade.sourceforge.net/">GNADE</ulink> looks to be a bit, um, too
+much for &prog;'s needs.  Just be aware that the underlying implementation
+might change at a moment's notice, and thank your stars for Ada's abstraction
+facilities.</para>
+
+
+<section>
+<title>Opening the Server Connection</title>
+
+<para>Opening the connection is a pretty simple operation.  We pass the given
+hostname and database name to PGAda's <function>Set_DB_Login</function>
+procedure, accepting the defaults for everything else.  It uses a simple
+exception handler to map the exception raised by
+<function>Set_DB_Login</function> into our own
+<literal>Connect_Error</literal> exception.</para>
+
+<src:fragment id="conn-body">
+   PGAda.Database.Set_DB_Login (Handle, Host => Host, DB_Name => DB);
+</src:fragment>
+
+</section>
+
+
+<section>
+<title>Closing the Server Connection</title>
+
+<para>Closing an open server connection is again simplicity itself.  We call
+the PGAda <function>Finish</function> procedure.  This may not actually be
+necessary, since PGAda's database handle is a controlled type, and thus should
+call its own <function>Finalize</function> code when the handle is destroyed,
+but this explicit close operation is more suited to a caveman programming
+style.</para>
+
+<src:fragment id="disconn-body">
+   PGAda.Database.Finish (Handle);
+</src:fragment>
+
+</section>
+
+
+<section>
+<title>Fetching Database Values</title>
+
+<para>The <function>Fetch</function> procedure, like all the rest in this
+package, is pretty low-level, just assembling a SQL <command>SELECT</command>
+statement from the given components, and passing it to the server using the
+<function>Exec</function> procedure, which sets the <varname>Result</varname>
+parameter.  Afterward, any of the <function>Get_Value</function> functions may
+be used to retrieve values from the returned data.</para>
+
+<src:fragment id="fetch-body">
+   PGAda.Database.Exec (Handle, "SELECT " &amp; Fields &amp; " FROM " &amp; Table &amp; " " &amp; Clause, Result);
+</src:fragment>
+
+</section>
+
+
+<section>
+<title>Extracting Fetched Values</title>
+
+<para>The <function>Fetch</function> procedure calls the database server to
+fetch a set of values, but returns a handle to the (potentially)
+two-dimensional array of fetched values.  To extract the individual values,
+the user calls the <function>Get_Value</function> functions.  These overloaded
+functions provide a choice between selecting the value by column number or
+SQL field name, and retrieving the value as a string or an integer.  Note that
+attempting to fetch a non-integer value using one of the integer forms will
+raise the standard exception <literal>Constraint_Error</literal>.</para>
+
+<para>These functions don't have actual bodies, as they are simply re-exports
+of the PGAda functions of the same name.</para>
+
+</section>
+
+
+<section>
+<title>Determining Result Dimensions</title>
+
+<para>Once <function>Fetch</function> returns a result, the application must
+determine how many values were actually returned.  The
+<function>Rows</function> and <function>Cols</function> functions return the
+number of rows fetched, and the number of columns in each row.</para>
+
+<para>These functions don't have actual bodies, as they are simply re-exports
+of the PGAda <function>Nbr_Tuples</function> and
+<function>Nbr_Fields</function> functions.</para>
+
+</section>
+
+
+<section>
+<title>Executing Simple SQL Statements</title>
+
+<para>The <function>Statement</function> is used to submit SQL statements to
+the server which do not return values, which is essentially anything except
+<command>SELECT</command> statements.  The implementation is quite simple,
+just using the form of the PGAda <function>Exec</function> procedure which
+does not return a result.</para>
+
+<src:fragment id="stmt-body">
+   PGAda.Database.Exec (Handle, Stmt);
+</src:fragment>
+
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--        Packaging section       -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Packaging</title>
+
+<para>Given this simple body of code, we need only package it for
+compilation.  First, the package spec, which does most of the work,
+re-exporting the necessary data types and simple operations.</para>
+
+
+<section>
+<title>The Package Spec</title>
+
+<section>
+<title>Context Clause</title>
+<para>The package spec imports only one package in its context clause,
+<classname>PGAda.Database</classname>, from which it uses types and functions
+necessary to perform the required database services.</para>
+
+</section>
+
+<section>
+<title>Compilation Unit</title>
+
+<para>The package spec defines these types and exceptions:</para>
+
+<itemizedlist>
+<listitem>
+<para><literal>DB_Handle</literal> - a type which is just a re-exporting of
+the PGAda type <literal>Connection_Type</literal> for users of the &pkg;
+package.</para>
+</listitem>
+
+<listitem>
+<para><literal>DB_Result</literal> - a type which is just a re-exporting of
+the PGAda type <literal>Result_Type</literal> for users of the &pkg;
+package.</para>
+</listitem>
+
+<listitem>
+<para><literal>Connect_Error</literal> - an exception, raised when an error
+occurs during connection or I/O.</para>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="db-pkg-spec">
+
+with
+   PGAda.Database;
+
+package &pkg; is
+
+   subtype DB_Handle is PGAda.Database.Connection_Type;
+
+   subtype DB_Result is PGAda.Database.Result_Type;
+
+   Connect_Error:  exception;
+
+<src:fragref linkend="proc-conn"/>;
+
+<src:fragref linkend="proc-disconn"/>;
+
+<src:fragref linkend="proc-fetch"/>;
+
+<src:fragref linkend="func-getv-cs"/> renames PGAda.Database.Get_Value;
+
+<src:fragref linkend="func-getv-ci"/> renames PGAda.Database.Get_Value;
+
+<src:fragref linkend="func-getv-fs"/> renames PGAda.Database.Get_Value;
+
+<src:fragref linkend="func-getv-fi"/> renames PGAda.Database.Get_Value;
+
+<src:fragref linkend="func-rows"/>    renames PGAda.Database.Nbr_Tuples;
+
+<src:fragref linkend="func-cols"/>    renames PGAda.Database.Nbr_Fields;
+
+<src:fragref linkend="proc-stmt"/>;
+
+end &pkg;;
+</src:fragment>
+
+</section>
+
+</section>
+
+<section>
+<title>The Package Body</title>
+
+<para>The package body assembles the various pieces of service code into a
+compilation unit.</para>
+
+<section>
+<title>Compilation Unit</title>
+
+<para>The body imports the same external package as the spec, but uses
+procedures and functions from it rather than types.</para>
+
+<src:fragment id="db-pkg-body">
+with
+   PGAda.Database;
+
+package body &pkg; is
+
+<src:fragref linkend="proc-conn"/> is
+begin  -- Connect
+<src:fragref linkend="conn-body"/>
+
+exception
+   when others =&gt;
+      raise Connect_Error;
+end Connect;
+
+<src:fragref linkend="proc-disconn"/> is
+begin  -- Disconnect
+<src:fragref linkend="disconn-body"/>
+end Disconnect;
+
+<src:fragref linkend="proc-fetch"/> is
+begin  -- Fetch
+<src:fragref linkend="fetch-body"/>
+end Fetch;
+
+<src:fragref linkend="proc-stmt"/> is
+begin  -- Statement
+<src:fragref linkend="stmt-body"/>
+end Statement;
+
+end &pkg;;
+</src:fragment>
+</section>
+
+</section>
+
+</section>
+
+</article>
