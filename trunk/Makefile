@@ -46,7 +46,7 @@ all: ${MAIN} init-config
 #
 # Program-building targets
 ${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES}
-	gnatmake ${MAIN}.adb -I${PGADA_INC} $$(adasockets-config) -L${PGADA_LIB} -lpgada
+	gnatmake ${MAIN}.adb -aI${PGADA_INC} -aO${PGADA_LIB} $$(adasockets-config) -lpgada
 
 %.ads: %.xweb entities.inc.dtd
 	$(XSLT) top="$(basename $(notdir $@))-pkg-spec" $< $(TANGLE) $@
