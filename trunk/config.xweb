@@ -259,6 +259,7 @@ package &pkg; is
       Cmd_Find,
       Cmd_Forget,
       Cmd_Help,
+      Cmd_List,
       Cmd_Quit,
       Cmd_Quote,
       Cmd_Rename,
@@ -312,10 +313,12 @@ write access is provided by a separate application.</para>
 
 <src:fragment id="context">
 with
+   Ada.Command_Line,
    Ada.Strings.Unbounded,
    DB;
 
 use
+   Ada.Command_Line,
    Ada.Strings.Unbounded;
 </src:fragment>
 
@@ -416,6 +419,7 @@ mapping records whose size is set by its initialization clause.</para>
       ("find            ", Cmd_Find),
       ("forget          ", Cmd_Forget),
       ("help            ", Cmd_Help),
+      ("list            ", Cmd_List),
       ("quit            ", Cmd_Quit),
       ("quote           ", Cmd_Quote),
       ("rename          ", Cmd_Rename),
@@ -467,6 +471,7 @@ and sets the semaphore to indicate that the data is now available.</para>
 <src:fragref linkend="fetch-data"/>
 <src:fragref linkend="map-cfg"/>
 <src:fragref linkend="map-auth"/>
+<src:fragref linkend="override"/>
    DB.Disconnect (Handle);
    Access_Control.Data_Available;
 </src:fragment>
@@ -547,7 +552,61 @@ mechanism is overkill in this situation.</para>
 </section>
 
 <section>
-<title></title>
+<title>Command-Line Overrides</title>
+
+<para>To facilitate testing and other alternative uses, &prog; accepts some
+positional configuration values on the command line.  All are optional, but
+being positional, if you wish to specify a different nick, for example, you
+must give the host and port arguments too, even if they are the same ones as
+found in the configuration database.  If given, these values override the
+values found in the configuration database.  They are, in order:
+
+<itemizedlist>
+<listitem>
+<para>Remote host, given as the first command-line argument.  An Internet host
+name.</para>
+</listitem>
+
+<listitem>
+<para>Remote port, given as the second argument.  A decimal number.</para>
+</listitem>
+
+<listitem>
+<para>Nick, given as the third argument.  Any string that is legal as an IRC
+nickname.</para> nick
+</listitem>
+
+<listitem>
+<para>Channel, given as the fourth argument.  Since the <quote>#</quote>
+character is a meta-character for many common shells (including bash), it must
+be omitted from this value.  Any string that is legal as an IRC channel name,
+without the leading <quote>#</quote>.</para>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="override">
+   if Argument_Count &gt;= 1 then
+      Config_Values (Item_Host) := To_Unbounded_String (Argument (1));
+   end if;
+   if Argument_Count &gt;= 2 then
+      Config_Values (Item_Port) := To_Unbounded_String (Argument (2));
+   end if;
+   if Argument_Count &gt;= 3 then
+      Config_Values (Item_Nick) := To_Unbounded_String (Argument (3));
+   end if;
+   if Argument_Count &gt;= 4 then
+      Config_Values (Item_Channel) := To_Unbounded_String (Argument (4));
+   end if;
+   if Argument_Count &gt;= 5 then
+      Config_Values (Item_LogPath) := To_Unbounded_String (Argument (5));
+   end if;
+</src:fragment>
+
+</para>
+</section>
+
+<section>
+<title>Initialization Variables</title>
 
 <para>These variables are required to support the initialization code:</para>
 
@@ -803,6 +862,7 @@ INSERT INTO &atbl; VALUES ('fetch',       1);
 INSERT INTO &atbl; VALUES ('find',        1);
 INSERT INTO &atbl; VALUES ('forget',      5);
 INSERT INTO &atbl; VALUES ('help',        1);
+INSERT INTO &atbl; VALUES ('list',        1);
 INSERT INTO &atbl; VALUES ('quit',        9);
 INSERT INTO &atbl; VALUES ('quote',       2);
 INSERT INTO &atbl; VALUES ('rename',      5);
