@@ -255,6 +255,7 @@ package &pkg; is
    (
       Cmd_None,
       Cmd_Access,
+      Cmd_CkAccess,
       Cmd_Fetch,
       Cmd_Find,
       Cmd_Forget,
@@ -263,6 +264,7 @@ package &pkg; is
       Cmd_Quit,
       Cmd_Quote,
       Cmd_Rename,
+      Cmd_Reset,
       Cmd_Set,
       Cmd_Stats,
       Cmd_Tell
@@ -415,6 +417,7 @@ mapping records whose size is set by its initialization clause.</para>
    (
       ("                ", Cmd_None),
       ("access          ", Cmd_Access),
+      ("ckaccess        ", Cmd_CkAccess),
       ("fetch           ", Cmd_Fetch),
       ("find            ", Cmd_Find),
       ("forget          ", Cmd_Forget),
@@ -423,6 +426,7 @@ mapping records whose size is set by its initialization clause.</para>
       ("quit            ", Cmd_Quit),
       ("quote           ", Cmd_Quote),
       ("rename          ", Cmd_Rename),
+      ("reset           ", Cmd_Reset),
       ("set             ", Cmd_Set),
       ("stats           ", Cmd_Stats),
       ("tell            ", Cmd_Tell)
@@ -858,6 +862,7 @@ INSERT INTO &ctbl; VALUES ('realname',  'Allegra InfoBot');
 INSERT INTO &ctbl; VALUES ('shorthand', '!');
 INSERT INTO &ctbl; VALUES ('username',  'allegra');
 INSERT INTO &atbl; VALUES ('access',     10);
+INSERT INTO &atbl; VALUES ('ckaccess',    1);
 INSERT INTO &atbl; VALUES ('fetch',       1);
 INSERT INTO &atbl; VALUES ('find',        1);
 INSERT INTO &atbl; VALUES ('forget',      5);
@@ -866,6 +871,7 @@ INSERT INTO &atbl; VALUES ('list',        1);
 INSERT INTO &atbl; VALUES ('quit',        9);
 INSERT INTO &atbl; VALUES ('quote',       2);
 INSERT INTO &atbl; VALUES ('rename',      5);
+INSERT INTO &atbl; VALUES ('reset',       5);
 INSERT INTO &atbl; VALUES ('set',         5);
 INSERT INTO &atbl; VALUES ('stats',       2);
 INSERT INTO &atbl; VALUES ('tell',        3);
