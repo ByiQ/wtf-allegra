@@ -3,6 +3,7 @@
                       "file:///opt/litprog/dtd/xweb.dtd" [
 <!ENTITY % entities SYSTEM "entities.inc.dtd">
 %entities;
+<!ENTITY pkg      "&outname;">
 ]>
 
 <article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
@@ -62,14 +63,30 @@ field to a format that can be written to its output stream, and writes it.
          Requests.Dequeue (Request);
          case Request.Operation is
             when Shutdown_Operation =&gt;
+               Dbg (Output_Name, "Writing QUIT");
                IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("QUIT"), To_Unbounded_String (":Quit requested")));
                exit;
 
+            when Nick_Operation =&gt;
+               Dbg (Output_Name, "Writing NICK " &amp; To_String (Request.Data));
+               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("NICK"), Request.Data));
+
+            when User_Operation =&gt;
+               Dbg (Output_Name, "Writing USER " &amp; To_String (Request.Data));
+               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("USER"), Request.Data));
+
+            when Join_Operation =&gt;
+               Dbg (Output_Name, "Writing JOIN " &amp; To_String (Request.Data));
+               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("JOIN"), Request.Data));
+
             when Message_Operation =&gt;
+               Dbg (Output_Name, "Writing PRIVMSG to " &amp; To_String (Request.Destination) &amp; ": " &amp;
+                                 To_String (Request.Data));
                IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PRIVMSG"),
                                            Request.Destination &amp; " :" &amp; Request.Data));
 
             when Ping_Operation =&gt;
+               Dbg (Output_Name, "Writing PING: " &amp; To_String (Request.Data));
                IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PING"), Request.Data));
          end case;         
       end loop;
@@ -189,7 +206,8 @@ clause</link>.  The spec also declares the task which comprises the body of
 the package.
 
 <src:fragment id="output-basic-types">
-   type Operation_Type is ( Shutdown_Operation, Message_Operation, Ping_Operation );
+   type Operation_Type is ( Shutdown_Operation, Nick_Operation, User_Operation, Join_Operation,
+                            Message_Operation, Ping_Operation );
 
    type Request_Rec is record
       Operation:    Operation_Type;
@@ -244,11 +262,13 @@ Visibility is provided to the standard library package via a
 <src:fragment id="output-pkg-spec-context">
 with
    Ada.Strings.Unbounded,
-   IRC,
+   &ircname;,
+   &logname;,
    PQueue;
 
 use
-   Ada.Strings.Unbounded;
+   Ada.Strings.Unbounded,
+   &logname;;
 </src:fragment>
 </para>
 </section>
@@ -264,6 +284,8 @@ a compilation unit.
 <src:fragref linkend="output-pkg-spec-context"/>
 
 package Output is
+
+   &pkg;_Name:  constant string := "&pkg;";
 
 <src:fragref linkend="output-basic-types"/>
 
