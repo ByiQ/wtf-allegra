@@ -73,17 +73,41 @@ database.  Most of them have some associated data value.
 <src:fragment id="process-request">
    case Request.Operation is
 
+      when Access_Operation =&gt;
+         Set_Access;
+
+      when Fetch_Operation =&gt;
+         Fetch_Factoid ("=");
+
+      when List_Operation =&gt;
+         List_Factoids (S (Request.Data));
+
       when Quip_Operation =&gt;
-         Output_Request.Operation := &outname;.Message_Operation;
-         Output_Request.Destination := Request.Destination;
-         Output_Request.Data := Random_Select (Quips_Tbl);
-         Output.Requests.Enqueue (Output_Request);
+         Say (Random_Select (Quips_Tbl), Request.Destination);
+
+      when Quote_Operation =&gt;
+         Random_Quote (Quote, Attrib);
+         Say (S (Quote), Request.Destination);
+         delay 1.5;
+         Say (S ("  -- " &amp; Attrib), Request.Destination);
+
+      when RE_Fetch_Operation =&gt;
+         Fetch_Factoid ("~*");
+
+      when RE_Tell_Operation =&gt;
+         Fetch_Factoid ("~*", Request.Origin);
+
+      when Set_Operation =&gt;
+         Set_Factoid;
 
       when Shutdown_Operation =&gt;
-         Output_Request.Operation := &outname;.Shutdown_Operation;
-         Output_Request.Data := Random_Select (QuitMsg_Tbl);
-         Output.Requests.Enqueue (Output_Request);
+         Output_Request.Operation := Output.Shutdown_Operation;
+         Output_Request.Data := US (Random_Select (QuitMsg_Tbl));
+         &outname;.Requests.Enqueue (Output_Request);
          exit;
+
+      when Tell_Operation =&gt;
+         Fetch_Factoid ("=", Request.Origin);
 
    end case;
 </src:fragment>
@@ -101,7 +125,7 @@ a particularly fast operation, since it does a database connect and two
 selects, but that's the price of fame.
 
 <src:fragment id="func-ranselect">
-   function Random_Select (Table : in string) return Unbounded_String is
+   function Random_Select (Table : in string) return string is
 
       use Ada.Numerics.Float_Random, &dbname;;
 
@@ -111,7 +135,7 @@ selects, but that's the price of fame.
       Index  : positive;
 
    begin  -- Random_Select
-      &dbname;.Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
 
       Fetch (Handle, "count(msg)", Table, "", Data);
       if Rows (Data) &gt; 0 then
@@ -120,18 +144,268 @@ selects, but that's the price of fame.
          Count := 0;
       end if;
       if Count &lt; 1 then
-         return Null_Unbounded_String;
+         return "";
       end if;
 
       Index := (integer (float (Count) * Random (Randoms)) mod Count) + 1;
       Fetch (Handle, "msg", Table, "where num=" &amp; positive'Image (Index), Data);
       Disconnect (Handle);
       if Rows (Data) &gt; 0 then
-         return To_Unbounded_String (Source =&gt; Get_Value (Data, 1, "msg"));
+         return Get_Value (Data, 1, "msg");
       else
-         return Null_Unbounded_String;
+         return "";
       end if;
    end Random_Select;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Random String Selection</title>
+
+<para>This procedure returns a quote selected at random from the quotes table.
+It's nearly identical to the <function>Random_Select</function> function,
+except that it returns two strings: the quote itself, and the attribution,
+which is written separately.
+
+<src:fragment id="proc-ranquote">
+   procedure Random_Quote (Quote, Attrib : out Unbounded_String) is
+
+      use Ada.Numerics.Float_Random, &dbname;;
+
+      Count  : natural;
+      Data   : DB_Result;
+      Handle : DB_Handle;
+      Index  : positive;
+
+   begin  -- Random_Quote
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+
+      Fetch (Handle, "count(quote)", Quotes_Tbl, "", Data);
+      if Rows (Data) &gt; 0 then
+         Count := Get_Value (Data, 1, "count");
+      else
+         Count := 0;
+      end if;
+      if Count &gt; 0 then
+         Index := (integer (float (Count) * Random (Randoms)) mod Count) + 1;
+         Fetch (Handle, "quote,attr", Quotes_Tbl, "where num=" &amp; positive'Image (Index), Data);
+         if Rows (Data) &gt; 0 then
+            Disconnect (Handle);
+            Quote  := US (Source =&gt; Get_Value (Data, 1, "quote"));
+            Attrib := US (Source =&gt; Get_Value (Data, 1, "attr"));
+            return;
+         end if;
+      end if;
+      Disconnect (Handle);
+      Quote  := Null_Unbounded_String;
+      Attrib := Null_Unbounded_String;
+   end Random_Quote;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Fetch Factoid</title>
+
+<para>This procedure returns the text associated with a factoid name.  The
+result could be several lines, in which case an appropriate delay is done
+between each line.
+
+<src:fragment id="proc-fetch-factoid">
+   procedure Fetch_Factoid (Op : in string;   From : in Unbounded_String := Null_Unbounded_String) is
+
+      use &dbname;;
+
+      Data   : DB_Result;
+      Handle : DB_Handle;
+      Hits   : natural;
+
+   begin  -- Fetch_Factoid
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+
+      Fetch (Handle, "name,value", Factoid_Tbl, "where name" &amp; Op &amp; "'" &amp; To_Lower (S (Request.Data)) &amp; "'", Data);
+      Disconnect (Handle);
+      Hits := Rows (Data);
+      if Hits &gt; 0 then
+         if From /= Null_Unbounded_String then
+            Say (S (From) &amp; " wanted me to tell you:", Request.Destination);
+         end if;
+         declare
+            Key : string := Get_Value (Data, 1, "name");
+         begin
+            for Row in 2 .. Hits loop
+               if Get_Value (Data, Row, "name") /= Key then
+                  Say ("""" &amp; S (Request.Data) &amp; """ matches more than one factoid ...", Request.Destination);
+                  List_Factoids (S (Request.Data));
+                  return;
+               end if;
+            end loop;
+         end;
+         for Row in 1 .. Hits loop
+            if Row = 1 then
+               Say (Get_Value (Data, Row, "name") &amp; ":  " &amp; Get_Value (Data, Row, "value"), Request.Destination);
+            else
+               Say (Get_Value (Data, Row, "value"), Request.Destination);
+            end if;
+            if Hits &gt; 1 and then Row /= Hits then
+               delay 1.0;
+               Say (" - or -", Request.Destination);
+               delay 1.0;
+            end if;
+         end loop;
+         if From /= Null_Unbounded_String then
+            Say ("I told " &amp; S (Request.Destination) &amp; natural'Image (Hits) &amp; " line(s).", Request.Origin);
+         end if;
+      else
+         if From /= Null_Unbounded_String then
+            Say (S (From) &amp; " asked me to tell you about """ &amp; S (Request.Data) &amp; """, but I couldn't find it.", Request.Destination);
+            Say ("Regrettably, I couldn't find """ &amp; S (Request.Data) &amp; """ to tell " &amp; S (From), Request.Origin);
+         else
+            Say ("Sorry, I couldn't find anything that matches """ &amp; S (Request.Data) &amp; """", Request.Destination);
+         end if;
+      end if;
+   end Fetch_Factoid;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>List Factoids</title>
+
+<para>This procedure lists factoid names, either those matching a given
+pattern, or all of them.  Splits the reply up to ensure that it does not
+exceed the IRC message-size limit.
+
+<src:fragment id="proc-list-factoids">
+   procedure List_Factoids (Pat : string) is
+
+      use &dbname;;
+
+      Data   : DB_Result;
+      Handle : DB_Handle;
+      Hits   : natural;
+      Msg    : Unbounded_String;
+      First  : boolean;
+
+   begin  -- List_Factoids
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+
+      Fetch (Handle, "distinct name", Factoid_Tbl, "where name ~* '" &amp; Pat &amp; "' order by name", Data);
+      Disconnect (Handle);
+      Hits := Rows (Data);
+      if Hits &gt; 0 then
+         First := true;
+         for Row in 1 .. Hits loop
+            if Row = 1 then
+               if Pat = "." then
+                  Msg := US ("All factoids:  ");
+               else
+                  Msg := US ("Factoids matching """ &amp; Pat &amp; """:  ");
+               end if;
+            end if;
+            declare
+               Name : string := Get_Value (Data, Row, "name");
+            begin
+               if Length (Msg) + Name'Length &gt; Message_Limit then
+                  if Length (Msg) &gt; 0 then
+                     Say (S (Msg), Request.Destination);
+                  end if;
+                  Msg := US (" - and:  ");
+                  delay 2.0;
+                  First := true;
+               else
+                  if First then
+                     Append (Msg, Name);
+                     First := false;
+                  else
+                     Append (Msg, ", " &amp; Name);
+                  end if;
+               end if;
+            end;
+         end loop;
+         if Length (Msg) &gt; 0 then
+            Say (S (Msg), Request.Destination);
+         end if;
+      else
+         Say ("No factoids match """ &amp; Pat &amp; """", Request.Destination);
+      end if;
+   end List_Factoids;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Set Access Level</title>
+
+<para>This function sets a user's access level.
+<src:fragment id="proc-set-access">
+   procedure Set_Access is
+
+      use &dbname;;
+
+      Data   : DB_Result;
+      Handle : DB_Handle;
+      Hits   : natural;
+
+   begin  -- Set_Access
+      Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+
+      Fetch (Handle, "name", UserLvl_Tbl, "where name = '" &amp; To_Lower (S (Request.Key)) &amp; "'", Data);
+      Hits := Rows (Data);
+      if Hits &gt; 0 then
+         Statement (Handle, "update " &amp; UserLvl_Tbl &amp; " set level=" &amp; S (Request.Data) &amp;
+                            "where name='" &amp; To_Lower (S (Request.Key)) &amp; "'");
+         Say ("Access level for " &amp; To_Lower (S (Request.Key)) &amp; " updated to " &amp; S (Request.Data), Request.Origin);
+      else
+         Statement (Handle, "insert into " &amp; UserLvl_Tbl &amp; " (name,level) values ('" &amp; 
+                            To_Lower (S (Request.Key)) &amp; "'," &amp; S (Request.Data) &amp; ")");
+         Say ("Usermask " &amp; To_Lower (S (Request.Key)) &amp; " added with level " &amp; S (Request.Data), Request.Origin);
+      end if;
+      Disconnect (Handle);
+      &authname;.Init;
+   end Set_Access;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Set Factoid</title>
+
+<para>This procedure sets the text associated with a factoid name.  It may
+join other definitions for the same factoid already out there.
+
+<src:fragment id="proc-set-factoid">
+   procedure Set_Factoid is
+
+      use &dbname;;
+
+      Handle : DB_Handle;
+
+   begin  -- Set_Factoid
+      return;
+      &dbname;.Connect (Handle, Host => "", DB => &cfgname;.Allegra_DB);
+
+--      Statement (Handle, "insert into " &amp; Factoid_Tbl, " (name,value) values ('" &amp;
+--                 To_Lower (Escape (S (Request.Key))) &amp; "','" &amp; Escape (S (Request.Data)) &amp; "')");
+      Disconnect (Handle);
+   end Set_Factoid;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Say a String</title>
+<para>
+
+<src:fragment id="proc-say">
+   procedure Say (Msg : in string;  To : in Unbounded_String) is
+   begin  -- Say
+      Output_Request.Operation := Output.Message_Operation;
+      Output_Request.Destination := To;
+      Output_Request.Data := US (Msg);
+      &outname;.Requests.Enqueue (Output_Request);
+   end Say;
 </src:fragment>
 </para>
 </section>
@@ -158,15 +432,41 @@ output task.  Used to report requests received by the database task.</para>
 </itemizedlist>
 
 <src:fragment id="database-decls">
+   function S (Source : in Ada.Strings.Unbounded.Unbounded_String) return string
+     renames Ada.Strings.Unbounded.To_String;
+
+   function US (Source : in string) return Ada.Strings.Unbounded.Unbounded_String
+     renames Ada.Strings.Unbounded.To_Unbounded_String;
+
+   Message_Limit : constant := 256;
+
+   Factoid_Tbl : constant string := "factoids";
    Quips_Tbl   : constant string := "quips";
    QuitMsg_Tbl : constant string := "quitmsgs";
+   Quotes_Tbl  : constant string := "quotes";
+   UserLvl_Tbl : constant string := "usrlevels";
 
+   Attrib         : Unbounded_String;
    Crash_Request  : &cmdname;.Request_Rec;
+   Quote          : Unbounded_String;
    Randoms        : Ada.Numerics.Float_Random.Generator;
    Request        : Request_Rec;
    Output_Request : &outname;.Request_Rec;
 
+
+   <src:fragref linkend="proc-say"/>
+
    <src:fragref linkend="func-ranselect"/>
+
+   <src:fragref linkend="proc-ranquote"/>
+
+   <src:fragref linkend="proc-list-factoids"/>
+
+   <src:fragref linkend="proc-fetch-factoid"/>
+
+   <src:fragref linkend="proc-set-access"/>
+
+   <src:fragref linkend="proc-set-factoid"/>
 </src:fragment>
 
 </para>
@@ -191,7 +491,7 @@ declarations:
       when E: others =>
          Err (Database_Name, "Exception:  " &amp; Ada.Exceptions.Exception_Information (E));
          Crash_Request.Operation := &cmdname;.Crash_Operation;
-         Crash_Request.Data      := To_Unbounded_String (Database_Name);
+         Crash_Request.Data      := US (Database_Name);
          &cmdname;.Requests.Enqueue (Crash_Request);
    end Database_Task;
 
@@ -228,9 +528,11 @@ Visibility is provided to the standard library package via a
 
 <src:fragment id="database-pkg-body">
 with
+   Ada.Characters.Handling,
    Ada.Exceptions,
    Ada.Numerics.Float_Random,
    Ada.Strings.Unbounded,
+   &authname;,
    &cfgname;,
    &cmdname;,
    &dbname;,
@@ -238,6 +540,7 @@ with
    &outname;;
 
 use
+   Ada.Characters.Handling,
    Ada.Strings.Unbounded,
    &logname;;
 
@@ -266,11 +569,15 @@ is defined via <link linkend="database-pkg-spec-context-section">the context
 clause</link>.
 
 <src:fragment id="database-basic-types">
-   type Operation_Type is ( Shutdown_Operation, Quip_Operation );
+   type Operation_Type is ( Access_Operation, Fetch_Operation, List_Operation, Quip_Operation,
+                            Quote_Operation, RE_Fetch_Operation, RE_Tell_Operation,
+                            Set_Operation, Shutdown_Operation, Tell_Operation );
 
    type Request_Rec is record
       Operation:    Operation_Type;
       Destination:  Unbounded_String;
+      Origin:       Unbounded_String;
+      Key:          Unbounded_String;
       Data:         Unbounded_String;
    end record;
 
