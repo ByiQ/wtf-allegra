@@ -183,33 +183,33 @@ two broad classes:  task packages and utility packages.</para>
 
 <itemizedlist>
 <listitem>
-<para><ulink url="&cmdpkg;"><classname>Command</classname></ulink> - The
+<para><ulink url="&cmdpkg;"><classname>&cmdname;</classname></ulink> - The
 command processor and central brains of the bot.</para>
 </listitem>
 
 <listitem>
-<para><ulink url="&datapkg;"><classname>Database</classname></ulink> -
+<para><ulink url="&datapkg;"><classname>&dataname;</classname></ulink> -
 Provides database access services.</para>
 </listitem>
 
 <listitem>
-<para><ulink url="&filepkg;"><classname>File</classname></ulink> - Provides
-file access services, primarily for ARM lookups.</para>
+<para><ulink url="&filepkg;"><classname>&filename;</classname></ulink> -
+Provides file access services, primarily for ARM lookups.</para>
 </listitem>
 
 <listitem>
-<para><ulink url="&inpkg;"><classname>Input</classname></ulink> - Provides IRC
-input services.</para>
+<para><ulink url="&inpkg;"><classname>&inname;</classname></ulink> - Provides
+IRC input services.</para>
 </listitem>
 
 <listitem>
-<para><ulink url="&outpkg;"><classname>Output</classname></ulink> - Provides
-IRC output services.</para>
+<para><ulink url="&outpkg;"><classname>&outname;</classname></ulink> -
+Provides IRC output services.</para>
 </listitem>
 
 <listitem>
-<para><ulink url="&pingpkg;"><classname>Ping</classname></ulink> - Monitors the
-server connection by generating periodic pings.</para>
+<para><ulink url="&pingpkg;"><classname>&pingname;</classname></ulink> -
+Monitors the server connection by generating periodic pings.</para>
 </listitem>
 </itemizedlist>
 
@@ -220,18 +220,28 @@ server connection by generating periodic pings.</para>
 
 <itemizedlist>
 <listitem>
-<para><ulink url="&cfgpkg;"><classname>Config</classname></ulink> - The
+<para><ulink url="&cfgpkg;"><classname>&cfgname;</classname></ulink> - The
 application's configuration interface.</para>
 </listitem>
 
 <listitem>
-<para><ulink url="&dbpkg;"><classname>DB</classname></ulink> - Low-level
+<para><ulink url="&dbpkg;"><classname>&dbname;</classname></ulink> - Low-level
 database access services.</para>
 </listitem>
 
 <listitem>
-<para><ulink url="&ircpkg;"><classname>IRC</classname></ulink> - Low-level IRC
-I/O services.</para>
+<para><ulink url="&instpkg;"><classname>&instname;</classname></ulink> -
+Installation directions and scripts.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&ircpkg;"><classname>&ircname;</classname></ulink> -
+Low-level IRC I/O services.</para>
+</listitem>
+
+<listitem>
+<para><ulink url="&logpkg;"><classname>&logname;</classname></ulink> - Program
+activity logging services.</para>
 </listitem>
 </itemizedlist>
 
@@ -253,12 +263,12 @@ clause.
 <src:fragment id="allegra-pkg-body">
 
 with
-   Command,
-   Database,
-   File,
-   Input,
-   Output,
-   Ping;
+   &cmdname;,
+   &dataname;,
+   &filename;,
+   &inname;,
+   &outname;,
+   &pingname;;
 
 procedure &prog; is
 begin  -- &prog;
