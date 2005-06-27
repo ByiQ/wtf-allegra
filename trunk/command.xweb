@@ -556,15 +556,15 @@ configuration database table.
    procedure Help   (Cmd     : in string;
                      Sender  : in &ircname;.MsgTo_Rec) is
    begin  -- Help
-      Say ("I currently know the following commands:", S (Destination));
+      Say ("I currently know the following commands:", S (Sender.Nick));
       for Msg in Help_Table'Range loop
-         Say ("   " &amp; S (Help_Table (Msg)), S (Destination));
+         Say ("   " &amp; S (Help_Table (Msg)), S (Sender.Nick));
          if Msg /= Help_Table'Last then
-            delay 1.0;
+            delay 0.5;
          end if;
       end loop;
       Say ("The shortcut string is """ &amp; &cfgname;.Get_Value (&cfgname;.Item_Shorthand) &amp;
-           """; a leading ""~"" in a factoid name treats it as a regexp.", S (Destination));
+           """; a leading ""~"" in a factoid name treats it as a regexp.", S (Sender.Nick));
    end Help;
 </src:fragment>
 </para>
