@@ -92,7 +92,9 @@ database.  Most of them have some associated data value.
          List_Factoids (S (Request.Data));
 
       when Quip_Operation =&gt;
-         Say (Random_Select (Quips_Tbl), Request.Destination);
+         if Ada.Numerics.Float_Random.Random (Randoms) &lt;= Quip_Probability then
+            Say (Random_Select (Quips_Tbl), Request.Destination);
+         end if;
 
       when Quote_Operation =&gt;
          Random_Quote (Quote, Attrib);
@@ -806,7 +808,9 @@ output task.  Used to report requests received by the database task.</para>
    function US (Source : in string) return Ada.Strings.Unbounded.Unbounded_String
      renames Ada.Strings.Unbounded.To_Unbounded_String;
 
-   Message_Limit : constant := 256;
+   Message_Limit    : constant := 256;
+
+   Quip_Probability : constant := 2.0 / 3.0;
 
    Factoid_Tbl   : constant string := "factoids";
    Factstats_Tbl : constant string := "factstats";
