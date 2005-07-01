@@ -1,0 +1,526 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
+                      "file:///opt/litprog/dtd/xweb.dtd" [
+<!ENTITY svc      "logging">
+<!ENTITY % entities SYSTEM "entities.inc.dtd">
+%entities;
+<!ENTITY pkg      "&logname;">
+]>
+
+<article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
+         xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+
+
+<!-- Article meta-data -->
+<articleinfo>
+<title>&prog; Logging Services</title>
+
+<author>
+<firstname>Chip</firstname>
+<surname>Richards</surname>
+</author>
+
+<address><email>chipr@niestu.com</email></address>
+<publisher>
+<publishername>NiEstu</publishername>
+<address><otheraddr><ulink url="&site;/allegra/"></ulink></otheraddr></address>
+</publisher>
+
+<releaseinfo>Version 1.0</releaseinfo>
+<date>11 January 2004</date>
+
+<legalnotice>
+<para>This code is released under the terms of the <ulink
+url="http://www.gnu.org/licenses/gpl.html">GNU General Public License</ulink>,
+version 2.</para>
+</legalnotice>
+</articleinfo>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--            API  section        -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>API</title>
+
+<section>
+<title>Overview</title>
+
+<para>This package does not contain a task, but rather has utilities called
+from all tasks, to log the program's activity.  The basic idea is that logging
+calls are put unconditionally into the operational code, and the log package
+itself queries the current configuration (the <quote>log level</quote>) to
+determine whether to write the message or not.  The <quote>level</quote>, or
+nature of the message, is determined by which of the various logging
+procedures is used to log it:</para>
+
+<para>
+<itemizedlist>
+<listitem>
+<function>Err</function> is for serious error conditions, usually those from
+which the program cannot recover, or which will result in incorrect or
+unwanted operation afterward.
+</listitem>
+
+<listitem>
+<function>Warn</function> is for non-fatal error conditions, those which
+<emphasis>may</emphasis> cause undesirable operation, but which usually can be
+corrected.
+</listitem>
+
+<listitem>
+<function>Info</function> is for informative messages, tracking the normal
+operation of the program.  These can be voluminous, but can also reveal quite
+a bit about what's going on.
+</listitem>
+
+<listitem>
+<function>Dbg</function> is for debugging messages, those not normally very
+informative if the program is operating normally, but which can be useful for
+finding bugs and diagnosing unexpected behaviors.
+</listitem>
+</itemizedlist>
+</para>
+</section>
+
+<section>
+<title>Service Details</title>
+
+<para>The procedure calls are quite simple, and follow a uniform calling
+sequence:</para>
+
+   <src:fragment id="proc-err">procedure Err  (From:  string;   Msg:  string)</src:fragment>
+   <src:fragment id="proc-warn">procedure Warn (From:  string;   Msg:  string)</src:fragment>
+   <src:fragment id="proc-info">procedure Info (From:  string;   Msg:  string)</src:fragment>
+   <src:fragment id="proc-dbg">procedure Dbg  (From:  string;   Msg:  string)</src:fragment>
+
+   <src:fragment id="proc-init">procedure Init</src:fragment>
+   <src:fragment id="proc-wrapup">procedure WrapUp</src:fragment>
+
+<para>In each of the logging calls, the <parameter>From</parameter> parameter
+is intended to name the task (or other location) from which the logging call
+was made, such as <literal>&inname;</literal>, <literal>&pingname;</literal>,
+<literal>&cmdname;</literal>, etc.  Each task has its own name in a variable,
+such as <literal>&cmdname;_Name</literal>, so an example call to a logging
+procedure might look like this:
+</para>
+
+<para>
+<src:fragment id="call-example">Warn (&cmdname;_Name, "You in a heap o' trouble now, boy!");</src:fragment>
+</para>
+
+<para>That call could be inserted in the appropriate place in <ulink
+url="&cmdpkg;">the command task's</ulink> code, and if the log level was
+<literal>warn</literal>, <literal>info</literal>, or higher, the message would
+be printed.  Otherwise, the request to log the message would be
+skipped.</para>
+
+<para>The <function>Init</function> procedure can be called at any time to
+reload the log level from the configuration database, and to check the
+log-file pathname and switch to a new name if that has changed since startup
+or since the last call to <function>Init</function>.  The
+<function>WrapUp</function> procedure closes the log file.</para>
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--    Implementation section      -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Implementation</title>
+
+<para>The overall structure of the package is very repetitive, but quite
+simple.  Each procedure checks the current log level variable
+<varname>Log_Level</varname> and decides whether or not to write its message
+to the log file <varname>Log_File</varname>.  The code accesses the
+configuration data using the services provided by <ulink url="&cfgpkg;">the
+&cfgname; package</ulink>.  Writes are done using the standard
+<classname>Ada.Text_IO</classname> package services.</para>
+
+<section>
+<title>Initialization</title>
+
+<para>The <function>Init</function> procedure is called at package
+initialization time, and can be called at any time during execution.  Its
+function has two distinct portions:</para>
+
+<itemizedlist>
+<listitem>
+<para>It fetches the current logging level (a string) from the configuration
+database and maps it into an enumeration value which can easily be tested in
+the logging procedures.  Since there are only a few log-level strings, this is
+done with a simple <literal>if</literal> statement.  Note that if <ulink
+url="&cfgpkg;#cfg-value-list">the configuration database values</ulink> for
+log level should change, this code must also be updated to reflect
+that.</para>
+</listitem>
+
+<listitem>
+<para>It fetches the log-file pathname from the configuration database and
+compares it to the previous value.  At package init time, this will be a null
+value; subsequently, it will be the name of the log file that's currently
+open.  If the names don't match, the file is closed if it is opened, then
+(re)opened with the new name.  Exceptions during file creation are handled by
+issuing an error message to the standard error stream, and setting the current
+log level to <quote>none</quote>, thus preventing any further logging
+attempts.  Since the log-file pathname isn't stored until after the file is
+successfully created, <function>Init</function> will again attempt to open the
+configured pathname the next time it is called.</para>
+
+<para>Note that the open is done in two steps, in order to preserve an
+existing log file.  It first tries to <function>Open</function> the file, and
+if it gets a <literal>Name_Error</literal>, it then tries to create it.</para>
+</listitem>
+</itemizedlist>
+
+<para>Warning: <function>Init</function> assumes that the configuration
+database is up to date--see <ulink url="&cfgpkg;">the &cfgname;
+package</ulink> for details.</para>
+
+<src:fragment id="init-body">
+   declare
+      use &cfgname;;
+      Current_Level_Str:  string := Get_Value (Item_LogLevel);
+   begin
+      if    Current_Level_Str = "none" then
+         Log_Level := Level_None;
+      elsif Current_Level_Str = "err" then
+         Log_Level := Level_Err;
+      elsif Current_Level_Str = "warn" then
+         Log_Level := Level_Warn;
+      elsif Current_Level_Str = "info" then
+         Log_Level := Level_Info;
+      elsif Current_Level_Str = "dbg" then
+         Log_Level := Level_Dbg;
+      else
+         raise Program_Error;
+      end if;
+   end;
+
+   declare
+      use Ada.Strings.Unbounded, Ada.Text_IO, &cfgname;;
+      Logfile_Pathname:  string := Get_Value (Item_LogPath);
+   begin
+      if Current_Logfile_Pathname /= Logfile_Pathname then
+         if Is_Open (Log_File) then
+            Close (Log_File);
+         end if;
+         begin
+            Open (Log_File, Append_File, Logfile_Pathname);
+         exception
+            when Name_Error =>
+               Create (Log_File, Append_File, Logfile_Pathname);
+            when Use_Error =>
+               Put_Line (Standard_Error, "Cannot open log file """ &amp; Logfile_Pathname &amp; """ -- check permissions");
+               Log_Level := Level_None;
+            when others =>
+               raise;  -- propagate to outer handler
+         end;
+         Current_Logfile_Pathname := To_Unbounded_String (Logfile_Pathname);
+      end if;
+
+   exception
+      when Name_Error =>
+         Put_Line (Standard_Error, "Cannot create log file """ &amp; Logfile_Pathname &amp; """ -- badly-formed pathname");
+         Log_Level := Level_None;
+      when Use_Error =>
+         Put_Line (Standard_Error, "Cannot create log file """ &amp; Logfile_Pathname &amp; """ -- check permissions");
+         Log_Level := Level_None;
+      when E: others =>
+         Put_Line (Standard_Error, "Cannot create log file """ &amp; Logfile_Pathname &amp; """ -- " &amp;
+                   Ada.Exceptions.Exception_Name (E));
+         Log_Level := Level_None;
+   end;
+</src:fragment>
+
+</section>
+
+<section>
+<title>The Str Function</title>
+
+<para>The <function>Str</function> function combines the operation of the
+'Image attribute and the numeric formatting offered by the
+<classname>Ada.Integer_Text_IO</classname> package.  Additionally, it can pad
+leading digit positions with either blanks (the default) or zeroes.  Though it
+returns a variable-length string result, its width is fixed by the
+<parameter>Width</parameter> parameter.  The number to be formatted must not
+exceed that width, or a <literal>Constraint_Error</literal> exception will
+result.  The default width of the output is 10, which is the GNAT default.  In
+practice, this is seldom useful, though it can be handy for debug
+output.</para>
+
+<src:fragment id="func-str">
+   function Str (Num:    in natural;
+                 Width:  in positive  := 10;
+                 Pad:    in character := ' ') return string is
+
+      S:  string ( 1 .. Width );
+
+   begin  -- Str
+      Ada.Integer_Text_IO.Put (S, Num);
+      if Pad /= ' ' then  -- Put pads with space by default
+         for Char in S'Range loop
+            if S (Char) = ' ' then
+               S (Char) := Pad;
+            end if;
+         end loop;
+      end if;
+      return S;
+   end Str;
+</src:fragment>
+</section>
+
+<section>
+<title>The Timestamp Function</title>
+
+<para>The <function>Timestamp</function> function generates a simple
+fixed-format date/time string, which is written as a prefix to each message
+written to the log file.  This has proved quite useful in logs over the years,
+so we do it again here.</para>
+
+<src:fragment id="func-timestamp">
+   Month_Names:  constant array (Ada.Calendar.Month_Number) of string (1 .. 3) :=
+           ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec");
+
+   function Timestamp return string is
+
+      use Ada.Calendar;
+
+<src:fragref linkend="func-str"/>
+
+      Now:   Time := Clock;  -- current system time
+      HH:    natural;
+      MM:    natural;
+      SS:    natural;
+
+   begin  -- Timestamp
+      SS := natural (Seconds (Now));
+      HH := SS / 3600;
+      SS := SS - HH * 3600;
+      MM := SS / 60;
+      SS := SS - MM * 60;
+
+      return Str (Day (Now), 2) &amp; " " &amp; Month_Names (Month (Now)) &amp; " " &amp; Str (Year (Now), 4)
+             &amp; " " &amp;
+             Str (HH, 2, Pad => ' ') &amp; ":" &amp; Str (MM, 2, Pad => '0') &amp; ":" &amp; Str (SS, 2, Pad => '0');
+   end Timestamp;
+</src:fragment>
+</section>
+
+<section>
+<title>Writing Log Messages</title>
+
+<para>The same code is used by each logging procedure to write its messages.
+Every message is preceded by a timestamp, so the operator can track the event
+sequence.  It uses <function>Ada.Strings.Fixed.Head</function> to pad the
+names to a fixed width, to make the output more visually consistent.  After
+the line is written, the file is flushed, to ensure that the log entry becomes
+immediately visible to other processes.</para>
+
+<src:fragment id="write-msg">
+Ada.Text_IO.Put_Line (Log_File, Timestamp &amp; " " &amp; Ada.Strings.Fixed.Head (From, Name_Width) &amp; ":  " &amp; Msg);
+Ada.Text_IO.Flush (Log_File);
+</src:fragment>
+</section>
+
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--        Packaging section       -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Packaging</title>
+
+<para>Here we present the actual packaging of the code for compilation.  No
+context clause is needed, since it uses only standard types.</para>
+
+
+<section>
+<title>The Package Spec</title>
+
+<para>The package spec defines the logging procedures
+<function>Err</function>, <function>Warn</function>,
+<function>Info</function>, and <function>Dbg</function>, and the
+initialization function <function>Init</function>.</para>
+
+<src:fragment id="log-pkg-spec">
+package &pkg; is
+
+   -- Logging procedures
+   <src:fragref linkend="proc-err"/>;
+   <src:fragref linkend="proc-warn"/>;
+   <src:fragref linkend="proc-info"/>;
+   <src:fragref linkend="proc-dbg"/>;
+
+   -- Initialization procedure
+   <src:fragref linkend="proc-init"/>;
+   <src:fragref linkend="proc-wrapup"/>;
+
+end &pkg;;
+</src:fragment>
+
+</section>
+
+<section>
+<title>The Package Body</title>
+
+<para>The package body assembles the various pieces of service code into a
+compilation unit.</para>
+
+<section>
+<title>The Context Clause</title>
+
+<para>The package body uses several Ada-standard and application-specific
+packages for their types and subroutines.  No global <literal>use</literal>
+clause is specified; each block declares which package(s) it will be
+using.</para>
+
+<itemizedlist>
+<listitem>
+<para><classname>Ada.Calendar</classname> - Used when generating the
+timestamps that are attached to each logged message.</para>
+</listitem>
+
+<listitem>
+<para><classname>Ada.Exceptions</classname> - Used in the
+<function>Init</function> procedure's exception handler, to print the name of
+an unexpected exception.</para>
+</listitem>
+
+<listitem>
+<para><classname>Ada.Integer_Text_IO</classname> - Used when generating the
+timestamps that are attached to each logged message, to format the numeric
+date and time values.</para>
+</listitem>
+
+<listitem>
+<para><classname>Ada.Strings.Fixed</classname> - Needed for the
+<function>Head</function> function, used to pad task names to a fixed width in
+the log file.</para>
+</listitem>
+
+<listitem>
+<para><classname>Ada.Strings.Unbounded</classname> - The log-file pathname is
+stored as an unbounded string, so the type and conversion routines are used to
+convert them to and from standard strings.</para>
+</listitem>
+
+<listitem>
+<para><classname>Ada.Text_IO</classname> - Used to create/open/close the log
+file(s), and to write messages to them.</para>
+</listitem>
+
+<listitem>
+<para><classname>&cfgname;</classname> - Provides access to the configuration
+database, from which the logging services fetch the log level and log-file
+pathname.</para>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="context">
+with
+   Ada.Calendar,
+   Ada.Exceptions,
+   Ada.Integer_Text_IO,
+   Ada.Strings.Fixed,
+   Ada.Strings.Unbounded,
+   Ada.Text_IO,
+   &cfgname;;
+</src:fragment>
+
+</section>
+
+<section>
+<title>Logging Level Declaration</title>
+
+<para>The logging procedures use logging level enumeration to determine
+<quote>who</quote> they are, and thus whether they should write their message.
+Since the logging functions use a <quote>greater-than-or-equal-to</quote> test
+on the level values, the order of the enumeration values is significant: each
+level is assumed also to include all of the levels with lower position values.
+Thus <literal>Level_Warn</literal> also implies <literal>Level_Err</literal>
+and so on.</para>
+
+<src:fragment id="loglvl">
+type Log_Level_Enm is ( Level_None, Level_Err, Level_Warn, Level_Info, Level_Dbg );
+</src:fragment>
+</section>
+
+<section>
+<title>Compilation Unit</title>
+
+<para>The body imports the same external package as the spec, but uses
+procedures and functions from it rather than types.</para>
+
+<src:fragment id="log-pkg-body">
+<src:fragref linkend="context"/>
+
+package body &pkg; is
+
+-- Declarations
+   Name_Width:  constant := 12;  -- arbitrary, "wide enough"
+
+   <src:fragref linkend="loglvl"/>
+
+   Log_Level:                 Log_Level_Enm := Level_None;
+   Log_File:                  Ada.Text_IO.File_Type;
+   Current_Logfile_Pathname:  Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.Null_Unbounded_String;
+
+-- Local routines
+<src:fragref linkend="func-timestamp"/>
+
+-- Exported procedures
+<src:fragref linkend="proc-err"/> is
+begin  -- Err
+   if Log_Level &gt;= Level_Err then
+      <src:fragref linkend="write-msg"/>
+   end if;
+end Err;
+
+<src:fragref linkend="proc-warn"/> is
+begin  -- Warn
+   if Log_Level &gt;= Level_Warn then
+      <src:fragref linkend="write-msg"/>
+   end if;
+end Warn;
+
+<src:fragref linkend="proc-info"/> is
+begin  -- Info
+   if Log_Level &gt;= Level_Info then
+      <src:fragref linkend="write-msg"/>
+   end if;
+end Info;
+
+<src:fragref linkend="proc-dbg"/> is
+begin  -- Dbg
+   if Log_Level &gt;= Level_Dbg then
+      <src:fragref linkend="write-msg"/>
+   end if;
+end Dbg;
+
+<src:fragref linkend="proc-init"/> is
+begin  -- Init
+   <src:fragref linkend="init-body"/>
+end Init;
+
+<src:fragref linkend="proc-wrapup"/> is
+begin  -- WrapUp
+   if Ada.Text_IO.Is_Open (Log_File) then
+      Ada.Text_IO.Close (Log_File);
+   end if;
+end WrapUp;
+
+begin  -- package &pkg; initialization
+   Init;
+end &pkg;;
+</src:fragment>
+</section>
+
+</section>
+
+</section>
+
+</article>
