@@ -24,8 +24,8 @@
 <address><otheraddr><ulink url="&site;/allegra/"></ulink></otheraddr></address>
 </publisher>
 
-<releaseinfo>Version 1.0</releaseinfo>
-<date>30 December 2003</date>
+<releaseinfo>Version &version;</releaseinfo>
+<date>&builddate;</date>
 
 <legalnotice>
 <para>This code is released under the terms of the <ulink
@@ -64,13 +64,16 @@ on the output queue) and waits again.
          select
             accept Input_Received;
                Missed := 0;
+               while Timeout_Queue.Length > 0 loop
+                  Timeout_Queue.Dequeue (Dont_Care);
+               end loop;
          or
             delay Ping_Delay;
             Missed := Missed + 1;
             if Missed >= Max_Missed_Pings then
                Info (Ping_Name, "Link timed out after " &amp;
                      Duration'Image (Ping_Delay * Duration (Missed)) &amp; " seconds");
-               IRC.Close_Server;
+               Timeout_Queue.Enqueue (true);
                Missed := 0;
             else
                Output_Request.Operation := Output.Ping_Operation;
@@ -127,16 +130,55 @@ In &prog;, it would be a valid IRC <quote>ping</quote> message.</para>
 </itemizedlist>
 
 <src:fragment id="ping-decls">
-      Max_Missed_Pings: constant := 2;
-      Ping_Delay:  Duration := 120.0;
+      Max_Missed_Pings : constant := 2;
+      Ping_Delay       : constant Duration := 120.0;
 
-      Missed: natural := 0;
-      Output_Request:  Output.Request_Rec;
+      Missed         : natural := 0;
+      Output_Request : Output.Request_Rec;
+      Dont_Care      : boolean;
 </src:fragment>
 
 In &prog;, <literal>Ping_Delay</literal> is set to one minute, so as not to
 clutter the output with too many ping messages.  Presumably it will be shorter
 in &prog;.
+</para>
+</section>
+
+<section>
+<title>Timeout Queue Declaration</title>
+<para>
+The spec instatiates the generic library package <literal>PQueue</literal>
+using <literal>boolean</literal> as its data-item type, and then declares the
+actual timeout queue itself, as an item of that new queue type.  This queue is
+used as a semaphore, and should actually be a simpler protected object
+implementing only semaphore behavior, but we have the protected queue already,
+it <emphasis>will</emphasis> do the job we need here, and it seems a shame to
+introduce a whole separate data type for this one infrequently used function.
+The actual data type used to instantiate the package is thus unimportant,
+since the presence/absence of an item on the queue is the only use to which it
+is put.
+
+<src:fragment id="timeout-queue-decl">
+   package Timeout_Queue_Pkg is new PQueue (boolean);
+
+   Timeout_Queue : Timeout_Queue_Pkg.Protected_Queue_Type;
+</src:fragment>
+</para>
+</section>
+
+<section id="ping-pkg-spec-context-section">
+<title>Ping Package Spec Context Clause</title>
+<para>
+The ping task's package spec depends on <classname>PQueue</classname>, a local
+library package, which is not defined in this document.  It is a generic
+package which implements a simple protected queue type.  The code was adapted
+from Cohen's book <citetitle pubwork="book">Ada as a Second
+Language</citetitle>.
+
+<src:fragment id="ping-pkg-spec-context">
+with
+   PQueue;
+</src:fragment>
 </para>
 </section>
 
@@ -188,7 +230,6 @@ with
    Ada.Strings.Unbounded,
    Ada.Text_IO,
    &cfgname;,
-   &ircname;,
    &logname;,
    &outname;;
 
@@ -214,14 +255,17 @@ it needs a way to identify the ping task to the <command>abort</command>
 statement.  Thus the ping and input task package's specs declare a task type,
 and a variable of that type, instead of the anonymous task types of most of
 the other tasks.  In addition, the ping task has an entry, used by the input
-task to signal the arrival of input.
+task to signal the arrival of input.  It also declares a protected object,
+used to abort the input task's read statement when a timeout occurs.
 
 <src:fragment id="ping-pkg-spec">
+<src:fragref linkend="ping-pkg-spec-context"/>
 package Ping is
    task type Ping_Task_Type is
       entry Input_Received;
    end Ping_Task_Type;
    Ping_Task:  Ping_Task_Type;
+   <src:fragref linkend="timeout-queue-decl"/>
 end Ping;
 </src:fragment>
 </para>

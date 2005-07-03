@@ -25,8 +25,8 @@
 <address><otheraddr><ulink url="&site;/allegra/"></ulink></otheraddr></address>
 </publisher>
 
-<releaseinfo>Version 1.0</releaseinfo>
-<date>30 December 2003</date>
+<releaseinfo>Version &version;</releaseinfo>
+<date>&builddate;</date>
 
 <legalnotice>
 <para>This code is released under the terms of the <ulink
@@ -61,38 +61,48 @@ field to a format that can be written to its output stream, and writes it.
 <src:fragment id="output-loop">
       loop
          Requests.Dequeue (Request);
-         case Request.Operation is
-            when Shutdown_Operation =&gt;
-               Dbg (Output_Name, "Writing QUIT """ &amp; To_String (Request.Data) &amp; """");
-               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("QUIT"), ":" &amp; Request.Data));
-               exit;
+         begin
+            case Request.Operation is
+               when Shutdown_Operation =&gt;
+                  Dbg (Output_Name, "Writing QUIT """ &amp; To_String (Request.Data) &amp; """");
+                  IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("QUIT"), ":" &amp; Request.Data));
+                  exit;
 
-            when Nick_Operation =&gt;
-               Dbg (Output_Name, "Writing NICK " &amp; To_String (Request.Data));
-               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("NICK"), Request.Data));
+               when Nick_Operation =&gt;
+                  Dbg (Output_Name, "Writing NICK " &amp; To_String (Request.Data));
+                  IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("NICK"), Request.Data));
 
-            when User_Operation =&gt;
-               Dbg (Output_Name, "Writing USER " &amp; To_String (Request.Data));
-               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("USER"), Request.Data));
+               when User_Operation =&gt;
+                  Dbg (Output_Name, "Writing USER " &amp; To_String (Request.Data));
+                  IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("USER"), Request.Data));
 
-            when Join_Operation =&gt;
-               Dbg (Output_Name, "Writing JOIN " &amp; To_String (Request.Data));
-               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("JOIN"), Request.Data));
+               when Join_Operation =&gt;
+                  Dbg (Output_Name, "Writing JOIN " &amp; To_String (Request.Data));
+                  IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("JOIN"), Request.Data));
 
-            when Message_Operation =&gt;
-               Dbg (Output_Name, "Writing PRIVMSG to " &amp; To_String (Request.Destination) &amp; ": " &amp;
-                                 To_String (Request.Data));
-               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PRIVMSG"),
-                                           Request.Destination &amp; " :" &amp; Request.Data));
+               when Message_Operation =&gt;
+                  Dbg (Output_Name, "Writing PRIVMSG to " &amp; To_String (Request.Destination) &amp; ": " &amp;
+                                    To_String (Request.Data));
+                  IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PRIVMSG"),
+                                              Request.Destination &amp; " :" &amp; Request.Data));
 
-            when Ping_Operation =&gt;
-               Dbg (Output_Name, "Writing PING: " &amp; To_String (Request.Data));
-               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PING"), Request.Data));
+               when Ping_Operation =&gt;
+                  Dbg (Output_Name, "Writing PING: " &amp; To_String (Request.Data));
+                  IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PING"), Request.Data));
 
-            when Pong_Operation =&gt;
-               Dbg (Output_Name, "Writing PONG: " &amp; To_String (Request.Data));
-               IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PONG"), Request.Data));
-         end case;         
+               when Pong_Operation =&gt;
+                  Dbg (Output_Name, "Writing PONG: " &amp; To_String (Request.Data));
+                  IRC.Write (IRC.Message_Rec'(IRC.Null_Field, To_Unbounded_String ("PONG"), Request.Data));
+            end case;
+
+         exception
+            when IRC.Connect_Error =>
+               Err (Output_Name, "Connect error during write in " &amp; Output_Name);
+
+            when E: others =>
+               Err (Output_Name, "Other exception " &amp; Ada.Exceptions.Exception_Information (E) &amp;
+                                 " during write in " &amp; Output_Name);
+         end;
       end loop;
 </src:fragment>
 
@@ -245,6 +255,12 @@ The output task's package spec depends on these two packages:
 
 <itemizedlist>
 <listitem>
+<para><classname>Ada.Exceptions</classname>, which allows exception handlers
+to report the name of the exception they have received.
+</para>
+</listitem>
+
+<listitem>
 <para><classname>Ada.Strings.Unbounded</classname>, which provides the
 <literal>Unbounded_String</literal> type used for the request record's data.
 </para>
@@ -265,6 +281,7 @@ Visibility is provided to the standard library package via a
 
 <src:fragment id="output-pkg-spec-context">
 with
+   Ada.Exceptions,
    Ada.Strings.Unbounded,
    &ircname;,
    &logname;,

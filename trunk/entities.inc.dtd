@@ -4,6 +4,8 @@
 <!ENTITY pcmd "<command>allegra</command>">
 <!ENTITY site "http://www.niestu.com">
 <!ENTITY progdb "allegra">
+<!ENTITY version "1.0">
+<!ENTITY builddate "2 July 2005">
 
 <!-- The main page -->
 <!ENTITY main      "allegra.html">

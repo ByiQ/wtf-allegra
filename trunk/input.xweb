@@ -25,8 +25,8 @@
 <address><otheraddr><ulink url="&site;/allegra/"></ulink></otheraddr></address>
 </publisher>
 
-<releaseinfo>Version 1.0</releaseinfo>
-<date>30 December 2003</date>
+<releaseinfo>Version &version;</releaseinfo>
+<date>&builddate;</date>
 
 <legalnotice>
 <para>This code is released under the terms of the <ulink
@@ -63,24 +63,23 @@ places the request on the command queue.
 
 <src:fragment id="input-loop">
       loop
-         Got_Input := false;
          begin
-            IRC.Read (Input_Message);
-            Got_Input := true;
-            Dbg (Input_Name, "Got " &amp; To_String (Input_Message.Prefix) &amp; ", " &amp; To_String (Input_Message.Command) &amp; ", " &amp; To_String (Input_Message.Params));
+            <src:fragref linkend="asynchronous-select-read"/>
 
          exception
             when IRC.Connect_Error =>
-               IRC.Close_Server;
-               IRC.Open_Server (&cfgname;.Get_Value (&cfgname;.Item_Host), positive'Value (&cfgname;.Get_Value (&cfgname;.Item_Port)));
-               Info (Input_Name, "Reconnect to " &amp; &cfgname;.Get_Value (&cfgname;.Item_Host) &amp; ":" &amp; &cfgname;.Get_Value (&cfgname;.Item_Port));
+               Dbg (Input_Name, "Connect error during read in " &amp; Input_Name);
 
             when E: others =>
-               Err (Input_Name, "Other exception " &amp; Ada.Exceptions.Exception_Information (E) &amp; " in " &amp; Input_Name);
+               Err (Input_Name, "Other exception " &amp; Ada.Exceptions.Exception_Information (E) &amp;
+                                " during read in " &amp; Input_Name);
          end;
 
          if Got_Input then
             &pingname;.Ping_Task.Input_Received;
+            Dbg (Input_Name, "Got " &amp; To_String (Input_Message.Prefix) &amp; ", "  &amp;
+                                          To_String (Input_Message.Command) &amp; ", " &amp;
+                                          To_String (Input_Message.Params));
             declare
                Cmd       : string := To_Lower (To_String (Input_Message.Command));
                Nick      : string := To_Lower (&cfgname;.Get_Value (&cfgname;.Item_Nick));
@@ -127,7 +126,19 @@ places the request on the command queue.
                end if;
             end;
          else
-            Dbg (Input_Name, "Login requested");
+            Info (Input_Name, "Reconnect to " &amp; &cfgname;.Get_Value (&cfgname;.Item_Host) &amp; ":" &amp; &cfgname;.Get_Value (&cfgname;.Item_Port));
+            begin
+               IRC.Close_Server;
+               delay 20.0;  -- throttle connect requests
+               IRC.Open_Server (&cfgname;.Get_Value (&cfgname;.Item_Host), positive'Value (&cfgname;.Get_Value (&cfgname;.Item_Port)));
+            exception
+               when IRC.Connect_Error =>
+                  Dbg (Input_Name, "Connect error during server reconnect in " &amp; Input_Name);
+
+               when E: others =>
+                  Err (Input_Name, "Other exception " &amp; Ada.Exceptions.Exception_Information (E) &amp;
+                                   " during server reconnect in " &amp; Input_Name);
+            end;
             Command_Request.Operation := &cmdname;.Login_Operation;
             &cmdname;.Requests.Enqueue (Command_Request);
          end if;
@@ -159,6 +170,38 @@ analogue of it in &prog;, it was not deemed sufficiently important to be
 included.  So you just have to trust that &prog; is ready to accept input
 after execution begins.  If you absolutely must have a prompt, well, you have
 the source, so have fun!</para>
+</section>
+
+<section id="">
+<title>Abortable Read Using Asynchronous Select</title>
+<para>
+The actual read of the IRC input data from the server socket is done in such a
+way that it can be aborted if the ping task detects that the connection has
+dropped.  Earlier versions of &prog; relied on the advertised behavior of
+AdaSockets, which says that if one closes (does a "Shutdown" on) a socket
+while a receive is pending, the receive will terminate with an exception.  In
+practice, this does not seem to work very reliably, so we take matters into
+our own hands.
+</para>
+
+<para>
+The asynchronous select essentially starts two statements, in this case a
+Dequeue on the timeout queue and the socket read, and whichever finishes first
+cancels the other.  If the read finishes before a timeout, the Got_Input flag
+is set true; if an entry is placed on the timeout queue by the ping task, the
+read is aborted and Got_Input stays false.
+
+<src:fragment id="asynchronous-select-read">
+   Got_Input := false;
+   select
+      &pingname;.Timeout_Queue.Dequeue (Dont_Care);
+      Dbg (Input_Name, "Read aborted by timeout");
+   then abort
+      IRC.Read (Input_Message);
+      Got_Input := true;
+   end select;      
+</src:fragment>
+</para>
 </section>
 
 <section>
@@ -216,6 +259,7 @@ library procedure.</para>
       Got_Input:        boolean;
       Input_Message:    IRC.Message_Rec;
       Command_Request:  &cmdname;.Request_Rec;
+      Dont_Care:        boolean;
 </src:fragment>
 
 The value for <literal>Input_Line_Max</literal> was chosen arbitrarily, as
@@ -235,7 +279,20 @@ declarations.
    task body Input_Task_Type is
 <src:fragref linkend="input-decls"/>
    begin  -- Input_Task_Type
-      IRC.Open_Server (&cfgname;.Get_Value (&cfgname;.Item_Host), positive'Value (&cfgname;.Get_Value (&cfgname;.Item_Port)));
+      loop
+         begin
+            IRC.Open_Server (&cfgname;.Get_Value (&cfgname;.Item_Host), positive'Value (&cfgname;.Get_Value (&cfgname;.Item_Port)));
+            exit;
+         exception
+            when IRC.Connect_Error =>
+               Dbg (Input_Name, "Connect error during initial server connect in " &amp; Input_Name);
+
+            when E: others =>
+               Err (Input_Name, "Other exception " &amp; Ada.Exceptions.Exception_Information (E) &amp;
+                                " during initial server connect in " &amp; Input_Name);
+         end;
+         delay 20.0;  -- throttle connect requests
+      end loop;
       Command_Request.Operation := &cmdname;.Login_Operation;
       &cmdname;.Requests.Enqueue (Command_Request);
 <src:fragref linkend="input-loop"/>
@@ -252,6 +309,12 @@ only content, since no other packages depend on it.  The external dependencies
 are:
 
 <itemizedlist>
+<listitem>
+<para><classname>Ada.Exceptions</classname>, which allows exception handlers
+to report the name of the exception they have received.
+</para>
+</listitem>
+
 <listitem>
 <para><classname>Ada.Text_IO</classname> - Provides the procedure
 <methodname>Get_Line</methodname>, which is used to read commands from the

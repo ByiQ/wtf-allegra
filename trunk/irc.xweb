@@ -26,8 +26,8 @@
 <address><otheraddr><ulink url="&site;/allegra/"></ulink></otheraddr></address>
 </publisher>
 
-<releaseinfo>Version 1.0</releaseinfo>
-<date>13 December 2003</date>
+<releaseinfo>Version &version;</releaseinfo>
+<date>&builddate;</date>
 
 <legalnotice>
 <para>This code is released under the terms of the <ulink
