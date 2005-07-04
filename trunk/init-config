@@ -1,0 +1,38 @@
+#!/bin/sh
+psql --dbname allegra --file - <<eof
+   CREATE TABLE config
+   (
+      name  varchar (16),
+      value text
+   );
+   CREATE TABLE cmdlevels
+   (
+      name  varchar (16),
+      level integer
+   );
+INSERT INTO config VALUES ('armpath',   '/usr/share/doc/ada-reference-manual/html/arm95tc1');
+INSERT INTO config VALUES ('channel',   'Ada');
+INSERT INTO config VALUES ('host',      'irc.freenode.net');
+INSERT INTO config VALUES ('loglevel',  'error');
+INSERT INTO config VALUES ('logpath',   '/var/log/allegra.log');
+INSERT INTO config VALUES ('nick',      'Allegra');
+INSERT INTO config VALUES ('port',      '6667');
+INSERT INTO config VALUES ('quips',     'on');
+INSERT INTO config VALUES ('realname',  'Allegra InfoBot');
+INSERT INTO config VALUES ('shorthand', '!');
+INSERT INTO config VALUES ('username',  'allegra');
+INSERT INTO cmdlevels VALUES ('access',     10);
+INSERT INTO cmdlevels VALUES ('ckaccess',    1);
+INSERT INTO cmdlevels VALUES ('fetch',       1);
+INSERT INTO cmdlevels VALUES ('find',        1);
+INSERT INTO cmdlevels VALUES ('forget',      5);
+INSERT INTO cmdlevels VALUES ('help',        1);
+INSERT INTO cmdlevels VALUES ('list',        1);
+INSERT INTO cmdlevels VALUES ('quit',        9);
+INSERT INTO cmdlevels VALUES ('quote',       2);
+INSERT INTO cmdlevels VALUES ('rename',      5);
+INSERT INTO cmdlevels VALUES ('reset',       5);
+INSERT INTO cmdlevels VALUES ('set',         5);
+INSERT INTO cmdlevels VALUES ('stats',       2);
+INSERT INTO cmdlevels VALUES ('tell',        3);
+eof
