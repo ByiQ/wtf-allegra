@@ -1,0 +1,26 @@
+
+exception handling (need to terminate task)
+
+nick collisions and other stateful jobs (ping -> "periodic" task?  other error returns?)
+
+actions
+
+rm lookup
+
+help messages
+
+access <user>
+
+"last" command
+
+message about how to get an access level
+
+add quote count (and other data?) to stats
+
+stylesheet for docs?
+
+doc update and completion
+
+final polish
+
+public posting
