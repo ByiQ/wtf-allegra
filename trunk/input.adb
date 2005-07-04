@@ -7,6 +7,7 @@ with
   Config,
   IRC,
   Log,
+  Output,
   Ping;
 
 use
@@ -17,7 +18,7 @@ use
 
 package body Input is
 
-   Input_Name:  constant string := "Input";
+   Input_Name : constant string := "Input";
 
    task body Input_Task_Type is
 
@@ -29,10 +30,11 @@ package body Input is
            (Is_Digit (Field (1)) and Is_Digit (Field (2)) and Is_Digit (Field (3)));
       end Numeric_Reply;
 
-      Got_Input:        boolean;
-      Input_Message:    IRC.Message_Rec;
-      Command_Request:  Command.Request_Rec;
-      Dont_Care:        boolean;
+      Got_Input       : boolean;
+      Input_Message   : IRC.Message_Rec;
+      Command_Request : Command.Request_Rec;
+      Output_Request  : Output.Request_Rec;
+      Dont_Care       : boolean;
    begin  -- Input_Task_Type
       loop
          begin
@@ -86,10 +88,10 @@ package body Input is
                Has_Nick  : boolean;
             begin
                if    Cmd = "ping"        then
-                  Dbg (Input_Name, "Ping: " & To_String (Input_Message.Params));
-                  Command_Request.Operation := Command.Pong_Operation;
-                  Command_Request.Data      := Input_Message.Params;
-                  Command.Requests.Enqueue (Command_Request);
+                  Dbg (Input_Name, "Pong with " & To_String (Input_Message.Params));
+                  Output_Request.Operation := Output.Pong_Operation;
+                  Output_Request.Data      := Input_Message.Params;
+                  Output.Requests.Enqueue (Output_Request);
                elsif Cmd = "privmsg"     then
                   Has_SHand := Shorthand'Length > 0 and then Index (Message, Shorthand) > 0;
                   Has_Nick  := Index (Message, Nick) > 0;

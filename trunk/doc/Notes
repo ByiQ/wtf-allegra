@@ -548,12 +548,16 @@ job on my box.  This may be the fault of xsltproc instead of LitProg, or (more
 likely, I think) the fault of my configuration of them, although I don't know
 enough about DocBook-XML, XSL, LitProg, or xsltproc to tell who's at fault.
 
-2b. Which brings up the next point:  I don't know enough about DocBook-XML and
+2b. Which brings up the next point: I don't know enough about DocBook-XML and
 XSL to make truly effective use of the system, and honestly, I don't care to
 spend the time necessary to learn them.  And forget about modifying it--I
 spent a little time at the beginning trying to hack in a couple of minor
 changes, and soon gave up on that.  I don't like using programs I don't
-understand.
+understand.  There's an old adage in the LP world, that nobody is truly happy
+until they've created their own LP tool, and I can certainly understand that.
+I've considered it myself, and have a lot of great ideas about how it might
+work, but honestly, I don't want to write an LP tool.  I just want to *use*
+one.
 
 2c. And because I don't really understand it and can't really modify it, I'm
 left with the rather limited facilities I *do* understand.  I like
@@ -655,5 +659,10 @@ So my course of action now will be:
 
 Sad sad tale, and more a reflection on me than on LP, LitProg, or
 DocBook-XML.  But that's the reality today.
+
+And after doing steps 1..3, I think I'll do step 4 incrementally, dusting up
+each source file (or maybe each whole package) as I have occasion to touch it,
+not all in one big sweep like I'd originally thought I might.  Which of course
+allows me to move on to step 5! <g>
 
 

@@ -1,13 +1,13 @@
 
-exception handling (need to terminate task)
-
 nick collisions and other stateful jobs (ping -> "periodic" task?  other error returns?)
+
+handle freenode version query (start by adding Identity package)
 
 actions
 
 rm lookup
 
-help messages
+per-command help messages
 
 access <user>
 
@@ -15,7 +15,14 @@ access <user>
 
 message about how to get an access level
 
-add quote count (and other data?) to stats
+command access levels
+
+stats improvements:
+   ident line
+   count of known quotes
+   individual command usage stats
+
+ensure good exception handler coverage
 
 stylesheet for docs?
 

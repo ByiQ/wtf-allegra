@@ -631,7 +631,7 @@ package body Command is
                Output.Requests.Enqueue (Output_Request);
 
             when Pong_Operation =>
-               Dbg (Command_Name, "Pong with " & S (Request.Data));
+               Dbg (Command_Name, "Command pong with " & S (Request.Data));
                Output_Request.Operation := Output.Pong_Operation;
                Output_Request.Data      := Request.Data;
                Output.Requests.Enqueue (Output_Request);
