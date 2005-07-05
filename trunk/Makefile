@@ -15,7 +15,7 @@ DEBUG       =
 #
 # Program structure
 MAIN          = allegra
-IDENTITY      = identity.adb
+IDENTITY_BODY = identity.adb
 TASK_PACKAGES = \
 	command \
 	database \
@@ -33,11 +33,11 @@ PACKAGES = ${TASK_PACKAGES} ${UTIL_PACKAGES}
 
 #
 # The top-level target
-all: ${MAIN}
+all: app_ident ${MAIN}
 
 #
 # Program-building targets
-${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY}
+${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY_BODY}
 	gnatmake ${DEBUG} ${MAIN}.adb -aI${PGADA_INC} -aO${PGADA_LIB} $$(adasockets-config) -lpgada
 
 #
@@ -46,8 +46,11 @@ VER=$(shell svn propget version .)
 REV=$(shell svn info . | grep Revision | sed -e 's/.* //')
 VERREV="${VER}r${REV}"
 BUILD_DATE=$(shell date +'%d %b %Y')
-${IDENTITY}: identity.adp
-	gnatprep -DAppName=\"${NAME}\" -DAppVer=\"${VERREV}\" -DBuild_Date="\"${BUILD_DATE}\"" $< $@
+
+${IDENTITY_BODY}: app_ident
+
+app_ident: identity.adp
+	gnatprep -DAppName=\"${NAME}\" -DAppVer=\"${VERREV}\" -DBuild_Date="\"${BUILD_DATE}\"" $< ${IDENTITY_BODY}
 
 #
 # Utility targets
