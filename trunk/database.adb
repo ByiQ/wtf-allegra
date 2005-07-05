@@ -26,7 +26,7 @@ package body Database is
 
       Message_Limit    : constant := 256;
 
-      Quip_Probability : constant := 2.0 / 3.0;
+      Quip_Probability : constant := 1.0 / 2.0;  -- need to put this in the db instead
 
       Factoid_Tbl   : constant string := "factoids";
       Factstats_Tbl : constant string := "factstats";

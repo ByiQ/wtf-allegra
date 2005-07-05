@@ -1,23 +1,58 @@
 
-with
-  Ada.Strings.Unbounded;
+--
+-- IRC -- Low-level IRC communications utility package
+--
 
-use
-  Ada.Strings.Unbounded;
+
+--
+-- Standard packages
+with Ada.Strings.Unbounded;
+use  Ada.Strings.Unbounded;
+
 
 package IRC is
 
-   Null_Field:  constant Unbounded_String := Null_Unbounded_String;
+------------------------------------------------------------------------------
+--
+-- Public constants
+--
+------------------------------------------------------------------------------
 
-   Max_Params:  constant natural := 15;
+   -- Length of IRC server numeric reply fields
+   Server_Reply_Length : constant := 3;
 
-   RPL_ENDOFNAMES   : string := "366";
-   RPL_ENDOFMOTD    : string := "376";
+   -- As per RFC 2812
+   Max_Params          : constant := 15;
 
+   -- Server reply constants that we are interested in
+   Min_Server_Reply    : constant := 001;
+   RPL_WELCOME         : constant := 001;
+   RPL_ENDOFMOTD       : constant := 376;
+   ERR_UNKNOWNCOMMAND  : constant := 421;
+   ERR_NOMOTD          : constant := 422;
+   ERR_NICKNAMEINUSE   : constant := 433;
+   Max_Server_Reply    : constant := 999;
+
+   -- Used to represent a missing field value
+   Null_Field          : constant Unbounded_String := Null_Unbounded_String;
+
+------------------------------------------------------------------------------
+--
+-- Public types
+--
+------------------------------------------------------------------------------
+
+   -- A standard IRC server reply string
+   subtype Server_Reply_String is string (1 .. Server_Reply_Length);
+
+   -- A server reply once we've decoded it
+   subtype Server_Reply        is positive range Min_Server_Reply .. Max_Server_Reply;
+
+   -- An IRC message split into its separate fields
    type Message_Rec is record
-      Prefix:   Unbounded_String := Null_Field;
-      Command:  Unbounded_String;
-      Params:   Unbounded_String;
+      Prefix  : Unbounded_String := Null_Field;
+      Command : Unbounded_String;
+      Params  : Unbounded_String;
    end record;
 
    subtype Param_Count is natural range 0 .. Max_Params;
@@ -30,7 +65,21 @@ package IRC is
       Host:   Unbounded_String;
    end record;
 
-   Connect_Error:  exception;
+------------------------------------------------------------------------------
+--
+-- Public variables
+--
+------------------------------------------------------------------------------
+
+   -- The exception most routines can raise when something goes wrong with the
+   -- connection
+   Connect_Error : exception;
+
+------------------------------------------------------------------------------
+--
+-- Exported subroutines
+--
+------------------------------------------------------------------------------
 
    procedure Open_Server (Name:  in string;
                           Port:  in positive);
@@ -47,5 +96,7 @@ package IRC is
 
    procedure Parse_MsgTo (Str:   in  Unbounded_String;
                           MsgTo: out MsgTo_Rec);
+
+   ---------------------------------------------------------------------------
 
 end IRC;

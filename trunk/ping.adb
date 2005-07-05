@@ -15,7 +15,7 @@ package body Ping is
 
    task body Ping_Task_Type is
       Max_Missed_Pings : constant := 2;
-      Ping_Delay       : constant Duration := 120.0;
+      Ping_Delay       : constant Duration := 3600.0;  -- try an hour for testing
 
       Missed         : natural := 0;
       Output_Request : Output.Request_Rec;

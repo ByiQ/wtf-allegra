@@ -1,10 +1,8 @@
 with
-  Ada.Text_IO,
   Ada.Strings.Unbounded,
   Sockets;
 
 use
-  Ada.Text_IO,
   Ada.Strings.Unbounded;
 
 package body IRC is
