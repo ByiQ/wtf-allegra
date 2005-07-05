@@ -41,11 +41,15 @@ with Ping;
 
 package body Command is
 
-   Command_Name:  constant string := "Command";
+   -- This task's name, for logging purposes
+   Command_Name        : constant string := "Command";
 
    -- Nowadays, most clients use "_", but older RFCs (like 1459) have a more
    -- limited legal charset
    Nick_Extension_Char : constant character := '-';
+
+   -- The client-to-client protocol (CTCP) marker
+   CTCP_Marker         : constant character := ASCII.SOH;
 
    function S (Source : in Ada.Strings.Unbounded.Unbounded_String) return string
      renames Ada.Strings.Unbounded.To_String;
@@ -553,9 +557,9 @@ package body Command is
       Msg : string := "I don't recognize that command.";
 
    begin  -- Unrecognized
-      if Cmd (1) = '~' then
+      if Cmd (Cmd'First) = '~' then
          Database_Request.Operation := Database.RE_Fetch_Operation;
-         Database_Request.Data      := US (Cmd (2 .. Cmd'Last));
+         Database_Request.Data      := US (Cmd (Cmd'First + 1 .. Cmd'Last));
       else
          Database_Request.Operation := Database.Fetch_Operation;
          Database_Request.Data      := US (Cmd);
@@ -569,6 +573,39 @@ package body Command is
       ---         Say ("Sorry " & S (Sender.Nick) & ", " & Msg, S (Destination));
       ---      end if;
    end Unrecognized;
+
+   ---------------------------------------------------------------------------
+
+   procedure Process_CTCP_Request (Cmd     : in string;
+                                   Sender  : in IRC.MsgTo_Rec) is
+
+      ------------------------------------------------------------------------
+
+      Tgt : string := S (Destination);
+
+      ------------------------------------------------------------------------
+
+      -- Return true if the substring of Cmd after the CTCP marker is equal to
+      -- the given keyword
+      function Keywd (K : in string) return boolean is
+
+         Req : string := Cmd (Cmd'First + 1 .. Cmd'Last);
+
+      begin  -- Keywd
+         return Req'Length >= K'Length and then Req (Req'First .. Req'First + K'Length - 1) = K;
+      end Keywd;
+
+      ------------------------------------------------------------------------
+
+   begin  -- Process_CTCP_Request
+      if Keywd ("VERSION") then
+         Say (CTCP_Marker & "VERSION " & Identity.App_ID & CTCP_Marker, Tgt);
+      elsif Keywd ("ACTION") then
+         Say (CTCP_Marker & "ACTION don't play dat!" & CTCP_Marker, Tgt);
+      else
+         Say (CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & CTCP_Marker, Tgt);
+      end if;
+   end Process_CTCP_Request;
 
    ---------------------------------------------------------------------------
 
@@ -616,20 +653,37 @@ package body Command is
       ------------------------------------------------------------------------
 
    begin  -- Process_Command
+
+      -- Report action if debugging
       Dbg (Command_Name, "Processing command """ & Cmd & """ from " & S (Sender.Nick));
+
+      -- Null strings can't be commands
       if Cmd'Length < 1 then
          return;
       end if;
+
+      -- Catch CTCP commands
+      if Cmd'Length > 2 and then Cmd (Cmd'First) = CTCP_Marker then
+         Process_CTCP_Request (Cmd, Sender);
+         return;
+      end if;
+
+      -- See if it matches the "what is" form for a fetch
       if Match (Pat_Fetch2.all, Cmd) = Cmd'First then
          Exec (Config.Cmd_Fetch, Fetch'Access);
          return;
       end if;
+
+      -- None of the above; look it up in the command table
       for CmdType in Command_Table'Range loop
          if Match (Command_Table (CmdType).Matcher.all, Cmd) = Cmd'First then
             Exec (CmdType, Command_Table (CmdType).Process);
             return;
          end if;
       end loop;
+
+      -- Not in the table, treat as unrecognized command (currently just does
+      -- a fetch anyway)
       Unrecognized (Cmd, Sender);
    end Process_Command;
 
