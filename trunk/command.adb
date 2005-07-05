@@ -823,7 +823,7 @@ package body Command is
                -- to identify
                if Index (To_Lower (S (Request.Origin)), "nickserv") > 0 and
                   Index (To_Lower (S (Request.Data)), "this nickname is owned") > 0 then
-                  Say ("identify nulet0", "nickserv");  -- quick hack for development
+                  Say ("identify " & Config.Get_Value (Config.Item_NickPass), "nickserv");
                end if;
 
             when Crash_Operation =>
@@ -836,14 +836,10 @@ package body Command is
                   -- End of MOTD, or missing MOTD, is our signal that the
                   -- server has shut up for now, and it's time to try joining
                   -- our channel
-                  declare
-                     Chan : string := "#" & Config.Get_Value (Config.Item_Channel);
-                  begin
-                     Dbg (Command_Name, "Done with MOTD, joining " & Chan);
-                     Output_Request.Operation := Output.Join_Operation;
-                     Output_Request.Data      := US (Chan);
-                     Output.Requests.Enqueue (Output_Request);
-                  end;
+                  Dbg (Command_Name, "Done with MOTD, joining " & Channel);
+                  Output_Request.Operation := Output.Join_Operation;
+                  Output_Request.Data      := US (Channel);
+                  Output.Requests.Enqueue (Output_Request);
                elsif Request.Reply = IRC.RPL_WELCOME then
                   -- The welcome message tells us that we've succeeded in
                   -- reconnecting (and registering, which to us is the real
@@ -859,12 +855,6 @@ package body Command is
                   Info (Command_Name, "Nick collision, trying " & S (Current_Nick));
                   Request.Operation := Login_Operation;
                   Requests.Enqueue (Request);
----               elsif Request.Reply = IRC.ERR_UNKNOWNCOMMAND then
----                  -- If we get this, something is badly wrong; wait a bit and
----                  -- then try restarting the login
----                  delay 20.0;
----                  Request.Operation := Login_Operation;
----                  Requests.Enqueue (Request);
                end if;
          end case;
       end loop;

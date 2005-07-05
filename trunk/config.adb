@@ -55,6 +55,7 @@ package body Config is
       ("loglevel        ", Item_LogLevel),
       ("logpath         ", Item_LogPath),
       ("nick            ", Item_Nick),
+      ("nickpass        ", Item_NickPass),
       ("port            ", Item_Port),
       ("quips           ", Item_Quips),
       ("realname        ", Item_RealName),

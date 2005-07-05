@@ -78,6 +78,7 @@ INSERT INTO config VALUES ('host',      'irc.freenode.net');
 INSERT INTO config VALUES ('loglevel',  'error');
 INSERT INTO config VALUES ('logpath',   '/var/log/allegra.log');
 INSERT INTO config VALUES ('nick',      'Allegra');
+INSERT INTO config VALUES ('nickpass',  'mypassword');
 INSERT INTO config VALUES ('port',      '6667');
 INSERT INTO config VALUES ('quips',     '0.5');
 INSERT INTO config VALUES ('realname',  'Allegra InfoBot');
