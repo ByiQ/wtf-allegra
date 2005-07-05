@@ -1,26 +1,26 @@
 
-nick collisions and other stateful jobs (ping -> "periodic" task?  other error returns?)
+ x nick collisions and other stateful jobs (ping -> "periodic" task?  other error returns?)
 
-handle freenode version query (start by adding Identity package)
+ x handle freenode version query (start by adding Identity package)
 
-actions
+ x actions
 
-rm lookup
+"last" command
 
 per-command help messages
 
 access <user>
-
-"last" command
 
 message about how to get an access level
 
 command access levels
 
 stats improvements:
-   ident line
-   count of known quotes
+ x   ident line
+ x   count of known quotes
    individual command usage stats
+
+rm lookup
 
 quote regexp?
 

@@ -7,12 +7,6 @@
 
 #
 # Configuration
-XSLT        = xslt
-LITPROG_DIR = /opt/litprog
-XSL_DIR     = ${LITPROG_DIR}/xsl
-TANGLE      = ${XSL_DIR}/tangle.xsl
-WEAVE       = ${XSL_DIR}/wdocbook.xsl
-HTML_XSLT   = ${XSL_DIR}/ldocbook.xsl
 PGADA_DIR   = /opt/pgada
 PGADA_INC   = ${PGADA_DIR}/include
 PGADA_LIB   = ${PGADA_DIR}/lib
@@ -20,8 +14,8 @@ DEBUG       =
 
 #
 # Program structure
-MAIN           = allegra
-MAIN_DOC = $(addsuffix .html,${MAIN})
+MAIN          = allegra
+IDENTITY      = identity.adb
 TASK_PACKAGES = \
 	command \
 	database \
@@ -36,43 +30,29 @@ UTIL_PACKAGES = \
 	irc \
 	log
 PACKAGES = ${TASK_PACKAGES} ${UTIL_PACKAGES}
-XWEB_PARTS     = $(addsuffix .xweb,${PACKAGES})
-PACKAGE_SPECS  = $(addsuffix .ads,${PACKAGES})
-PACKAGE_BODIES = $(addsuffix .adb,${PACKAGES})
-PACKAGE_DOCS   = $(addsuffix .html,${PACKAGES})
 
 #
 # The top-level target
-all: ${MAIN} init-config
+all: ${MAIN}
 
 #
 # Program-building targets
-${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES}
+${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY}
 	gnatmake ${DEBUG} ${MAIN}.adb -aI${PGADA_INC} -aO${PGADA_LIB} $$(adasockets-config) -lpgada
 
-%.ads: %.xweb entities.inc.dtd
-	$(XSLT) top="$(basename $(notdir $@))-pkg-spec" $< $(TANGLE) $@
-
-%.adb: %.xweb entities.inc.dtd
-	$(XSLT) top="$(basename $(notdir $@))-pkg-body" $< $(TANGLE) $@
-
-init-config: config.xweb entities.inc.dtd
-	$(XSLT) top="$(basename $(notdir $@))" $< $(TANGLE) $@
-	chmod +x $@
-
 #
-# Document-building targets
-doc: ${MAIN_DOC} ${PACKAGE_DOCS}
-
-%.html: %.xweb entities.inc.dtd
-	${XSLT} $< ${WEAVE} $*.xml
-	${XSLT} $*.xml ${HTML_XSLT} $@
-	rm $*.xml
+# App identity package body is produced by preprocessor
+VER=$(shell svn propget version .)
+REV=$(shell svn info . | grep Revision | sed -e 's/.* //')
+VERREV="${VER}r${REV}"
+BUILD_DATE=$(shell date +'%d %b %Y')
+${IDENTITY}: identity.adp
+	gnatprep -DAppName=\"${NAME}\" -DAppVer=\"${VERREV}\" -DBuild_Date="\"${BUILD_DATE}\"" $< $@
 
 #
 # Utility targets
 clean:
-	rm -f b~* *.o *.ali ${MAIN}.adb *.xml ${PACKAGE_SPECS} ${PACKAGE_BODIES}
+	rm -f b~* *.o *.ali
 
 realclean: clean
-	rm ${MAIN} *.html
+	rm ${MAIN}
