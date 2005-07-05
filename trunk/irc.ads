@@ -33,6 +33,9 @@ package IRC is
    ERR_NICKNAMEINUSE   : constant := 433;
    Max_Server_Reply    : constant := 999;
 
+   -- The client-to-client protocol (CTCP) marker
+   CTCP_Marker         : constant character := ASCII.SOH;
+
    -- Used to represent a missing field value
    Null_Field          : constant Unbounded_String := Null_Unbounded_String;
 

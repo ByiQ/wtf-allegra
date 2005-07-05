@@ -7,6 +7,7 @@ with
   Config,
   Command,
   DB,
+  IRC,
   Log,
   Output;
 
@@ -24,8 +25,11 @@ package body Database is
       function US (Source : in string) return Ada.Strings.Unbounded.Unbounded_String
         renames Ada.Strings.Unbounded.To_Unbounded_String;
 
-      Message_Limit    : constant := 256;
+      Message_Limit : constant := 256;
 
+      Act_Vs_Say    : constant := 20.0 / 30.0;  -- really should just calculate from db counts
+
+      ActQuips_Tbl  : constant string := "actquips";
       Factoid_Tbl   : constant string := "factoids";
       Factstats_Tbl : constant string := "factstats";
       Quips_Tbl     : constant string := "quips";
@@ -550,7 +554,11 @@ package body Database is
 
             when Quip_Operation =>
                if Ada.Numerics.Float_Random.Random (Randoms) <= float'Value (Config.Get_Value (Config.Item_Quips)) then
-                  Say (Random_Select (Quips_Tbl), Request.Destination);
+                  if Ada.Numerics.Float_Random.Random (Randoms) <= Act_Vs_Say then
+                     Say (Random_Select (Quips_Tbl), Request.Destination);
+                  else
+                     Say (IRC.CTCP_Marker & "ACTION " & Random_Select (ActQuips_Tbl) & IRC.CTCP_Marker, Request.Destination);
+                  end if;
                end if;
 
             when Quote_Operation =>

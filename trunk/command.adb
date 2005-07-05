@@ -48,9 +48,6 @@ package body Command is
    -- limited legal charset
    Nick_Extension_Char : constant character := '-';
 
-   -- The client-to-client protocol (CTCP) marker
-   CTCP_Marker         : constant character := ASCII.SOH;
-
    function S (Source : in Ada.Strings.Unbounded.Unbounded_String) return string
      renames Ada.Strings.Unbounded.To_String;
 
@@ -599,11 +596,11 @@ package body Command is
 
    begin  -- Process_CTCP_Request
       if Keywd ("VERSION") then
-         Say (CTCP_Marker & "VERSION " & Identity.App_ID & CTCP_Marker, Tgt);
+         Say (IRC.CTCP_Marker & "VERSION " & Identity.App_ID & IRC.CTCP_Marker, Tgt);
       elsif Keywd ("ACTION") then
-         Say (CTCP_Marker & "ACTION don't play dat!" & CTCP_Marker, Tgt);
+         Say (IRC.CTCP_Marker & "ACTION don't play dat!" & IRC.CTCP_Marker, Tgt);
       else
-         Say (CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & CTCP_Marker, Tgt);
+         Say (IRC.CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & IRC.CTCP_Marker, Tgt);
       end if;
    end Process_CTCP_Request;
 
@@ -663,7 +660,7 @@ package body Command is
       end if;
 
       -- Catch CTCP commands
-      if Cmd'Length > 2 and then Cmd (Cmd'First) = CTCP_Marker then
+      if Cmd'Length > 2 and then Cmd (Cmd'First) = IRC.CTCP_Marker then
          Process_CTCP_Request (Cmd, Sender);
          return;
       end if;
