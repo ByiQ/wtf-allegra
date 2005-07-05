@@ -506,14 +506,22 @@ package body Database is
 
          Data   : DB_Result;
          Handle : DB_Handle;
+         FCount : natural := 0;
+         QCount : natural := 0;
 
       begin  -- Show_Stats
          DB.Connect (Handle, Host => "", DB => Config.Allegra_DB);
          Fetch (Handle, "count(distinct name)", Factoid_Tbl, "", Data);
-         Disconnect (Handle);
          if Rows (Data) > 0 then
-            Say ("I currently know " & Get_Value (Data, 1, "count") & " factoids.", Request.Destination);
+            FCount := Get_Value (Data, 1, "count");
          end if;
+         Fetch (Handle, "count(quote)", Quotes_Tbl, "", Data);
+         if Rows (Data) > 0 then
+            QCount := Get_Value (Data, 1, "count");
+         end if;
+         Disconnect (Handle);
+         Say ("I currently know" & natural'Image (FCount) & " factoids and" & natural'Image (QCount) & " quotes.",
+              Request.Destination);
       end Show_Stats;
 
    begin  -- Database_Task
