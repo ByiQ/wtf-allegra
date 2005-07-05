@@ -22,6 +22,8 @@ stats improvements:
    count of known quotes
    individual command usage stats
 
+quote regexp?
+
 ensure good exception handler coverage
 
 stylesheet for docs?
