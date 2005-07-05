@@ -760,7 +760,7 @@ package body Command is
                      Do_Exit := false;
                      Process_Command (S (Command), Sender);
                      exit when Do_Exit;
-                  elsif Config.Get_Value (Config.Item_Quips) = "on" then
+                  else
                      Database_Request.Operation := Database.Quip_Operation;
                      Database_Request.Destination := Destination;
                      Database.Requests.Enqueue (Database_Request);

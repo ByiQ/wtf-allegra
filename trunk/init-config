@@ -17,7 +17,7 @@ INSERT INTO config VALUES ('loglevel',  'error');
 INSERT INTO config VALUES ('logpath',   '/var/log/allegra.log');
 INSERT INTO config VALUES ('nick',      'Allegra');
 INSERT INTO config VALUES ('port',      '6667');
-INSERT INTO config VALUES ('quips',     'on');
+INSERT INTO config VALUES ('quips',     '0.5');
 INSERT INTO config VALUES ('realname',  'Allegra InfoBot');
 INSERT INTO config VALUES ('shorthand', '!');
 INSERT INTO config VALUES ('username',  'allegra');

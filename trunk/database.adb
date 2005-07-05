@@ -26,8 +26,6 @@ package body Database is
 
       Message_Limit    : constant := 256;
 
-      Quip_Probability : constant := 1.0 / 2.0;  -- need to put this in the db instead
-
       Factoid_Tbl   : constant string := "factoids";
       Factstats_Tbl : constant string := "factstats";
       Quips_Tbl     : constant string := "quips";
@@ -543,7 +541,7 @@ package body Database is
                List_Factoids (S (Request.Data));
 
             when Quip_Operation =>
-               if Ada.Numerics.Float_Random.Random (Randoms) <= Quip_Probability then
+               if Ada.Numerics.Float_Random.Random (Randoms) <= float'Value (Config.Get_Value (Config.Item_Quips)) then
                   Say (Random_Select (Quips_Tbl), Request.Destination);
                end if;
 
