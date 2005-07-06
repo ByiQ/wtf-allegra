@@ -5,8 +5,14 @@ use
   Ada.Strings.Unbounded;
 
 package body Output is
+
+   ---------------------------------------------------------------------------
+
+   Request  : Request_Rec;
+
+   ---------------------------------------------------------------------------
+
    task body Output_Task is
-      Request:  Request_Rec;
    begin  -- Output_Task
       loop
          Requests.Dequeue (Request);
