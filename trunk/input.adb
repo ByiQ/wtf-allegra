@@ -154,8 +154,8 @@ package body Input is
                elsif Cmd = "privmsg"     then
                   Has_SHand := Shorthand'Length > 0 and then Index (Message, Shorthand) > 0;
                   Has_Nick  := Index (Message, Nick) > 0;
+                  IRC.Parse_Params (Input_Message.Params, Params, Count);
                   if Has_SHand or else Has_Nick then
-                     IRC.Parse_Params (Input_Message.Params, Params, Count);
                      Has_SHand := not Has_Nick and then Count >= 2 and then Index (Params (2), Shorthand) = 1;
                   end if;
                   if Has_SHand or else Has_Nick then
@@ -170,6 +170,16 @@ package body Input is
                      end if;
                      if Count >= 2 then
                         Command_Request.Data   := Params (2);
+                     end if;
+                     Command.Requests.Enqueue (Command_Request);
+                  else
+                     Command_Request.Operation := Command.Save_Operation;
+                     Command_Request.Origin    := Input_Message.Prefix;
+                     Command_Request.Target    := IRC.Null_Field;
+                     if Count >= 2 then
+                        Command_Request.Data   := Params (2);
+                     else
+                        Command_Request.Data   := IRC.Null_Field;
                      end if;
                      Command.Requests.Enqueue (Command_Request);
                   end if;

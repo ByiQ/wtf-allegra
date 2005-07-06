@@ -44,9 +44,16 @@ package body Command is
    -- This task's name, for logging purposes
    Command_Name        : constant string := "Command";
 
+   -- A couple of useful time constants
+   OneDay              : constant := natural (Day_Duration'Last);
+   OneHour             : constant := 60 * 60;
+
    -- Nowadays, most clients use "_", but older RFCs (like 1459) have a more
    -- limited legal charset
    Nick_Extension_Char : constant character := '-';
+
+   -- An action prefix
+   ActPfx : string := IRC.CTCP_Marker & "ACTION";
 
    function S (Source : in Ada.Strings.Unbounded.Unbounded_String) return string
      renames Ada.Strings.Unbounded.To_String;
@@ -71,6 +78,15 @@ package body Command is
 
    subtype Valid_Commands is Config.Command_Type range Config.Cmd_Access .. Config.Command_Type'Last;
 
+   -- A "last" buffer, which holds the last N privmsgs sent to the channel
+   type Line_Rec is record
+      Stamp : Ada.Calendar.Time;
+      From  : Unbounded_String;
+      Msg   : Unbounded_String;
+   end record;
+   type Line_Buf is array (positive range <>) of Line_Rec;
+   type Line_Buf_Ptr is access Line_Buf;
+
    Command_Table    : array (Valid_Commands) of Command_Descriptor;
    Database_Request : Database.Request_Rec;
    Destination      : Unbounded_String;
@@ -85,6 +101,10 @@ package body Command is
    Request          : Request_Rec;
    Sender           : IRC.MsgTo_Rec;
    Current_Nick     : Unbounded_String;
+   NLines           : natural;
+   NextLine         : positive;
+   Lines            : Line_Buf_Ptr;
+
 
    Start            : Time;
    Last_Connected   : Time;
@@ -106,6 +126,7 @@ package body Command is
       --      US ("find <string>"),
       US ("help"),
       US ("list [regexp]"),
+      US ("last [num-lines]"),
       US ("quote"),
       US ("stats [<factoid>]"),
       US ("access [<mask> <level>]"),
@@ -128,9 +149,6 @@ package body Command is
    function Elapsed (From : in Time) return string is
 
       type MilliMin is delta 0.001 range Duration'First .. Duration'Last;
-
-      OneDay  : natural := natural (Day_Duration'Last);
-      OneHour : natural := 60 * 60;
 
       Diff    : natural := natural (Clock - From);
       Days    : natural;
@@ -336,6 +354,95 @@ package body Command is
       Say ("The shortcut string is """ & Config.Get_Value (Config.Item_Shorthand) &
            """; a leading ""~"" in a factoid name treats it as a regexp.", S (Sender.Nick));
    end Help;
+
+   ---------------------------------------------------------------------------
+
+   procedure Last   (Cmd    : in string;
+                     Sender : in IRC.MsgTo_Rec) is
+
+      ------------------------------------------------------------------------
+
+      Matches : Match_Array (Match_Range);
+      Count   : natural;
+      Show    : integer;
+
+      ------------------------------------------------------------------------
+
+      -- Return a time value formatted as HH:MM
+      function Timestr (Stamp : in Ada.Calendar.Time) return string is
+
+         HH : natural;
+         MM : natural;
+         SS : natural;
+
+      begin  -- Timestr
+
+         -- Get seconds, guarding against overflow at midnight
+         SS := natural (Ada.Calendar.Seconds (Stamp));
+         if SS >= OneDay then
+            SS := 0;
+         end if;
+
+         -- Break it up into hours and minutes
+         HH := (SS / OneHour) rem 100;
+         SS := SS - HH * OneHour;
+         MM := (SS / 60)      rem 100;
+
+         -- Cheap way to zero-fill
+         declare
+            HHs : string := natural'Image (HH + 100);
+            MMs : string := natural'Image (MM + 100);
+         begin
+            return HHs (3..4) & ":" & MMs (3..4);
+         end;
+      end Timestr;
+
+      ------------------------------------------------------------------------
+
+      -- List a saved message for the "last" operation
+      procedure List_Line (Index : in positive) is
+
+         Nick : string := S (Lines (Index).From);
+         Line : Unbounded_String := Lines (Index).Msg;
+
+      begin  -- List_Line
+         if Head (Line, ActPfx'Length) = ActPfx then
+            Delete (Line, 1, ActPfx'Length);
+            Delete (Line, Length (Line), Length (Line));
+            Line := " * " & Nick & Line;
+         else
+            Line := "<" & Nick & "> " & Line;
+         end if;
+         Line := Timestr (Lines (Index).Stamp) & " " & Line;
+         Say (S (Line), S (Sender.Nick));
+      end List_Line;
+
+      ------------------------------------------------------------------------
+
+   begin  -- Last
+      Match (Command_Table (Config.Cmd_Last).Matcher.all, Cmd, Matches);
+      if Matches (1) = No_Match then
+         Count := NLines;
+      else
+         Count := natural'Min (NLines, positive'Value (Cmd (Matches (1).First .. Matches (1).Last)));
+      end if;
+
+      Dbg (Command_Name, "Listing last" & positive'Image (Count) & " lines of" & natural'Image (NLines));
+      Show := NextLine - Count;
+      if Show < Lines'First then
+         Show := Show + NLines;
+      end if;
+
+      for L in 1 .. Count loop
+         List_Line (Show);
+         delay 0.5;
+         if Show = Lines'Last then
+            Show := Lines'First;
+         else
+            Show := Show + 1;
+         end if;
+      end loop;
+   end Last;
 
    ---------------------------------------------------------------------------
 
@@ -629,14 +736,14 @@ package body Command is
             case CmdType is
                when Cmd_Access =>
                   Say ("Only my operator can do that, sorry.", To);
-               when Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List =>
+               when Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List | Cmd_Last =>
                   Say ("You must have pissed somebody off, cuz you're persona non grata.", To);
                when Cmd_Forget | Cmd_Rename | Cmd_Reset | Cmd_Set =>
                   Say ("Only known users can update the factoid database, sorry.", To);
                when Cmd_Quit =>
                   Say ("I'm sorry " & S (Sender.Nick) & ", I don't know you well enough to take orders from you.", To);
                when Cmd_Quote =>
-                  Say ("Here's a quote for you:  get an access level!", To);
+                  Say ("You need a higher access level--ask the bot operator about it.", To);
                when Cmd_Stats =>
                   Say ("You'll be able to access the stats soon enough, if you hang around and contribute.", To);
                when Cmd_Tell =>
@@ -710,6 +817,7 @@ package body Command is
       Enter (Cmd_Find,     "^find\s+(\S.*)$",                                     Find'Access);
       Enter (Cmd_Forget,   "^forget\s+(\S.*)$",                                   Forget'Access);
       Enter (Cmd_Help,     "^help$",                                              Help'Access);
+      Enter (Cmd_Last,     "^last(\s+[1-9]\d*)?$",                                Last'Access);
       Enter (Cmd_List,     "^list(\s+\S.*)?$",                                    List'Access);
       Enter (Cmd_Quit,     "^quit$",                                              Quit'Access);
       Enter (Cmd_Quote,    "^quote$",                                             Quote'Access);
@@ -749,6 +857,10 @@ package body Command is
       Cmds_Rejected  := 0;
       Reconnects     := 0;
 
+      NLines    := 0;
+      NextLine  := 1;
+      Lines     := new Line_Buf (1 .. positive'Value (Config.Get_Value (Config.Item_LastSize)));
+
       loop
          Requests.Dequeue (Request);
          case Request.Operation is
@@ -777,7 +889,7 @@ package body Command is
                Output_Request.Data      := Request.Data;
                Output.Requests.Enqueue (Output_Request);
 
-            when Message_Operation =>
+            when Message_Operation | Save_Operation =>
                declare
                   Command    : Unbounded_String;
                   Has_Prefix : boolean;
@@ -807,14 +919,25 @@ package body Command is
                      Msg_Type := ChanMsg;
                      Destination := Request.Target;
                   end if;
-                  if Is_Command then
+                  if Is_Command and Request.Operation /= Save_Operation then
                      Do_Exit := false;
                      Process_Command (S (Command), Sender);
                      exit when Do_Exit;
                   else
-                     Database_Request.Operation := Database.Quip_Operation;
-                     Database_Request.Destination := Destination;
-                     Database.Requests.Enqueue (Database_Request);
+                     Lines (NextLine) := (Clock, Sender.Nick, Command);
+                     if NLines < Lines'Length then
+                        NLines := NLines + 1;
+                     end if;
+                     if NextLine < Lines'Last then
+                        NextLine := NextLine + 1;
+                     else
+                        NextLine := Lines'First;
+                     end if;
+                     if Request.Operation /= Save_Operation then
+                        Database_Request.Operation := Database.Quip_Operation;
+                        Database_Request.Destination := Destination;
+                        Database.Requests.Enqueue (Database_Request);
+                     end if;
                   end if;
                end;
 

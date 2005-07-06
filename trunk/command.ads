@@ -33,6 +33,7 @@ package Command is
      (
       Login_Operation,
       Reply_Operation,
+      Save_Operation,
       Message_Operation,
       Notice_Operation,
       Ping_Operation,
