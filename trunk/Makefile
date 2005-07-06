@@ -42,6 +42,7 @@ ${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY_BODY}
 
 #
 # App identity package body is produced by preprocessor
+NAME=$(shell perl -e 'print ucfirst ("${MAIN}")')
 VER=$(shell svn propget version .)
 REV=$(shell svn info . | grep Revision | sed -e 's/.* //')
 VERREV="${VER}r${REV}"
