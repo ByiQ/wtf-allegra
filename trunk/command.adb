@@ -226,42 +226,102 @@ package body Command is
 
    ---------------------------------------------------------------------------
 
-   procedure SetAuth (Cmd     : in string;
-                      Sender  : in IRC.MsgTo_Rec) is
+   -- Set or check command access level
+   procedure DoAccess (Cmd     : in string;
+                       Sender  : in IRC.MsgTo_Rec) is
+
+      ------------------------------------------------------------------------
+
+      use type Auth.Authorization;
+
+      ------------------------------------------------------------------------
 
       Matches : Match_Array (Match_Range);
 
-   begin  -- SetAuth
+      ------------------------------------------------------------------------
+
+      -- Print a level error message, with a distinguishing string
+      procedure Level_Error (Level : in string;
+                             Msg   : in string) is
+      begin  -- Level_Error
+         Say ("Hmm, the access level """ & Level & """ " & Msg & "." &
+              "  It needs to be a decimal integer in the range" &
+              natural'Image (Config.Min_Auth_Level) & " .." & natural'Image (Config.Max_Auth_Level), S (Destination));
+      end Level_Error;
+
+      ------------------------------------------------------------------------
+
+   begin  -- DoAccess
+
+      -- Re-match to pick up pattern elements
       Match (Command_Table (Config.Cmd_Access).Matcher.all, Cmd, Matches);
-      if Matches (1) = No_Match or Matches (2) = No_Match then
-         Say ("That may be your idea of an access command, but it isn't mine ... try again, maybe?", S (Destination));
+
+      -- If neither argument is present, it's "check my access", which
+      -- everybody that's not blacklisted can do
+      if Matches (1) = No_Match and Matches (2) = No_Match then
+         Say ("Your current command access level, " & S (Sender.Nick) & ", is" &
+              natural'Image (Auth.Level (Request.Origin)) & ".", S (Destination));
+         return;
+      end if;
+
+      -- If just one arg, it's "check his access", which requires a higher
+      -- level of access to execute
+      if Matches (2) = No_Match then
+         if Auth.Permitted (Request.Origin, Config.Cmd_CkAccess) /= Auth.Succeeded then
+            Info (Command_Name, "Rejecting check-access command """ & Cmd & """ from " & S (Request.Origin));
+            Cmds_Rejected := Cmds_Rejected + 1;
+            Say ("Why don't you just ask them what their access level is?", S (Destination));
+            return;
+         end if;
+         declare
+            Mask : string := Trim (Cmd (Matches (1).First .. Matches (1).Last), Side => Ada.Strings.Left);
+            Who  : IRC.MsgTo_Rec;
+         begin
+            IRC.Parse_MsgTo (US (Mask), Who);
+
+            -- Of course, we *do* need a nick, and with this command, it's
+            -- easy to forget it
+            if Who.Nick = IRC.Null_Field then
+               Say ("Got nick?", S (Destination));
+               return;
+            end if;
+            Say ("The current command access level for " & S (Who.Nick) & " is" &
+                 natural'Image (Auth.Level (US (Mask))) & ".", S (Destination));
+         end;
+         return;
+      end if;
+
+      -- Both args means "set his access", which can only be done by the lord
+      -- of the bot
+      if Auth.Level (Request.Origin) < Auth.Bot_Operator_Level then
+         Info (Command_Name, "Rejecting set-access command """ & Cmd & """ from " & S (Request.Origin));
+         Cmds_Rejected := Cmds_Rejected + 1;
+         Say ("I'm sorry, only the bot operator can do that.", S (Destination));
          return;
       end if;
       declare
-         Nick  : string := Cmd (Matches (1).First .. Matches (1).Last);
-         Level : string := Cmd (Matches (2).First .. Matches (2).Last);
+         Mask  : string := Trim (Cmd (Matches (1).First .. Matches (1).Last), Side => Ada.Strings.Left);
+         Level : string := Trim (Cmd (Matches (2).First .. Matches (2).Last), Side => Ada.Strings.Left);
       begin
-         if To_Lower (Nick) = To_Lower (S (Current_Nick)) then
-            Say ("I am already the Lord of Access, O mortal!", S (Destination));
+         if Auth.Level (US (Mask)) >= Auth.Bot_Operator_Level then
+            Say ("Stubbornly refusing to change bot operator's access level--use direct db access.", S (Destination));
+            return;
+         end if;
+         if natural'Value (Level) not in Config.Auth_Level then
+            Level_Error (Level, "seems to be out of range");
             return;
          end if;
          Database_Request.Operation := Database.Access_Operation;
          Database_Request.Origin    := Sender.Nick;
-         Database_Request.Key       := US (Nick);
+         Database_Request.Key       := US (Mask);
          Database_Request.Data      := US (Level);
          Database.Requests.Enqueue (Database_Request);
+      exception
+         -- Mostly this will catch constraint errors from the Value call above
+         when others =>
+            Level_Error (Level, "didn't sit too well with me");
       end;
-   end SetAuth;
-
-   ---------------------------------------------------------------------------
-
-   procedure GetAuth (Cmd     : in string;
-                      Sender  : in IRC.MsgTo_Rec) is
-   begin  -- GetAuth
-      Say ("Your access level, " & S (Sender.Nick) & ", is" &
-           natural'Image (Auth.Level (Request.Origin)) & ".",
-           S (Destination));
-   end GetAuth;
+   end DoAccess;
 
    ---------------------------------------------------------------------------
 
@@ -734,9 +794,7 @@ package body Command is
                   Authorization'Image (Authorized));
             Cmds_Rejected := Cmds_Rejected + 1;
             case CmdType is
-               when Cmd_Access =>
-                  Say ("Only my operator can do that, sorry.", To);
-               when Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List | Cmd_Last =>
+               when Cmd_Access | Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List | Cmd_Last =>
                   Say ("You must have pissed somebody off, cuz you're persona non grata.", To);
                when Cmd_Forget | Cmd_Rename | Cmd_Reset | Cmd_Set =>
                   Say ("Only known users can update the factoid database, sorry.", To);
@@ -778,9 +836,11 @@ package body Command is
          return;
       end if;
 
-      -- None of the above; look it up in the command table
+      -- None of the above; look it up in the command table; skip commands
+      -- that aren't associated with patterns
       for CmdType in Command_Table'Range loop
-         if Match (Command_Table (CmdType).Matcher.all, Cmd) = Cmd'First then
+         if Command_Table (CmdType).Matcher /= null and then
+              Match (Command_Table (CmdType).Matcher.all, Cmd) = Cmd'First then
             Exec (CmdType, Command_Table (CmdType).Process);
             return;
          end if;
@@ -811,8 +871,16 @@ package body Command is
       ------------------------------------------------------------------------
 
    begin  -- Parser_Init
-      Enter (Cmd_Access,   "^access\s+(\S+)\s+(\d+)$",                            SetAuth'Access);
-      Enter (Cmd_CkAccess, "^access$",                                            GetAuth'Access);
+
+      -- Start all commands out as no-match
+      for CmdType in Command_Table'Range loop
+         Command_Table (CmdType) := (null, null);
+      end loop;
+
+      -- Now fill in commands that have actual match patterns; the others are
+      -- extensions, what might be called pseudo-commands, that have no
+      -- pattern but are in the enum for other reasons.
+      Enter (Cmd_Access,   "^access(\s+\S+)?(\s+\d+)?$",                          DoAccess'Access);
       Enter (Cmd_Fetch,    "^(\S.*)\s*(\?)$",                                     Fetch'Access);
       Enter (Cmd_Find,     "^find\s+(\S.*)$",                                     Find'Access);
       Enter (Cmd_Forget,   "^forget\s+(\S.*)$",                                   Forget'Access);
@@ -826,9 +894,14 @@ package body Command is
       Enter (Cmd_Set,      "^(\S.*?)\s+(is|are)\s+(\S.*)$",                       Set'Access);
       Enter (Cmd_Stats,    "^stats(\s+\S.*)?$",                                   Stats'Access);
       Enter (Cmd_Tell,     "^tell\s+(\S+)\s+(about\s+)?(\S.*)$",                  Tell'Access);
+
+      -- This is an alternate form of the fetch command, checked explicitly
+      -- before the regular match loop
+      Pat_Fetch2    := new Pattern_Matcher'(Compile ("^(what)\s+(is\s+|are\s+)?(\S.*)$",  Case_Insensitive));
+
+      -- Some useful command argument patterns
       Pat_ActionSet := new Pattern_Matcher'(Compile ("^action\s+(\S.*)$",                 Case_Insensitive));
       Pat_AlsoSet   := new Pattern_Matcher'(Compile ("^also\s+(\S.*)$",                   Case_Insensitive));
-      Pat_Fetch2    := new Pattern_Matcher'(Compile ("^(what)\s+(is\s+|are\s+)?(\S.*)$",  Case_Insensitive));
       Pat_ReplySet  := new Pattern_Matcher'(Compile ("^reply\s+(\S.*)$",                  Case_Insensitive));
    end Parser_Init;
 
