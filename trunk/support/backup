@@ -1,0 +1,8 @@
+#!/bin/sh
+
+suffix=$(date +'%Y-%m-%d')
+name="db-backup.$suffix"
+
+pg_dump allegra >$name
+
+echo "Backed up database to $name"
