@@ -5,15 +5,15 @@
 
  x actions
 
-"last" command
+ x "last" command
 
-per-command help messages
+ x message about how to get an access level
+
+ensure all quotes short enough to be transmitted in one go
 
 access <user>
 
-message about how to get an access level
-
-command access levels
+per-command help messages, command access levels
 
 stats improvements:
  x   ident line
