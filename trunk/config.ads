@@ -23,10 +23,10 @@ package Config is
       Item_UserName
      );
 
+   -- The master command list
    type Command_Type is
      (
       Cmd_None,
-      Cmd_Access,
       Cmd_CkAccess,
       Cmd_Fetch,
       Cmd_Find,
@@ -34,11 +34,13 @@ package Config is
       Cmd_Help,
       Cmd_Last,
       Cmd_List,
+      Cmd_MyAccess,
       Cmd_Quit,
       Cmd_Quote,
       Cmd_Rename,
       Cmd_Reset,
       Cmd_Set,
+      Cmd_SetAccess,
       Cmd_Stats,
       Cmd_Tell
      );

@@ -67,7 +67,6 @@ package body Config is
    Cmd_Map:  Cmd_Map_Array :=
      (
       ("                ", Cmd_None),
-      ("access          ", Cmd_Access),
       ("ckaccess        ", Cmd_CkAccess),
       ("fetch           ", Cmd_Fetch),
       ("find            ", Cmd_Find),
@@ -75,11 +74,13 @@ package body Config is
       ("help            ", Cmd_Help),
       ("last            ", Cmd_Last),
       ("list            ", Cmd_List),
+      ("myaccess        ", Cmd_MyAccess),
       ("quit            ", Cmd_Quit),
       ("quote           ", Cmd_Quote),
       ("rename          ", Cmd_Rename),
       ("reset           ", Cmd_Reset),
       ("set             ", Cmd_Set),
+      ("setaccess       ", Cmd_SetAccess),
       ("stats           ", Cmd_Stats),
       ("tell            ", Cmd_Tell)
      );

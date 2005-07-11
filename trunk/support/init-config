@@ -86,8 +86,9 @@ INSERT INTO config VALUES ('realname',  'Allegra InfoBot');
 INSERT INTO config VALUES ('shorthand', '!');
 INSERT INTO config VALUES ('username',  'allegra');
 
-INSERT INTO cmdlevels VALUES ('access',     10);
-INSERT INTO cmdlevels VALUES ('ckaccess',    1);
+INSERT INTO cmdlevels VALUES ('myaccess',    1);
+INSERT INTO cmdlevels VALUES ('ckaccess',    6);
+INSERT INTO cmdlevels VALUES ('setaccess',  10);
 INSERT INTO cmdlevels VALUES ('fetch',       1);
 INSERT INTO cmdlevels VALUES ('find',        1);
 INSERT INTO cmdlevels VALUES ('forget',      5);
