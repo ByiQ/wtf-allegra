@@ -45,6 +45,10 @@ package Strings is
                  Width  : in positive;
                  Pad    : in character := ' ') return string;
 
+   -- Like regular Trim, but always trims both ends
+   function BTrim (Source : in string) return string;
+   pragma Inline (BTrim);
+
    -- Like regular Trim, but always trims on the left
    function LTrim (Source : in string) return string;
    pragma Inline (LTrim);
@@ -61,7 +65,7 @@ package Strings is
      renames Ada.Strings.Unbounded.To_Unbounded_String;
 
    -- Re-export these useful functions, so that callers don't always have to
-   -- use Ada.Strings.Unbounded directly
+   -- use Ada.Strings.Unbounded directly just to do simple operations
    function "&" (Left, Right : in Ada.Strings.Unbounded.Unbounded_String)
                 return Ada.Strings.Unbounded.Unbounded_String
      renames Ada.Strings.Unbounded."&";

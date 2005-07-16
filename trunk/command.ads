@@ -5,14 +5,9 @@
 
 
 --
--- Standard packages
-with Ada.Strings.Unbounded;
-use  Ada.Strings.Unbounded;
-
-
---
 -- Local library packages
 with PQueue;
+with Strings;
 
 
 --
@@ -44,9 +39,9 @@ package Command is
    -- tasks communicate with this one
    type Request_Rec is record
       Operation : Operation_Type;
-      Origin    : Unbounded_String;
-      Target    : Unbounded_String;
-      Data      : Unbounded_String;
+      Origin    : Strings.UString;
+      Target    : Strings.UString;
+      Data      : Strings.UString;
       Reply     : IRC.Server_Reply;
    end record;
    package Command_Queue_Pkg is new PQueue (Request_Rec);

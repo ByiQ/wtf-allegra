@@ -6,23 +6,26 @@
 
 --
 -- Standard packages
-with Ada.Calendar;
-use  Ada.Calendar;
 with Ada.Characters.Handling;
 use  Ada.Characters.Handling;
 with Ada.Exceptions;
 with Ada.Strings.Fixed;
-use  Ada.Strings.Fixed;
-with Ada.Strings.Maps;
-use  Ada.Strings.Maps;
 with Ada.Strings.Unbounded;
-use  Ada.Strings.Unbounded;
+with Ada.Strings.Maps;
+use  Ada.Strings;
 
 
 --
 -- Compiler-specific packages
 with GNAT.Regpat;
 use  GNAT.Regpat;
+
+
+--
+-- Local library packages
+with Strings;
+use  Strings;
+with Times;
 
 
 --
@@ -41,28 +44,30 @@ with Ping;
 
 package body Command is
 
+------------------------------------------------------------------------------
+--
+-- Package constants
+--
+------------------------------------------------------------------------------
+
    -- This task's name, for logging purposes
    Command_Name        : constant string := "Command";
-
-   -- A couple of useful time constants
-   OneDay              : constant := natural (Day_Duration'Last);
-   OneHour             : constant := 60 * 60;
 
    -- Nowadays, most clients use "_", but older RFCs (like 1459) have a more
    -- limited legal charset
    Nick_Extension_Char : constant character := '-';
 
    -- An action prefix
-   ActPfx : string := IRC.CTCP_Marker & "ACTION";
+   ActPfx              : constant string := IRC.CTCP_Marker & "ACTION";
 
-   function S (Source : in Ada.Strings.Unbounded.Unbounded_String) return string
-     renames Ada.Strings.Unbounded.To_String;
+   Separators          : constant Maps.Character_Set := Maps.To_Set (",:~");
+   Max_Matches         : constant := 4;
 
-   function US (Source : in string) return Ada.Strings.Unbounded.Unbounded_String
-     renames Ada.Strings.Unbounded.To_Unbounded_String;
-
-   Separators  : Character_Set := To_Set (",:~");
-   Max_Matches : constant := 4;
+------------------------------------------------------------------------------
+--
+-- Package types
+--
+------------------------------------------------------------------------------
 
    subtype Match_Range is Match_Count range 1 .. Max_Matches;
 
@@ -80,16 +85,16 @@ package body Command is
 
    -- A "last" buffer, which holds the last N privmsgs sent to the channel
    type Line_Rec is record
-      Stamp : Ada.Calendar.Time;
-      From  : Unbounded_String;
-      Msg   : Unbounded_String;
+      Stamp : Times.Timestamp;
+      From  : UString;
+      Msg   : UString;
    end record;
    type Line_Buf is array (positive range <>) of Line_Rec;
    type Line_Buf_Ptr is access Line_Buf;
 
    Command_Table    : array (Valid_Commands) of Command_Descriptor;
    Database_Request : Database.Request_Rec;
-   Destination      : Unbounded_String;
+   Destination      : UString;
    Do_Exit          : boolean;
    File_Request     : File.Request_Rec;
    Msg_Type         : Message_Type_Enm;
@@ -100,19 +105,19 @@ package body Command is
    Pat_ReplySet     : Matcher_Ptr;
    Request          : Request_Rec;
    Sender           : IRC.MsgTo_Rec;
-   Current_Nick     : Unbounded_String;
+   Current_Nick     : UString;
    NLines           : natural;
    NextLine         : positive;
    Lines            : Line_Buf_Ptr;
 
 
-   Start            : Time;
-   Last_Connected   : Time;
+   Start            : Times.Timestamp;
+   Last_Connected   : Times.Timestamp;
    Cmds_Accepted    : natural;
    Cmds_Rejected    : natural;
    Reconnects       : natural;
 
-   Help_Table : array (positive range <>) of Unbounded_String :=
+   Help_Table : array (positive range <>) of UString :=
      (
       --      US ("<factoid-name> (is|are) [also|action|reply] <factoid-def>"),
       US ("<factoid-name> (is|are) [also] <factoid-def>"),
@@ -146,50 +151,6 @@ package body Command is
 
    ---------------------------------------------------------------------------
 
-   function Elapsed (From : in Time) return string is
-
-      type MilliMin is delta 0.001 range Duration'First .. Duration'Last;
-
-      Diff    : natural := natural (Clock - From);
-      Days    : natural;
-      Hours   : natural;
-      Minutes : MilliMin;
-      Answer  : Unbounded_String;
-
-   begin  -- Elapsed
-      Days    := Diff / OneDay;
-      Hours   := (Diff mod OneDay) / OneHour;
-      Minutes := Millimin (Diff mod OneHour) / 60.0;
-
-      if Days > 0 then
-         Answer := US (natural'Image (Days));
-         if Days > 1 then
-            Answer := Answer & " days";
-         else
-            Answer := Answer & " day";
-         end if;
-         if Hours > 0 then
-            Answer := Answer & ",";
-         else
-            Answer := Answer & " and";
-         end if;
-      else
-         Answer := Null_Unbounded_String;
-      end if;
-      if Hours > 0 then
-         Answer := Answer & natural'Image (Hours);
-         if Hours > 1 then
-            Answer := Answer & " hours and";
-         else
-            Answer := Answer & " hour and";
-         end if;
-      end if;
-      Answer := Answer & MilliMin'Image (Minutes) & " minutes";
-      return Trim (S (Answer), Side => Ada.Strings.Left);
-   end Elapsed;
-
-   ---------------------------------------------------------------------------
-
    procedure Say (Msg : in string;  To : in string) is
    begin  -- Say
       Output_Request.Operation := Output.Message_Operation;
@@ -203,7 +164,7 @@ package body Command is
    function Leading_Nick (Msg : in string;   Nick:  in string) return boolean is
    begin  -- Leading_Nick
       if Msg'Length > Nick'Length + 2 then
-         if Index (To_Lower (Msg), Nick) = 1 and Is_In (Msg (Nick'Length + 1), Separators) then
+         if Fixed.Index (To_Lower (Msg), Nick) = 1 and Maps.Is_In (Msg (Nick'Length + 1), Separators) then
             return true;
          end if;
       end if;
@@ -233,8 +194,8 @@ package body Command is
                           Msg   : in string) is
    begin  -- Level_Error
       Say ("Hmm, the access level """ & Level & """ " & Msg & "." &
-           "  It needs to be a decimal integer in the range" &
-           natural'Image (Config.Min_Auth_Level) & " .." & natural'Image (Config.Max_Auth_Level), S (Destination));
+           "  It needs to be a decimal integer in the range " &
+           Img (Config.Min_Auth_Level) & " .. " & Img (Config.Max_Auth_Level), S (Destination));
    end Level_Error;
 
    ---------------------------------------------------------------------------
@@ -243,9 +204,9 @@ package body Command is
    procedure CkAccess (Cmd     : in string;
                        Sender  : in IRC.MsgTo_Rec) is
 
-      Matches : Match_Array (Match_Range);
+      use Ada.Strings.Unbounded;
 
-      ------------------------------------------------------------------------
+      Matches : Match_Array (Match_Range);
 
    begin  -- CkAccess
 
@@ -267,8 +228,8 @@ package body Command is
          end if;
 
          -- Do the actual command function
-         Say ("The current command access level for " & S (Who.Nick) & " is" &
-              natural'Image (Auth.Level (US (Mask))) & ".", S (Destination));
+         Say ("The current command access level for " & S (Who.Nick) & " is " &
+              Img (Auth.Level (US (Mask))) & ".", S (Destination));
       end;
    end CkAccess;
 
@@ -277,11 +238,13 @@ package body Command is
    procedure Fetch  (Cmd     : in string;
                      Sender  : in IRC.MsgTo_Rec) is
 
-      Fact    : Unbounded_String;
+      use Ada.Strings.Unbounded;
+
+      Fact    : UString;
       Matches : Match_Array (Match_Range);
 
    begin  -- Fetch
-      Fact := Null_Unbounded_String;
+      Fact := Null_UString;
       if Match (Pat_Fetch2.all, Cmd) = Cmd'First then
          Match (Pat_Fetch2.all, Cmd, Matches);
          if    Matches (3) /= No_Match then
@@ -296,7 +259,7 @@ package body Command is
          end if;
       end if;
 
-      if Fact /= Null_Unbounded_String then
+      if Fact /= Null_UString then
          while Length (Fact) > 0 and then (Element (Fact, Length (Fact)) = '?' or Element (Fact, Length (Fact)) = ' ') loop
             Fact := Head (Fact, Length (Fact) - 1);
          end loop;
@@ -377,52 +340,21 @@ package body Command is
 
       ------------------------------------------------------------------------
 
-      -- Return a time value formatted as HH:MM
-      function Timestr (Stamp : in Ada.Calendar.Time) return string is
-
-         HH : natural;
-         MM : natural;
-         SS : natural;
-
-      begin  -- Timestr
-
-         -- Get seconds, guarding against overflow at midnight
-         SS := natural (Ada.Calendar.Seconds (Stamp));
-         if SS >= OneDay then
-            SS := 0;
-         end if;
-
-         -- Break it up into hours and minutes
-         HH := (SS / OneHour) rem 100;
-         SS := SS - HH * OneHour;
-         MM := (SS / 60)      rem 100;
-
-         -- Cheap way to zero-fill
-         declare
-            HHs : string := natural'Image (HH + 100);
-            MMs : string := natural'Image (MM + 100);
-         begin
-            return HHs (3..4) & ":" & MMs (3..4);
-         end;
-      end Timestr;
-
-      ------------------------------------------------------------------------
-
       -- List a saved message for the "last" operation
       procedure List_Line (Index : in positive) is
 
          Nick : string := S (Lines (Index).From);
-         Line : Unbounded_String := Lines (Index).Msg;
+         Line : UString := Lines (Index).Msg;
 
       begin  -- List_Line
-         if Head (Line, ActPfx'Length) = ActPfx then
-            Delete (Line, 1, ActPfx'Length);
-            Delete (Line, Length (Line), Length (Line));
+         if S (Unbounded.Head (Line, ActPfx'Length)) = ActPfx then
+            Unbounded.Delete (Line, 1, ActPfx'Length);
+            Unbounded.Delete (Line, Unbounded.Length (Line), Unbounded.Length (Line));
             Line := " * " & Nick & Line;
          else
             Line := "<" & Nick & "> " & Line;
          end if;
-         Line := Timestr (Lines (Index).Stamp) & " " & Line;
+         Line := Times.Time_String (Lines (Index).Stamp, Short_Format => true) & " " & Line;
          Say (S (Line), S (Sender.Nick));
       end List_Line;
 
@@ -436,7 +368,7 @@ package body Command is
          Count := natural'Min (NLines, positive'Value (Cmd (Matches (1).First .. Matches (1).Last)));
       end if;
 
-      Dbg (Command_Name, "Listing last" & positive'Image (Count) & " lines of" & natural'Image (NLines));
+      Dbg (Command_Name, "Listing last " & Img (Count) & " lines of " & Img (NLines));
       Show := NextLine - Count;
       if Show < Lines'First then
          Show := Show + NLines;
@@ -459,14 +391,14 @@ package body Command is
                      Sender  : in IRC.MsgTo_Rec) is
 
       Matches : Match_Array (Match_Range);
-      Pat     : Unbounded_String;
+      Pat     : UString;
 
    begin  -- List
       Match (Command_Table (Config.Cmd_List).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match then
          Pat := US (".");
       else
-         Pat := US (Trim (Cmd (Matches (1).First .. Matches (1).Last), Side => Ada.Strings.Both));
+         Pat := US (BTrim (Cmd (Matches (1).First .. Matches (1).Last)));
       end if;
       Database_Request.Operation   := Database.List_Operation;
       Database_Request.Data        := Pat;
@@ -480,8 +412,8 @@ package body Command is
    procedure MyAccess (Cmd     : in string;
                        Sender  : in IRC.MsgTo_Rec) is
    begin  -- MyAccess
-      Say ("Your current command access level, " & S (Sender.Nick) & ", is" &
-           natural'Image (Auth.Level (Request.Origin)) & ".", S (Destination));
+      Say ("Your current command access level, " & S (Sender.Nick) & ", is " &
+           Img (Auth.Level (Request.Origin)) & ".", S (Destination));
    end MyAccess;
 
    ---------------------------------------------------------------------------
@@ -638,34 +570,34 @@ package body Command is
 
 
       Matches : Match_Array (Match_Range);
-      Msg     : Unbounded_String;
+      Msg     : UString;
 
    begin  -- Stats
       Match (Command_Table (Config.Cmd_Stats).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match then
          Say ("I am " & Identity.App_ID, S (Destination));
-         Say ("I have currently been running for " & Elapsed (Start) & ".", S (Destination));
+         Say ("I have currently been running for " & Times.Elapsed (Start) & ".", S (Destination));
          delay 1.5;
-         Msg := US ("I've been connected for " & Elapsed (Last_Connected));
+         Msg := US ("I've been connected for " & Times.Elapsed (Last_Connected));
          if Reconnects = 1 then
             Msg := Msg & "; this is my first connect.";
          elsif Reconnects = 2 then
             Msg := Msg & ", after one reconnect.";
          else
-            Msg := Msg & ", after" & natural'Image (Reconnects - 1) & " reconnects.";
+            Msg := Msg & ", after " & Img (Reconnects - 1) & " reconnects.";
          end if;
          Say (S (Msg), S (Destination));
          delay 1.5;
-         Msg := US ("I've accepted" & natural'Image (Cmds_Accepted) & " command");
+         Msg := US ("I've accepted " & Img (Cmds_Accepted) & " command");
          if Cmds_Accepted > 1 then
             Msg := Msg & "s";
          end if;
-         Msg := Msg & ", including this one, and rejected" & natural'Image (Cmds_Rejected) & ".";
+         Msg := Msg & ", including this one, and rejected " & Img (Cmds_Rejected) & ".";
          Say (S (Msg), S (Destination));
          delay 1.5;
          Database_Request.Operation   := Database.Stats_Operation;
       else
-         Database_Request.Key         := US (Trim (Cmd (Matches (1).First .. Matches (1).Last), Side => Ada.Strings.Both));
+         Database_Request.Key         := US (BTrim (Cmd (Matches (1).First .. Matches (1).Last)));
          Database_Request.Operation   := Database.FactoidStats_Operation;
       end if;
       Database_Request.Destination := Destination;
@@ -921,8 +853,8 @@ package body Command is
       Parser_Init;
       Current_Nick := US (Config.Get_Value (Config.Item_Nick));
 
-      Start          := Clock;
-      Last_Connected := Clock;
+      Start          := Times.Current;
+      Last_Connected := Times.Current;
       Cmds_Accepted  := 0;
       Cmds_Rejected  := 0;
       Reconnects     := 0;
@@ -961,7 +893,7 @@ package body Command is
 
             when Message_Operation | Save_Operation =>
                declare
-                  Command    : Unbounded_String;
+                  Command    : UString;
                   Has_Prefix : boolean;
                   Is_Command : boolean;
                   Message    : string := S (Request.Data);
@@ -971,14 +903,14 @@ package body Command is
                   IRC.Parse_MsgTo (Request.Origin, Sender);
                   Has_Prefix := false;
                   Command := US (Message);
-                  if Shorthand'Length > 0 and then Index (Message, Shorthand) = 1 then
+                  if Shorthand'Length > 0 and then Fixed.Index (Message, Shorthand) = 1 then
                      Has_Prefix := true;
                      Command := US (Message (Shorthand'Length + 1 .. Message'Length));
                   elsif Leading_Nick (Message, My_Nick) then
                      Has_Prefix := true;
                      Command := US (Message (My_Nick'Length + 2 .. Message'Length));
                   end if;
-                  Command := Trim (Command, Side => Ada.Strings.Both);
+                  Command := Unbounded.Trim (Command, Side => Both);
                   Is_Command := false;
                   if To_Lower (S (Request.Target)) = My_Nick then
                      Is_Command := true;
@@ -994,7 +926,7 @@ package body Command is
                      Process_Command (S (Command), Sender);
                      exit when Do_Exit;
                   else
-                     Lines (NextLine) := (Clock, Sender.Nick, Command);
+                     Lines (NextLine) := (Times.Current, Sender.Nick, Command);
                      if NLines < Lines'Length then
                         NLines := NLines + 1;
                      end if;
@@ -1014,8 +946,8 @@ package body Command is
             when Notice_Operation =>
                -- Notice from NickServ about identification causes us to try
                -- to identify
-               if Index (To_Lower (S (Request.Origin)), "nickserv") > 0 and
-                  Index (To_Lower (S (Request.Data)), "this nickname is owned") > 0 then
+               if Fixed.Index (To_Lower (S (Request.Origin)), "nickserv") > 0 and
+                  Fixed.Index (To_Lower (S (Request.Data)), "this nickname is owned") > 0 then
                   Say ("identify " & Config.Get_Value (Config.Item_NickPass), "nickserv");
                end if;
 
@@ -1038,8 +970,8 @@ package body Command is
                   -- reconnecting (and registering, which to us is the real
                   -- thing)
                   Reconnects := Reconnects + 1;
-                  Dbg (Command_Name, "Completed reconnect" & natural'Image (Reconnects));
-                  Last_Connected := Clock;
+                  Dbg (Command_Name, "Completed reconnect #" & Img (Reconnects));
+                  Last_Connected := Times.Current;
                elsif Request.Reply = IRC.ERR_NICKNAMEINUSE then
                   -- Oops, somebody using our nick; use an alternate.  If the
                   -- network has nickserv, try ghosting it; if not, live with

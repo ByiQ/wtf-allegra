@@ -10,7 +10,7 @@ with Ada.Calendar;
 
 
 --
--- Standard library packages
+-- Local library packages
 with Strings;
 
 

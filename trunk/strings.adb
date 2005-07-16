@@ -56,6 +56,14 @@ package body Strings is
 
    ---------------------------------------------------------------------------
 
+   -- Like regular Trim, but always trims both ends
+   function BTrim (Source : in string) return string is
+   begin  -- BTrim
+      return Ada.Strings.Fixed.Trim (Source, Side => Ada.Strings.Both);
+   end BTrim;
+
+   ---------------------------------------------------------------------------
+
    -- Like regular Trim, but always trims on the left
    function LTrim (Source : in string) return string is
    begin  -- LTrim

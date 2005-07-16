@@ -28,7 +28,10 @@ UTIL_PACKAGES = \
 	config \
 	db \
 	irc \
-	log
+	log \
+	pqueue \
+	strings \
+	times
 PACKAGES = ${TASK_PACKAGES} ${UTIL_PACKAGES}
 
 #
