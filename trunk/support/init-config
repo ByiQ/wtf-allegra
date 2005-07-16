@@ -1,11 +1,6 @@
 #!/bin/sh
 psql --dbname allegra --file - <<eof
 
-CREATE TABLE config (
-    name character varying(16),
-    value text
-);
-
 CREATE SEQUENCE actquipnum
     INCREMENT BY 1
     NO MAXVALUE
@@ -14,6 +9,35 @@ CREATE SEQUENCE actquipnum
 CREATE TABLE actquips (
     num integer DEFAULT nextval('actquipnum'::text),
     msg text
+);
+
+CREATE TABLE cmdlevels (
+    name character varying(16),
+    "level" integer
+);
+
+CREATE TABLE cmdstats (
+    name character varying(16),
+    used integer
+);
+
+CREATE TABLE config (
+    name character varying(16),
+    value text
+);
+
+CREATE TABLE factoids (
+    name character varying(128),
+    value text
+);
+
+CREATE TABLE factstats (
+    name character varying(128),
+    created date DEFAULT 'now'::date,
+    creator character varying(128) DEFAULT 'nobody'::character varying,
+    acc_count integer DEFAULT 0,
+    acc_last date DEFAULT 'now'::date,
+    acc_by character varying(128) DEFAULT 'nobody'::character varying
 );
 
 CREATE SEQUENCE quipnum
@@ -47,28 +71,9 @@ CREATE TABLE quotes (
     attr character varying(128)
 );
 
-CREATE TABLE cmdlevels (
-    name character varying(16),
-    "level" integer
-);
-
 CREATE TABLE usrlevels (
     name character varying(512),
     "level" integer
-);
-
-CREATE TABLE factoids (
-    name character varying(128),
-    value text
-);
-
-CREATE TABLE factstats (
-    name character varying(128),
-    created date DEFAULT 'now'::date,
-    creator character varying(128) DEFAULT 'nobody'::character varying,
-    acc_count integer DEFAULT 0,
-    acc_last date DEFAULT 'now'::date,
-    acc_by character varying(128) DEFAULT 'nobody'::character varying
 );
 
 
@@ -102,5 +107,20 @@ INSERT INTO cmdlevels VALUES ('reset',       5);
 INSERT INTO cmdlevels VALUES ('set',         5);
 INSERT INTO cmdlevels VALUES ('stats',       2);
 INSERT INTO cmdlevels VALUES ('tell',        3);
+
+INSERT INTO cmdstats  VALUES ('access',      0);
+INSERT INTO cmdstats  VALUES ('fetch',       0);
+INSERT INTO cmdstats  VALUES ('find',        0);
+INSERT INTO cmdstats  VALUES ('forget',      0);
+INSERT INTO cmdstats  VALUES ('help',        0);
+INSERT INTO cmdstats  VALUES ('last',        0);
+INSERT INTO cmdstats  VALUES ('list',        0);
+INSERT INTO cmdstats  VALUES ('quit',        0);
+INSERT INTO cmdstats  VALUES ('quote',       0);
+INSERT INTO cmdstats  VALUES ('rename',      0);
+INSERT INTO cmdstats  VALUES ('reset',       0);
+INSERT INTO cmdstats  VALUES ('set',         0);
+INSERT INTO cmdstats  VALUES ('stats',       0);
+INSERT INTO cmdstats  VALUES ('tell',        0);
 
 eof

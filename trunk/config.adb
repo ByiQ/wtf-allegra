@@ -39,13 +39,6 @@ package body Config is
 
    type Cfg_Map_Array is array ( positive range <> ) of Config_Mapping_Rec;
 
-   type Cmd_Auth_Mapping_Rec is record
-      Name:  Item_Name;
-      Item:  Command_Type;
-   end record;
-
-   type Cmd_Map_Array is array ( positive range <> ) of Cmd_Auth_Mapping_Rec;
-
    Cfg_Map:  Cfg_Map_Array :=
      (
       ("                ", Item_None),
@@ -63,6 +56,13 @@ package body Config is
       ("shorthand       ", Item_Shorthand),
       ("username        ", Item_UserName)
      );
+
+   type Cmd_Auth_Mapping_Rec is record
+      Name:  Item_Name;
+      Item:  Command_Type;
+   end record;
+
+   type Cmd_Map_Array is array ( positive range <> ) of Cmd_Auth_Mapping_Rec;
 
    Cmd_Map:  Cmd_Map_Array :=
      (
