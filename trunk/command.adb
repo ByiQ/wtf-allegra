@@ -81,8 +81,6 @@ package body Command is
       Process  : Command_Processor;
    end record;
 
-   subtype Valid_Commands is Config.Command_Type range Config.Command_Type'Succ (Config.Cmd_None) .. Config.Command_Type'Last;
-
    -- A "last" buffer, which holds the last N privmsgs sent to the channel
    type Line_Rec is record
       Stamp : Times.Timestamp;
@@ -92,7 +90,13 @@ package body Command is
    type Line_Buf is array (positive range <>) of Line_Rec;
    type Line_Buf_Ptr is access Line_Buf;
 
-   Command_Table    : array (Valid_Commands) of Command_Descriptor;
+------------------------------------------------------------------------------
+--
+-- Package variables
+--
+------------------------------------------------------------------------------
+
+   Command_Table    : array (Config.Valid_Commands) of Command_Descriptor;
    Database_Request : Database.Request_Rec;
    Destination      : UString;
    Do_Exit          : boolean;
@@ -184,6 +188,7 @@ package body Command is
       abort Input.Input_Task;
       abort Ping.Ping_Task;
       delay 3.0;
+      Config.WrapUp;
       Log.WrapUp;
    end Shutdown;
 
@@ -597,8 +602,21 @@ package body Command is
          delay 1.5;
          Database_Request.Operation   := Database.Stats_Operation;
       else
-         Database_Request.Key         := US (BTrim (Cmd (Matches (1).First .. Matches (1).Last)));
-         Database_Request.Operation   := Database.FactoidStats_Operation;
+         declare
+            About : string := BTrim (Cmd (Matches (1).First .. Matches (1).Last));
+         begin
+            if To_Lower (About) = "commands" then
+               Say ("Command statistics:", S (Sender.Nick));
+               for VCmd in Config.Valid_Commands loop
+                  Say ("   " & Config.Cmd_Names (VCmd) & Img (Config.Command_Usage (VCmd), 4), S (Sender.Nick));
+                  delay 0.5;
+               end loop;
+               return;  -- did it ourselves
+            else
+               Database_Request.Key         := US (About);
+               Database_Request.Operation   := Database.FactoidStats_Operation;
+            end if;
+         end;
       end if;
       Database_Request.Destination := Destination;
       Database.Requests.Enqueue (Database_Request);
@@ -644,12 +662,11 @@ package body Command is
 
    ---------------------------------------------------------------------------
 
-   procedure Unrecognized (Cmd     : in string;
-                           Sender  : in IRC.MsgTo_Rec) is
-
-      Msg : string := "I don't recognize that command.";
-
-   begin  -- Unrecognized
+   -- Treat any random string that's not a command as a factoid to be fetched
+   procedure Fetch_Bare (Cmd     : in string;
+                         Sender  : in IRC.MsgTo_Rec) is
+   begin  -- Fetch_Bare
+      Config.Command_Used (Config.Cmd_Fetch);
       if Cmd (Cmd'First) = '~' then
          Database_Request.Operation := Database.RE_Fetch_Operation;
          Database_Request.Data      := US (Cmd (Cmd'First + 1 .. Cmd'Last));
@@ -660,12 +677,7 @@ package body Command is
       Database_Request.Origin      := Sender.Nick;
       Database_Request.Destination := Destination;
       Database.Requests.Enqueue (Database_Request);
-      ---      if Msg_Type = PrivMsg then
-      ---         Say (Msg, S (Destination));
-      ---      else
-      ---         Say ("Sorry " & S (Sender.Nick) & ", " & Msg, S (Destination));
-      ---      end if;
-   end Unrecognized;
+   end Fetch_Bare;
 
    ---------------------------------------------------------------------------
 
@@ -717,6 +729,7 @@ package body Command is
          Authorized := Permitted (Request.Origin, CmdType);
          if Authorized = Succeeded then
             Cmds_Accepted := Cmds_Accepted + 1;
+            Config.Command_Used (CmdType);
             Proc (Cmd, Sender);
          else
             Info (Command_Name, "Rejecting command """ & Cmd & """ from " & S (Request.Origin) & " because " &
@@ -779,9 +792,8 @@ package body Command is
          end if;
       end loop;
 
-      -- Not in the table, treat as unrecognized command (currently just does
-      -- a fetch anyway)
-      Unrecognized (Cmd, Sender);
+      -- Not in the table, treat as a factoid to be fetched
+      Fetch_Bare (Cmd, Sender);
    end Process_Command;
 
    ---------------------------------------------------------------------------

@@ -108,7 +108,9 @@ INSERT INTO cmdlevels VALUES ('set',         5);
 INSERT INTO cmdlevels VALUES ('stats',       2);
 INSERT INTO cmdlevels VALUES ('tell',        3);
 
-INSERT INTO cmdstats  VALUES ('access',      0);
+INSERT INTO cmdstats  VALUES ('myaccess',    0);
+INSERT INTO cmdstats  VALUES ('ckaccess',    0);
+INSERT INTO cmdstats  VALUES ('setaccess',   0);
 INSERT INTO cmdstats  VALUES ('fetch',       0);
 INSERT INTO cmdstats  VALUES ('find',        0);
 INSERT INTO cmdstats  VALUES ('forget',      0);

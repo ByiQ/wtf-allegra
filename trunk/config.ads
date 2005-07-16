@@ -1,10 +1,38 @@
+
+--
+-- Config -- Program configuration package for Allegra info-bot
+--
+
+
 package Config is
 
-   Allegra_DB:     string := "allegra";
-   Config_Tbl:     string := "config";
-   Cmd_Auth_Tbl:   string := "cmdlevels";
-   UserLvl_Tbl:    string := "usrlevels";
+------------------------------------------------------------------------------
+--
+-- Public constants
+--
+------------------------------------------------------------------------------
 
+   -- Names of our database tables
+   Allegra_DB     : constant string := "allegra";
+   Config_Tbl     : constant string := "config";
+   Cmd_Auth_Tbl   : constant string := "cmdlevels";
+   Cmd_Stat_Tbl   : constant string := "cmdstats";
+   UserLvl_Tbl    : constant string := "usrlevels";
+
+   -- Maximum length of a configuration item name or command name
+   Name_Len_Max   : constant := 16;
+
+   -- Range of authorization levels
+   Min_Auth_Level : constant :=  0;
+   Max_Auth_Level : constant := 10;
+
+------------------------------------------------------------------------------
+--
+-- Public types
+--
+------------------------------------------------------------------------------
+
+   -- Known configuration items
    type Config_Item is
      (
       Item_None,
@@ -23,7 +51,7 @@ package Config is
       Item_UserName
      );
 
-   -- The master command list
+   -- The bot's commands
    type Command_Type is
      (
       Cmd_None,
@@ -45,16 +73,68 @@ package Config is
       Cmd_Tell
      );
 
-   Min_Auth_Level : constant :=  0;
-   Max_Auth_Level : constant := 10;
+   -- The range of commands that can actually be issued by users
+   subtype Valid_Commands is Command_Type range Command_Type'Succ (Cmd_None) .. Command_Type'Last;
+
+   -- A name type, used for configuration item names and command names
+   subtype Item_Name is string (1 .. Name_Len_Max);
+
+   -- Range of authorization levels
    subtype Auth_Level is integer range Min_Auth_Level .. Max_Auth_Level;
 
-   function Get_Value (Item:  Config_Item)
-                      return string;
+------------------------------------------------------------------------------
+--
+-- The command name table
+--
+------------------------------------------------------------------------------
 
-   function Get_Auth_Level (Command:  Command_Type)
-                           return Auth_Level;
+   -- The canonical command names, used for individual command help messages
+   -- and statistics.  Must agree with the entries in the cmdlevels and
+   -- cmdstats database tables.
+   type Cmd_Name_Array is array (Command_Type) of Item_Name;
 
-   procedure Init;
+   Cmd_Names : Cmd_Name_Array :=
+     (
+      Cmd_None      => "                ",
+      Cmd_CkAccess  => "ckaccess        ",
+      Cmd_Fetch     => "fetch           ",
+      Cmd_Find      => "find            ",
+      Cmd_Forget    => "forget          ",
+      Cmd_Help      => "help            ",
+      Cmd_Last      => "last            ",
+      Cmd_List      => "list            ",
+      Cmd_MyAccess  => "myaccess        ",
+      Cmd_Quit      => "quit            ",
+      Cmd_Quote     => "quote           ",
+      Cmd_Rename    => "rename          ",
+      Cmd_Reset     => "reset           ",
+      Cmd_Set       => "set             ",
+      Cmd_SetAccess => "setaccess       ",
+      Cmd_Stats     => "stats           ",
+      Cmd_Tell      => "tell            "
+     );
+
+------------------------------------------------------------------------------
+--
+-- Public subroutines
+--
+------------------------------------------------------------------------------
+
+   -- Return a command's usage count
+   function Command_Usage (Command : in Command_Type) return natural;
+
+   -- Increment a command's usage count by one
+   procedure Command_Used (Command : in Command_Type);
+
+   -- Return the required auth level for the given command
+   function Get_Auth_Level (Command : in Command_Type) return Auth_Level;
+
+   -- Return the value of given configuration item
+   function Get_Value (Item : in Config_Item) return string;
+
+   -- Save any cached configuration values to the db
+   procedure WrapUp;
+
+   ---------------------------------------------------------------------------
 
 end Config;
