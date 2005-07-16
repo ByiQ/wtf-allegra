@@ -56,4 +56,20 @@ package body Strings is
 
    ---------------------------------------------------------------------------
 
+   -- Like regular Trim, but always trims on the left
+   function LTrim (Source : in string) return string is
+   begin  -- LTrim
+      return Ada.Strings.Fixed.Trim (Source, Side => Ada.Strings.Left);
+   end LTrim;
+
+   ---------------------------------------------------------------------------
+
+   -- Like regular Trim, but always trims on the right
+   function RTrim (Source : in string) return string is
+   begin  -- RTrim
+      return Ada.Strings.Fixed.Trim (Source, Side => Ada.Strings.Right);
+   end RTrim;
+
+   ---------------------------------------------------------------------------
+
 end Strings;
