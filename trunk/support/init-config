@@ -79,6 +79,7 @@ CREATE TABLE usrlevels (
 
 INSERT INTO config VALUES ('armpath',   '/usr/share/doc/ada-reference-manual/html/arm95tc1');
 INSERT INTO config VALUES ('channel',   'Ada');
+INSERT INTO config VALUES ('helppath',  'support/help-file');
 INSERT INTO config VALUES ('host',      'irc.freenode.net');
 INSERT INTO config VALUES ('lastsize',  '5');
 INSERT INTO config VALUES ('loglevel',  'error');

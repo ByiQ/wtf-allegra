@@ -38,6 +38,7 @@ package Config is
       Item_None,
       Item_ARMPath,
       Item_Channel,
+      Item_HelpPath,
       Item_Host,
       Item_LastSize,
       Item_LogLevel,

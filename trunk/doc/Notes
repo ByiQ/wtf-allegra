@@ -666,3 +666,51 @@ not all in one big sweep like I'd originally thought I might.  Which of course
 allows me to move on to step 5! <g>
 
 
+Sat Jul 16 23:09:53 MST 2005
+
+Well, the flattening has gone well so far.  I've been appalled at how much
+cruft had crept in because I didn't have (or rather, didn't take) a
+"high-level" view of my source.  Sigh.  I'll need to ponder this some more,
+and I do still think LP is the way to go, but maybe my next project will be
+more, um, conventional.  At least until I can find (or write) an LP system
+that suits my needs.
+
+Wanted to record the sequence of steps for adding a new configuration item:
+
+1. Think up a name for it, different from all existing names
+
+2. Add an INSERT statement for its default value to support/init-config
+
+3. If you have an existing database, run the INSERT statement in it,
+appropriately modified for your setup if necessary (I use psql for this)
+
+4. Add an Item_* enum constant to Config_Item in config.ads
+
+5. Add an entry for the new name in Cfg_Map in config.adb
+
+And et voila, start using it!
+
+
+The reason I needed a new config item was for the path to the help file, and I
+want to record the format of that file here, too.  It's a plain text file, and
+consists of zero or more "help-item" entries, one after the other.  A
+help-item looks like this:
+
+marker-line
+(zero or more blank lines)
+summary-line
+help-text
+
+A marker-line is "---topic", where "topic" is a help topic name.  These are
+the names users can put after the "help" command.
+
+The first non-blank line after the marker line is taken as the summary-line,
+and it's just a one-line summary of the command's syntax, if it's a command
+help section, or just a one-line summary if it's a general help topic.  The
+summary lines are cached so that just plain "help" won't have to hit the file.
+
+The help-text is zero or more lines (blank or non-blank, all are preserved)
+which are printed as the help message for the associated topic.  It ends with
+the next marker-line, or at end of file.
+
+

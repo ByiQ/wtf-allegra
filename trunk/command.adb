@@ -114,33 +114,11 @@ package body Command is
    NextLine         : positive;
    Lines            : Line_Buf_Ptr;
 
-
    Start            : Times.Timestamp;
    Last_Connected   : Times.Timestamp;
    Cmds_Accepted    : natural;
    Cmds_Rejected    : natural;
    Reconnects       : natural;
-
-   Help_Table : array (positive range <>) of UString :=
-     (
-      --      US ("<factoid-name> (is|are) [also|action|reply] <factoid-def>"),
-      US ("<factoid-name> (is|are) [also] <factoid-def>"),
-      --      US ("no, <factoid-name> (is|are) [action|reply] <factoid-def>"),
-      US ("no, <factoid-name> (is|are) <factoid-def>"),
-      US ("[~]<factoid-name>[?]"),
-      US ("tell (<nick>|me) [about] <factoid>"),
-      US ("what [is|are] [~]<factoid> [?]"),
-      US ("forget <factoid>"),
-      US ("rename <from-name> (as|to) <to-name>"),
-      --      US ("find <string>"),
-      US ("help"),
-      US ("list [regexp]"),
-      US ("last [num-lines]"),
-      US ("quote"),
-      US ("stats [<factoid>]"),
-      US ("access [<mask> <level>]"),
-      US ("quit")
-     );
 
 ------------------------------------------------------------------------------
 --
@@ -155,12 +133,10 @@ package body Command is
 
    ---------------------------------------------------------------------------
 
-   procedure Say (Msg : in string;  To : in string) is
+   -- Local instance of this that sends to the nominal destination
+   procedure Say (Msg : in string) is
    begin  -- Say
-      Output_Request.Operation := Output.Message_Operation;
-      Output_Request.Destination := US (To);
-      Output_Request.Data := US (Msg);
-      Output.Requests.Enqueue (Output_Request);
+      Output.Say (Msg, Destination);
    end Say;
 
    ---------------------------------------------------------------------------
@@ -200,7 +176,7 @@ package body Command is
    begin  -- Level_Error
       Say ("Hmm, the access level """ & Level & """ " & Msg & "." &
            "  It needs to be a decimal integer in the range " &
-           Img (Config.Min_Auth_Level) & " .. " & Img (Config.Max_Auth_Level), S (Destination));
+           Img (Config.Min_Auth_Level) & " .. " & Img (Config.Max_Auth_Level));
    end Level_Error;
 
    ---------------------------------------------------------------------------
@@ -228,13 +204,13 @@ package body Command is
          -- Of course, we *do* need a nick, and with this command, it's easy
          -- to forget it
          if Who.Nick = IRC.Null_Field then
-            Say ("Got nick?", S (Destination));
+            Say ("Got nick?");
             return;
          end if;
 
          -- Do the actual command function
          Say ("The current command access level for " & S (Who.Nick) & " is " &
-              Img (Auth.Level (US (Mask))) & ".", S (Destination));
+              Img (Auth.Level (US (Mask))) & ".");
       end;
    end CkAccess;
 
@@ -283,7 +259,7 @@ package body Command is
          Database_Request.Destination := Destination;
          Database.Requests.Enqueue (Database_Request);
       else
-         Say ("I can't quite make out your question--try again, maybe?", S (Destination));
+         Say ("I can't quite make out your question--try again, maybe?");
       end if;
    end Fetch;
 
@@ -291,8 +267,21 @@ package body Command is
 
    procedure Find   (Cmd     : in string;
                      Sender  : in IRC.MsgTo_Rec) is
+
+      Matches : Match_Array (Match_Range);
+
    begin  -- Find
-      Say ("The find command is not yet implemented.", S (Destination));
+      Match (Command_Table (Config.Cmd_Forget).Matcher.all, Cmd, Matches);
+      if Matches (1) = No_Match then
+         Say ("The RM-find command is ""find regexp"".");
+         return;
+      end if;
+      File_Request.Operation   := File.RM_Operation;
+      File_Request.Data        := US (Cmd (Matches (1).First .. Matches (1).Last));
+      File_Request.Origin      := Sender.Nick;
+      File_Request.Requestor   := Request.Origin;
+      File_Request.Destination := Destination;
+      File.Requests.Enqueue (File_Request);
    end Find;
 
    ---------------------------------------------------------------------------
@@ -305,7 +294,7 @@ package body Command is
    begin  -- Forget
       Match (Command_Table (Config.Cmd_Forget).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match then
-         Say ("The forget-factoid command is ""forget factoid"".", S (Destination));
+         Say ("The forget-factoid command is ""forget factoid"".");
          return;
       end if;
       Database_Request.Operation   := Database.Forget_Operation;
@@ -320,16 +309,19 @@ package body Command is
 
    procedure Help   (Cmd     : in string;
                      Sender  : in IRC.MsgTo_Rec) is
+
+      Matches : Match_Array (Match_Range);
+
    begin  -- Help
-      Say ("I currently know the following commands:", S (Sender.Nick));
-      for Msg in Help_Table'Range loop
-         Say ("   " & S (Help_Table (Msg)), S (Sender.Nick));
-         if Msg /= Help_Table'Last then
-            delay 0.5;
-         end if;
-      end loop;
-      Say ("The shortcut string is """ & Config.Get_Value (Config.Item_Shorthand) &
-           """; a leading ""~"" in a factoid name treats it as a regexp.", S (Sender.Nick));
+      Match (Command_Table (Config.Cmd_Help).Matcher.all, Cmd, Matches);
+      File_Request.Operation   := File.Help_Operation;
+      File_Request.Destination := Sender.Nick;
+      if Matches (1) = No_Match then
+         File_Request.Data     := Null_UString;
+      else
+         File_Request.Data     := US (BTrim (Cmd (Matches (1).First .. Matches (1).Last)));
+      end if;
+      File.Requests.Enqueue (File_Request);
    end Help;
 
    ---------------------------------------------------------------------------
@@ -360,7 +352,7 @@ package body Command is
             Line := "<" & Nick & "> " & Line;
          end if;
          Line := Times.Time_String (Lines (Index).Stamp, Short_Format => true) & " " & Line;
-         Say (S (Line), S (Sender.Nick));
+         Output.Say (Line, Sender.Nick);
       end List_Line;
 
       ------------------------------------------------------------------------
@@ -418,7 +410,7 @@ package body Command is
                        Sender  : in IRC.MsgTo_Rec) is
    begin  -- MyAccess
       Say ("Your current command access level, " & S (Sender.Nick) & ", is " &
-           Img (Auth.Level (Request.Origin)) & ".", S (Destination));
+           Img (Auth.Level (Request.Origin)) & ".");
    end MyAccess;
 
    ---------------------------------------------------------------------------
@@ -451,7 +443,7 @@ package body Command is
    begin  -- Rename
       Match (Command_Table (Config.Cmd_Rename).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match or Matches (3) = No_Match then
-         Say ("The rename-factoid command is ""rename oldname to newname"".", S (Destination));
+         Say ("The rename-factoid command is ""rename oldname to newname"".");
          return;
       end if;
       Database_Request.Operation   := Database.Rename_Operation;
@@ -473,7 +465,7 @@ package body Command is
    begin  -- Reset
       Match (Command_Table (Config.Cmd_Reset).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match or Matches (3) = No_Match then
-         Say ("Is that supposed to be a reset-factoid command?  If so, it should be ""no, factoid is definition"".", S (Destination));
+         Say ("Is that supposed to be a reset-factoid command?  If so, it should be ""no, factoid is definition"".");
          return;
       end if;
       declare
@@ -500,7 +492,7 @@ package body Command is
    begin  -- Set
       Match (Command_Table (Config.Cmd_Set).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match or Matches (3) = No_Match then
-         Say ("Is that supposed to be a set-factoid command?  If so, it should be ""factoid is definition"".", S (Destination));
+         Say ("Is that supposed to be a set-factoid command?  If so, it should be ""factoid is definition"".");
          return;
       end if;
       declare
@@ -573,15 +565,14 @@ package body Command is
    procedure Stats  (Cmd     : in string;
                      Sender  : in IRC.MsgTo_Rec) is
 
-
       Matches : Match_Array (Match_Range);
       Msg     : UString;
 
    begin  -- Stats
       Match (Command_Table (Config.Cmd_Stats).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match then
-         Say ("I am " & Identity.App_ID, S (Destination));
-         Say ("I have currently been running for " & Times.Elapsed (Start) & ".", S (Destination));
+         Say ("I am " & Identity.App_ID);
+         Say ("I have currently been running for " & Times.Elapsed (Start) & ".");
          delay 1.5;
          Msg := US ("I've been connected for " & Times.Elapsed (Last_Connected));
          if Reconnects = 1 then
@@ -591,14 +582,14 @@ package body Command is
          else
             Msg := Msg & ", after " & Img (Reconnects - 1) & " reconnects.";
          end if;
-         Say (S (Msg), S (Destination));
+         Say (S (Msg));
          delay 1.5;
          Msg := US ("I've accepted " & Img (Cmds_Accepted) & " command");
          if Cmds_Accepted > 1 then
             Msg := Msg & "s";
          end if;
          Msg := Msg & ", including this one, and rejected " & Img (Cmds_Rejected) & ".";
-         Say (S (Msg), S (Destination));
+         Say (S (Msg));
          delay 1.5;
          Database_Request.Operation   := Database.Stats_Operation;
       else
@@ -606,9 +597,9 @@ package body Command is
             About : string := BTrim (Cmd (Matches (1).First .. Matches (1).Last));
          begin
             if To_Lower (About) = "commands" then
-               Say ("Command statistics:", S (Sender.Nick));
+               Output.Say ("Command statistics:", Sender.Nick);
                for VCmd in Config.Valid_Commands loop
-                  Say ("   " & Config.Cmd_Names (VCmd) & Img (Config.Command_Usage (VCmd), 4), S (Sender.Nick));
+                  Output.Say ("   " & Config.Cmd_Names (VCmd) & Img (Config.Command_Usage (VCmd), 4), Sender.Nick);
                   delay 0.5;
                end loop;
                return;  -- did it ourselves
@@ -632,7 +623,7 @@ package body Command is
    begin  -- Tell
       Match (Command_Table (Config.Cmd_Tell).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match or Matches (3) = No_Match then
-         Say ("That doesn't quite make sense to me ... try again, maybe?", S (Destination));
+         Say ("That doesn't quite make sense to me ... try again, maybe?");
          return;
       end if;
       declare
@@ -640,7 +631,7 @@ package body Command is
          Fact : string := Cmd (Matches (3).First .. Matches (3).Last);
       begin
          if To_Lower (To) = To_Lower (S (Current_Nick)) then
-            Say ("Hey, I already know that!", S (Destination));
+            Say ("Hey, I already know that!");
             return;
          elsif To_Lower (To) = "me" then
             Database_Request.Destination := Sender.Nick;
@@ -704,11 +695,11 @@ package body Command is
 
    begin  -- Process_CTCP_Request
       if Keywd ("VERSION") then
-         Say (IRC.CTCP_Marker & "VERSION " & Identity.App_ID & IRC.CTCP_Marker, Tgt);
+         Output.Say (IRC.CTCP_Marker & "VERSION " & Identity.App_ID & IRC.CTCP_Marker, Tgt);
       elsif Keywd ("ACTION") then
-         Say (IRC.CTCP_Marker & "ACTION don't play dat!" & IRC.CTCP_Marker, Tgt);
+         Output.Say (IRC.CTCP_Marker & "ACTION don't play dat!" & IRC.CTCP_Marker, Tgt);
       else
-         Say (IRC.CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & IRC.CTCP_Marker, Tgt);
+         Output.Say (IRC.CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & IRC.CTCP_Marker, Tgt);
       end if;
    end Process_CTCP_Request;
 
@@ -737,23 +728,23 @@ package body Command is
             Cmds_Rejected := Cmds_Rejected + 1;
             case CmdType is
                when Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List | Cmd_Last =>
-                  Say ("You must have pissed somebody off, cuz you're persona non grata.", To);
+                  Output.Say ("You must have pissed somebody off, cuz you're persona non grata.", To);
                when Cmd_MyAccess =>
-                  Say ("Why don't you just ask them what their access level is?", To);
+                  Output.Say ("Why don't you just ask them what their access level is?", To);
                when Cmd_SetAccess =>
-                  Say ("Only my operator can do that, sorry.", To);
+                  Output.Say ("Only my operator can do that, sorry.", To);
                when Cmd_Forget | Cmd_Rename | Cmd_Reset | Cmd_Set =>
-                  Say ("Only known users can update the factoid database, sorry.", To);
+                  Output.Say ("Only known users can update the factoid database, sorry.", To);
                when Cmd_Quit =>
-                  Say ("I'm sorry " & S (Sender.Nick) & ", I don't know you well enough to take orders from you.", To);
+                  Output.Say ("I'm sorry " & S (Sender.Nick) & ", I don't know you well enough to take orders from you.", To);
                when Cmd_Quote =>
-                  Say ("You need a higher access level--ask the bot operator about it.", To);
+                  Output.Say ("You need a higher access level--ask the bot operator about it.", To);
                when Cmd_Stats =>
-                  Say ("You'll be able to access the stats soon enough, if you hang around and contribute.", To);
+                  Output.Say ("You'll be able to access the stats soon enough, if you hang around and contribute.", To);
                when Cmd_Tell =>
-                  Say ("That's pretty personal, isn't it?  Let's give you a while, then we'll see.", To);
+                  Output.Say ("That's pretty personal, isn't it?  Let's give you a while, then we'll see.", To);
                when Cmd_None =>
-                  Say ("This is another fine mess you've gotten us into, Stanley!", To);
+                  Output.Say ("This is another fine mess you've gotten us into, Stanley!", To);
             end case;
          end if;
       end Exec;
@@ -823,7 +814,7 @@ package body Command is
       Enter (Cmd_Fetch,     "^(\S.*)\s*(\?)$",                                     Fetch'Access);
       Enter (Cmd_Find,      "^find\s+(\S.*)$",                                     Find'Access);
       Enter (Cmd_Forget,    "^forget\s+(\S.*)$",                                   Forget'Access);
-      Enter (Cmd_Help,      "^help$",                                              Help'Access);
+      Enter (Cmd_Help,      "^help(\s+\S.*)?$",                                    Help'Access);
       Enter (Cmd_Last,      "^last(\s+[1-9]\d*)?$",                                Last'Access);
       Enter (Cmd_List,      "^list(\s+\S.*)?$",                                    List'Access);
       Enter (Cmd_MyAccess,  "^access$",                                            MyAccess'Access);
@@ -850,13 +841,13 @@ package body Command is
 
    procedure Do_Crash is
    begin  -- Do_Crash
-      Say ("I'm not feeling well ... think I'll go lie down.", Channel);
+      Output.Say ("I'm not feeling well ... think I'll go lie down.", Channel);
       Shutdown;
    end Do_Crash;
 
 ------------------------------------------------------------------------------
 --
--- Exported task
+-- Public task
 --
 ------------------------------------------------------------------------------
 
@@ -960,7 +951,7 @@ package body Command is
                -- to identify
                if Fixed.Index (To_Lower (S (Request.Origin)), "nickserv") > 0 and
                   Fixed.Index (To_Lower (S (Request.Data)), "this nickname is owned") > 0 then
-                  Say ("identify " & Config.Get_Value (Config.Item_NickPass), "nickserv");
+                  Output.Say ("identify " & Config.Get_Value (Config.Item_NickPass), "nickserv");
                end if;
 
             when Crash_Operation =>

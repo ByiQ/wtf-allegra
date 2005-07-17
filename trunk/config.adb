@@ -51,6 +51,7 @@ package body Config is
       Item_None      => "                ",
       Item_ARMPath   => "armpath         ",
       Item_Channel   => "channel         ",
+      Item_HelpPath  => "helppath        ",
       Item_Host      => "host            ",
       Item_LastSize  => "lastsize        ",
       Item_LogLevel  => "loglevel        ",

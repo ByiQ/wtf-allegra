@@ -13,23 +13,26 @@
 
  x access <user>
 
-per-command help messages, command access levels
+ x per-command help messages, command access levels
 
 stats improvements:
  x   ident line
  x   count of known quotes
-   individual command usage stats
+ x   individual command usage stats
 
 rm lookup
 
-quote regexp?
-
 ensure good exception handler coverage
-
-stylesheet for docs?
 
 doc update and completion
 
 final polish
 
 public posting
+
+
+factoid => reply/action
+
+quote regexp?
+
+stylesheet for docs?
