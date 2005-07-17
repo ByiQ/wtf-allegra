@@ -9,12 +9,14 @@
 with Ada.Exceptions;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
+with Ada.Unchecked_Deallocation;
 with System;  -- ugh!
 
 
 --
 -- Compiler-specific packages
 with Ada.Text_IO.C_Streams;
+with GNAT.OS_Lib;
 with Interfaces.C_Streams;
 
 
@@ -73,8 +75,11 @@ package body File is
 --
 ------------------------------------------------------------------------------
 
+   -- Timestamp of the help file the last time we initialized the list
+   Help_Time   : GNAT.OS_Lib.OS_Time;
+
    -- The help-item list
-   Help_List   : Help_Item_Ptr;
+   Help_List   : Help_Item_Ptr := null;
 
    -- Width of widest help topic name
    Topic_Width : positive;
@@ -84,6 +89,9 @@ package body File is
 -- Package subroutines
 --
 ------------------------------------------------------------------------------
+
+   -- Instantiate the deallocation procedure for our help-list node type
+   procedure Free is new Ada.Unchecked_Deallocation (Help_Item, Help_Item_Ptr);
 
    -- Use GNAT-specific services to open a text file as a C-flavored stream
    procedure Open_Help_File (Path : in  string;
@@ -106,6 +114,23 @@ package body File is
       end if;
       Ada.Text_IO.C_Streams.Open (File, Ada.Text_IO.In_File, Strm);
    end Open_Help_File;
+
+   ---------------------------------------------------------------------------
+
+   -- Compare two OS_Time values; returns true if they're equal
+   function "=" (TS1, TS2 : in GNAT.OS_Lib.OS_Time) return boolean is
+
+      use GNAT.OS_Lib;
+
+   begin  -- "="
+      return
+        GM_Second (TS1) = GM_Second (TS2) and then
+        GM_Minute (TS1) = GM_Minute (TS2) and then
+        GM_Hour   (TS1) = GM_Hour   (TS2) and then
+        GM_Day    (TS1) = GM_Day    (TS2) and then
+        GM_Month  (TS1) = GM_Month  (TS2) and then
+        GM_Year   (TS1) = GM_Year   (TS2);
+   end "=";
 
    ---------------------------------------------------------------------------
 
@@ -132,15 +157,27 @@ package body File is
       HelpLine : Help_Line_Str;
       Last     : natural;
       HelpTail : Help_Item_Ptr;
+      HelpGone : Help_Item_Ptr;
 
       ------------------------------------------------------------------------
 
    begin  -- Init
 
-      -- Start out with no help enabled
-      Help_List := null;
-      HelpTail  := null;
+      -- Start out with no help enabled; free old list if one exists
+      if Help_List /= null then
+         HelpTail := Help_List;
+         while HelpTail /= null loop
+            HelpGone := HelpTail;
+            HelpTail := HelpTail.Next;
+            Free (HelpGone);
+         end loop;
+         Help_List := null;
+      end if;
+      HelpTail := null;
       Topic_Width := positive'First;
+
+      -- Capture the timestamp
+      Help_Time := GNAT.OS_Lib.File_Time_Stamp (HelpPath);
 
       -- Open the help file for reading
       begin
@@ -224,7 +261,9 @@ package body File is
 
       ------------------------------------------------------------------------
 
-      Item : Help_Item_Ptr := Help_List;
+      HelpPath : string := Config.Get_Value (Config.Item_HelpPath);
+      Item     : Help_Item_Ptr := Help_List;
+      HelpNow  : GNAT.OS_Lib.OS_Time;
 
       ------------------------------------------------------------------------
 
@@ -237,7 +276,6 @@ package body File is
 
          ---------------------------------------------------------------------
 
-         HelpPath : string := Config.Get_Value (Config.Item_HelpPath);
          HelpFile : File_Type;
          HelpStrm : FILEs;
          HelpLine : Help_Line_Str;
@@ -317,6 +355,20 @@ package body File is
                delay Line_Pause;
             end loop;
             return;
+         end if;
+
+         -- See if we need to re-scan the help file
+         HelpNow := GNAT.OS_Lib.File_Time_Stamp (HelpPath);
+         if HelpNow /= Help_Time then
+            Log.Dbg (File_Name, "Re-scanning help file """ & HelpPath & """");
+            Init;
+
+            -- After the rescan, it's possible that the help list is now empty
+            Item := Help_List;
+            if Item = null then
+               Output.Say ("I lost my help!  Please chide the bot op for cheesing the help file.", Req.Destination);
+               return;
+            end if;
          end if;
 
          -- Search the help list for the given topic
