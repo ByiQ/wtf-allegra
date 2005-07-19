@@ -16,7 +16,7 @@ package File is
    ---------------------------------------------------------------------------
 
    -- Define the types of requests other tasks can make of this task
-   type Operation_Type is (Shutdown_Operation, RM_Operation, Help_Operation);
+   type Operation_Type is (Shutdown_Operation, RM_Operation, Help_Operation, Stats_Operation);
    type Request_Rec is record
       Operation   : Operation_Type;
       Destination : UString;

@@ -701,6 +701,10 @@ package body File is
 
             when Help_Operation =>
                Help (Request);
+
+            when Stats_Operation =>
+               Output.Say ("I know " & Img (Help_Msgs'Length) & " separate help topics, and have " &
+                           Img (RM_Index_Count) & " searchable RM index entries.", Request.Destination);
          end case;
       end loop;
    end File_Task;

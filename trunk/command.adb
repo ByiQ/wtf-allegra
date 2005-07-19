@@ -604,7 +604,10 @@ package body Command is
          Msg := Msg & ", including this one, and rejected " & Img (Cmds_Rejected) & ".";
          Say (S (Msg));
          delay 1.5;
-         Database_Request.Operation   := Database.Stats_Operation;
+         Database_Request.Operation := Database.Stats_Operation;
+         File_Request.Operation     := File.Stats_Operation;
+         File_Request.Destination   := Destination;
+         File.Requests.Enqueue (File_Request);
       else
          declare
             About : string := BTrim (Cmd (Matches (1).First .. Matches (1).Last));
