@@ -80,4 +80,12 @@ package body Strings is
 
    ---------------------------------------------------------------------------
 
+   -- Convenient for avoiding "use Ada.Strings.Unbounded"
+   function Equal (Left, Right : in UString) return boolean is
+   begin  -- Equal
+      return Left = Right;
+   end Equal;
+
+   ---------------------------------------------------------------------------
+
 end Strings;

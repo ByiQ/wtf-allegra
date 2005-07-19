@@ -6,6 +6,7 @@
 
 --
 -- Standard packages
+with Ada.Characters.Handling;
 with Ada.Exceptions;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
@@ -17,6 +18,7 @@ with System;  -- ugh!
 -- Compiler-specific packages
 with Ada.Text_IO.C_Streams;
 with GNAT.OS_Lib;
+with GNAT.Regpat;
 with Interfaces.C_Streams;
 
 
@@ -44,8 +46,8 @@ package body File is
    -- This task's name, for logging purposes
    File_Name     : constant string := "File";
 
-   -- Maximum length of a help-file line
-   Help_Line_Max : constant := 256;
+   -- Maximum length of a help-file or RM-index line
+   Line_Max      : constant := 512;
 
    -- The marker that makes a marker line
    Marker_Prefix : constant string := "---";
@@ -56,8 +58,8 @@ package body File is
 --
 ------------------------------------------------------------------------------
 
-   -- A help-file line
-   subtype Help_Line_Str is string (1 .. Help_Line_Max);
+   -- A help-file or RM-index line
+   subtype Line_Str is string (1 .. Line_Max);
 
    -- A help-item node of the singly-linked help list
    type Help_Item;
@@ -69,6 +71,14 @@ package body File is
       Next    : Help_Item_Ptr;
    end record;
 
+   -- The RM index table's entry type, table type, and a pointer to the table
+   type RM_Index_Item is record
+      Text : UString;
+      Refs : UString;
+   end record;
+   type RM_Index_Table is array (positive range <>) of RM_Index_Item;
+   type RM_Index_Ptr is access RM_Index_Table;
+
 ------------------------------------------------------------------------------
 --
 -- Package variables
@@ -76,22 +86,23 @@ package body File is
 ------------------------------------------------------------------------------
 
    -- Timestamp of the help file the last time we initialized the list
-   Help_Time   : GNAT.OS_Lib.OS_Time;
+   Help_Time      : GNAT.OS_Lib.OS_Time;
 
    -- The help-item list
-   Help_List   : Help_Item_Ptr := null;
+   Help_List      : Help_Item_Ptr := null;
 
    -- Width of widest help topic name
-   Topic_Width : positive;
+   Topic_Width    : positive;
+
+   -- The RM index table
+   RM_Index       : RM_Index_Ptr := null;
+   RM_Index_Count : natural;
 
 ------------------------------------------------------------------------------
 --
 -- Package subroutines
 --
 ------------------------------------------------------------------------------
-
-   -- Instantiate the deallocation procedure for our help-list node type
-   procedure Free is new Ada.Unchecked_Deallocation (Help_Item, Help_Item_Ptr);
 
    -- Use GNAT-specific services to open a text file as a C-flavored stream
    procedure Open_Help_File (Path : in  string;
@@ -142,8 +153,8 @@ package body File is
 
    ---------------------------------------------------------------------------
 
-   -- Initialize the file task
-   procedure Init is
+   -- Initialize the help-item list
+   procedure Init_Help is
 
       ------------------------------------------------------------------------
 
@@ -151,17 +162,22 @@ package body File is
 
       ------------------------------------------------------------------------
 
+      -- Instantiate the deallocation procedure for our help-list node type
+      procedure Free is new Ada.Unchecked_Deallocation (Help_Item, Help_Item_Ptr);
+
+      ------------------------------------------------------------------------
+
       HelpPath : string := Config.Get_Value (Config.Item_HelpPath);
       HelpFile : File_Type;
       HelpStrm : Interfaces.C_Streams.FILEs;
-      HelpLine : Help_Line_Str;
+      HelpLine : Line_Str;
       Last     : natural;
       HelpTail : Help_Item_Ptr;
       HelpGone : Help_Item_Ptr;
 
       ------------------------------------------------------------------------
 
-   begin  -- Init
+   begin  -- Init_Help
 
       -- Start out with no help enabled; free old list if one exists
       if Help_List /= null then
@@ -241,15 +257,214 @@ package body File is
    exception
       when E : others =>
          Put_Line (Standard_Error, "File init exception:  " & Ada.Exceptions.Exception_Information (E));
+   end Init_Help;
+
+   ---------------------------------------------------------------------------
+
+   -- Init the RM index.  Note that this code is very sensitive to the format
+   -- of the RM index file.  So go write a better version!  It currently works
+   -- with the text RM index found on the ADAIC website.
+   procedure Init_RM is
+
+      ------------------------------------------------------------------------
+
+      use Ada.Text_IO;
+
+      ------------------------------------------------------------------------
+
+      Ref_Sep : constant string := "  ";
+
+      ------------------------------------------------------------------------
+
+      RMPath : string := Config.Get_Value (Config.Item_ARMPath);
+      RMFile : File_Type;
+      RMLine : Line_Str;
+      Last   : natural;
+      RMEnts : natural;
+      LNum   : natural;
+      Seen_C : boolean;
+
+      ------------------------------------------------------------------------
+
+      -- Process one RM index entry; may create multiple entries in the RM
+      -- index table
+      procedure Process_Index_Entry (Line : in string) is
+
+         use Ada.Characters.Handling, Ada.Strings.Fixed;
+
+         RefsAt : natural;
+         HTxt   : UString;
+         STxt   : UString;
+         Refs   : UString;
+
+      begin  -- Process_Index_Entry
+
+         -- Skip section headers, except the second (and presumably any
+         -- subsequent) "C" is for "Interfaces.C", dangit
+         if Line'Length = 1 and Is_Upper (Line (1)) then
+            if Line (1) = 'C' and not Seen_C then
+               Seen_C := true;
+               return;
+            end if;
+         end if;
+
+         -- Ensure that this is a head-term
+         if Line (1) = ' ' then
+            Put_Line (Standard_Error, "RM index line " & Img (LNum) & " not a head-term; format unrecognized.");
+            raise Program_Error;
+         end if;
+
+         -- Okay, head term; split into text and refs, if any
+         RefsAt := Index (Line, Ref_Sep);
+         if RefsAt > 0 then
+            HTxt := US (Line (1 .. RefsAt - 1));
+            Refs := US (LTrim (Line (RefsAt .. Line'Last)));
+         else
+            HTxt := US (Line);
+            Refs := Null_UString;
+         end if;
+
+         -- Put this head-term into the table if it has refs, otherwise we can
+         -- use its text for subsequent sub-terms
+         if not Equal (Refs, Null_Ustring) then
+            RM_Index_Count := RM_Index_Count + 1;
+            RM_Index (RM_Index_Count) := RM_Index_Item'(HTxt, Refs);
+         end if;
+
+         -- Fetch sub-terms, if any
+         while not End_Of_File (RMFile) loop
+            Get_Line (RMFile, RMLine, Last);
+            LNum := LNum + 1;
+
+            -- Next blank line ends this term entry
+            exit when Last = 0;
+
+            -- See if it's a sub-term or a continuation of the previous
+            -- sub-term
+            if RMLine (1) = ' ' then
+
+               -- Sub-term; strip off leading blanks, then split it up
+               declare
+                  Sub : string := LTrim (RMLine (1 .. Last));
+               begin
+                  RefsAt := Index (Sub, Ref_Sep);
+                  if RefsAt > 0 then
+                     STxt := US (Sub (Sub'First .. RefsAt - 1));
+                     Refs := US (LTrim (Sub (RefsAt .. Sub'Last)));
+                     RM_Index_Count := RM_Index_Count + 1;
+                     RM_Index (RM_Index_Count) := RM_Index_Item'(HTxt & " " & STxt, Refs);
+                  else
+                     -- Of course there have to be irregularities, sigh.  Some
+                     -- sub-terms wrap to the next line; some are "See (also)"
+                     -- with no refs.  We ignore the former, and handle the
+                     -- latter in a rather brute-force fashion.
+                     if Sub'Length < 3 or else Sub (1..3) /= "See" then
+                        Get_Line (RMFile, RMLine, Last);
+                        LNum := LNum + 1;
+                        RM_Index_Count := RM_Index_Count + 1;
+                        RM_Index (RM_Index_Count) := RM_Index_Item'(HTxt & " " & US (Sub), US (LTrim (RMLine (1..Last))));
+                     end if;
+                  end if;
+               end;
+            else
+
+               -- Term-cont, which are just refs; nail them onto previous term's refs
+               RM_Index (RM_Index_Count).Refs := RM_Index (RM_Index_Count).Refs & " " & US (RMLine (1 .. Last));
+            end if;
+         end loop;
+      end Process_Index_Entry;
+
+      ------------------------------------------------------------------------
+
+   begin  -- Init_RM
+
+      -- Open the help file for reading
+      begin
+         Open (RMFile, In_File, RMPath);
+      exception
+         when others =>
+            Log.Warn (File_Name, "Could not open RM index file """ & RMPath & """--RM lookup disabled");
+            return;
+      end;
+
+      -- Count the non-blank lines in the file, to determine how big to make
+      -- the index table.  This will be more than we need, since some lines
+      -- are section headers and such, but it won't be far off.
+      RMEnts := 0;
+      while not End_Of_File (RMFile) loop
+         Get_Line (RMFile, RMLine, Last);
+         if Last > 0 then
+            RMEnts := RMEnts + 1;
+         end if;
+      end loop;
+
+      -- Allocate the table
+      RM_Index := new RM_Index_Table (1 .. RMEnts);
+      RM_Index_Count := 0;
+
+      -- Rewind the RM index file and parse it this time through
+      Reset (RMFile);
+      LNum := 0;
+
+      -- First, find the start of the actual index entries
+      while not End_Of_File (RMFile) loop
+         Get_Line (RMFile, RMLine, Last);
+         LNum := LNum + 1;
+         exit when (Last > 0 and then Ada.Strings.Fixed.Index (RMLine (1 .. Last), "operator") > 0);
+      end loop;
+
+      -- Now process the index entries:
+      --
+      -- entry => head-term
+      --          {sub-term|term-cont}
+      -- blank line(s)
+      --
+      -- where head-term starts in column 1, sub-term in column N (N>1),
+      -- term-cont in column 1.  A *-term is 1-N words separated by single
+      -- blanks, followed either by eol or multiple blanks and the refs. A
+      -- term-cont is just more refs from the previous term.  A special case
+      -- is a line with just one capital letter on it, which is a section
+      -- header and is skipped.
+      --
+      -- This code saves the head-term as-is, unless it doesn't have any refs.
+      -- It also remembers the text (non-ref) part of it, and tacks it onto
+      -- the front of each sub-term.  Term-conts are tacked onto the end of
+      -- the latest term.
+      Seen_C := false;
+      while not End_Of_File (RMFile) loop
+         if Last > 0 then
+            Process_Index_Entry (RMLine (1 .. Last));
+         end if;
+         Get_Line (RMFile, RMLine, Last);
+         LNum := LNum + 1;
+      end loop;
+
+
+      -- Done with the file
+      Close (RMFile);
+
+   exception
+      when E : others =>
+         Put_Line (Standard_Error, "RM init exception:  " & Ada.Exceptions.Exception_Information (E));
+   end Init_RM;
+
+   ---------------------------------------------------------------------------
+
+   -- Init the file task
+   procedure Init is
+   begin  -- Init
+      Init_Help;
+      Init_RM;
    end Init;
 
    ---------------------------------------------------------------------------
 
+   -- Process a "help" request
    procedure Help (Req : in Request_Rec) is
 
       ------------------------------------------------------------------------
 
-      use Ada.Strings.Fixed, Ada.Strings.Unbounded;
+      use Ada.Strings.Fixed;
 
       ------------------------------------------------------------------------
 
@@ -278,7 +493,7 @@ package body File is
 
          HelpFile : File_Type;
          HelpStrm : FILEs;
-         HelpLine : Help_Line_Str;
+         HelpLine : Line_Str;
          Last     : natural;
 
          ---------------------------------------------------------------------
@@ -324,7 +539,7 @@ package body File is
       end if;
 
       -- We have some help topics, see if we're doing a summary or a specific topic
-      if Req.Data = Null_UString then
+      if Equal (Req.Data, Null_UString) then
 
          -- No topic given, print summaries only
          Output.Say ("I currently know the following help topics:", Req.Destination);
@@ -347,7 +562,7 @@ package body File is
       else
 
          -- Check for magic keywords first
-         if Req.Data = US (K_Levels) then
+         if Equal (Req.Data, US (K_Levels)) then
             Output.Say ("Required access levels for each command:", Req.Destination);
             delay Line_Pause;
             for Cmd in Config.Valid_Commands loop
@@ -361,7 +576,7 @@ package body File is
          HelpNow := GNAT.OS_Lib.File_Time_Stamp (HelpPath);
          if HelpNow /= Help_Time then
             Log.Dbg (File_Name, "Re-scanning help file """ & HelpPath & """");
-            Init;
+            Init_Help;
 
             -- After the rescan, it's possible that the help list is now empty
             Item := Help_List;
@@ -373,7 +588,7 @@ package body File is
 
          -- Search the help list for the given topic
          while Item /= null loop
-            exit when Item.Topic = Req.Data;
+            exit when Equal (Item.Topic, Req.Data);
             Item := Item.Next;
          end loop;
 
@@ -387,6 +602,80 @@ package body File is
          Item_Help;
       end if;
    end Help;
+
+   ---------------------------------------------------------------------------
+
+   -- Do a lookup in the RM index table
+   procedure Lookup (Req : in Request_Rec) is
+
+      ------------------------------------------------------------------------
+
+      use GNAT.Regpat;
+
+      ------------------------------------------------------------------------
+
+      -- Maximum matches that we'll print; arbitrary
+      Max_Print : constant := 10;
+
+      ------------------------------------------------------------------------
+
+      -- Pointer to new pattern matcher
+      type Matcher_Ptr is access Pattern_Matcher;
+
+      -- Instantiate the deallocation procedure for our pattern-match pointer
+      procedure Free is new Ada.Unchecked_Deallocation (Pattern_Matcher, Matcher_Ptr);
+
+      ------------------------------------------------------------------------
+
+      Pat     : Matcher_Ptr := new Pattern_Matcher'(Compile (S (Req.Data),  Case_Insensitive));
+      Matched : natural;
+      Matches : array (1 .. Max_Print) of RM_Index_Item;
+      Refs    : UString;
+
+      ------------------------------------------------------------------------
+
+   begin  -- Lookup
+
+      -- Scan the index for matches, count how many, and save the first few
+      Matched := 0;
+      for Item in RM_Index'Range loop
+         if Match (Pat.all, S (RM_Index (Item).Text)) = 1 then
+            Matched := Matched + 1;
+            if Matched <= Max_Print then
+               Matches (Matched) := RM_Index (Item);
+            end if;
+         end if;
+      end loop;
+
+      -- If no matches, let user know that
+      if Matched < 1 then
+         Output.Say ("The pattern """ & S (Req.Data) & """ did not match any RM index entries, sorry.",
+                     Req.Destination);
+         return;
+      end if;
+
+      -- If we got too many, just say so and we're done
+      if Matched > Max_Print then
+         Output.Say ("The pattern """ & S (Req.Data) & """ matched " & Img (Matched) &
+                     " RM index entries.  Try narrowing your search by using a more specific pattern.",
+                     Req.Destination);
+         return;
+      end if;
+
+      -- Few enough to show, so show them
+      for Item in 1 .. Matched loop
+         if Equal (Matches (Item).Refs, Null_UString) then
+            Refs := US ("(no refs found)");
+         else
+            Refs := Matches (Item).Refs;
+         end if;
+         Output.Say (Matches (Item).Text & " " & Refs, Req.Destination);
+      end loop;
+
+   exception
+      when E : others =>
+         Log.Err (File_Name, "RM lookup exception:  " & Ada.Exceptions.Exception_Information (E));
+   end Lookup;
 
 ------------------------------------------------------------------------------
 --
@@ -407,7 +696,7 @@ package body File is
                exit;  -- exit the main loop, thus shutting down the task
 
             when RM_Operation =>
-               null;  -- for now
+               Lookup (Request);
 
             when Help_Operation =>
                Help (Request);

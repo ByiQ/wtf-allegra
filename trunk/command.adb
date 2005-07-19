@@ -271,16 +271,14 @@ package body Command is
       Matches : Match_Array (Match_Range);
 
    begin  -- Find
-      Match (Command_Table (Config.Cmd_Forget).Matcher.all, Cmd, Matches);
+      Match (Command_Table (Config.Cmd_Find).Matcher.all, Cmd, Matches);
       if Matches (1) = No_Match then
          Say ("The RM-find command is ""find regexp"".");
          return;
       end if;
       File_Request.Operation   := File.RM_Operation;
       File_Request.Data        := US (Cmd (Matches (1).First .. Matches (1).Last));
-      File_Request.Origin      := Sender.Nick;
-      File_Request.Requestor   := Request.Origin;
-      File_Request.Destination := Destination;
+      File_Request.Destination := Sender.Nick;
       File.Requests.Enqueue (File_Request);
    end Find;
 

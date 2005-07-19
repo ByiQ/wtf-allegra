@@ -57,6 +57,9 @@ package Strings is
    function RTrim (Source : in string) return string;
    pragma Inline (RTrim);
 
+   -- Convenient for avoiding "use Ada.Strings.Unbounded"
+   function Equal (Left, Right : in UString) return boolean;
+
    -- Rename these to shorter names, since we use them so much
    function S  (Source : in Ada.Strings.Unbounded.Unbounded_String) return string
      renames Ada.Strings.Unbounded.To_String;
