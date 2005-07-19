@@ -52,6 +52,9 @@ package body File is
    -- The marker that makes a marker line
    Marker_Prefix : constant string := "---";
 
+   -- Pause between each line of help or RM lookup output, in seconds
+   Line_Pause    : constant Duration := 0.75;
+
 ------------------------------------------------------------------------------
 --
 -- Package types
@@ -61,15 +64,14 @@ package body File is
    -- A help-file or RM-index line
    subtype Line_Str is string (1 .. Line_Max);
 
-   -- A help-item node of the singly-linked help list
-   type Help_Item;
-   type Help_Item_Ptr is access Help_Item;
+   -- The help-message table's entry type, table type, and a pointer to the table
    type Help_Item is record
       Topic   : UString;
       Summary : UString;
       Pos     : natural;
-      Next    : Help_Item_Ptr;
    end record;
+   type Help_Table is array (positive range <>) of Help_Item;
+   type Help_Table_Ptr is access Help_Table;
 
    -- The RM index table's entry type, table type, and a pointer to the table
    type RM_Index_Item is record
@@ -88,8 +90,8 @@ package body File is
    -- Timestamp of the help file the last time we initialized the list
    Help_Time      : GNAT.OS_Lib.OS_Time;
 
-   -- The help-item list
-   Help_List      : Help_Item_Ptr := null;
+   -- The help-message table
+   Help_Msgs      : Help_Table_Ptr := null;
 
    -- Width of widest help topic name
    Topic_Width    : positive;
@@ -163,7 +165,7 @@ package body File is
       ------------------------------------------------------------------------
 
       -- Instantiate the deallocation procedure for our help-list node type
-      procedure Free is new Ada.Unchecked_Deallocation (Help_Item, Help_Item_Ptr);
+      procedure Free is new Ada.Unchecked_Deallocation (Help_Table, Help_Table_Ptr);
 
       ------------------------------------------------------------------------
 
@@ -172,25 +174,17 @@ package body File is
       HelpStrm : Interfaces.C_Streams.FILEs;
       HelpLine : Line_Str;
       Last     : natural;
-      HelpTail : Help_Item_Ptr;
-      HelpGone : Help_Item_Ptr;
+      HelpEnts : natural;
 
       ------------------------------------------------------------------------
 
    begin  -- Init_Help
 
-      -- Start out with no help enabled; free old list if one exists
-      if Help_List /= null then
-         HelpTail := Help_List;
-         while HelpTail /= null loop
-            HelpGone := HelpTail;
-            HelpTail := HelpTail.Next;
-            Free (HelpGone);
-         end loop;
-         Help_List := null;
+      -- Start out with no help enabled; free old table if one exists
+      if Help_Msgs /= null then
+         Free (Help_Msgs);
+         Help_Msgs := null;
       end if;
-      HelpTail := null;
-      Topic_Width := positive'First;
 
       -- Capture the timestamp
       Help_Time := GNAT.OS_Lib.File_Time_Stamp (HelpPath);
@@ -206,8 +200,31 @@ package body File is
             return;
       end;
 
+      -- Count the help entries in the file, to determine how big to make
+      -- the help table.
+      HelpEnts := 0;
+      while not End_Of_File (HelpFile) loop
+         Get_Line (HelpFile, HelpLine, Last);
+         if Is_Marker (HelpLine (1..Last))  then
+            HelpEnts := HelpEnts + 1;
+         end if;
+      end loop;
+
+      -- Rewind the help file and collect data this time through.  Must use
+      -- stream call, since Reset raises a Use_Error.
+      if Interfaces.C_Streams.fseek (HelpStrm, 0, Interfaces.C_Streams.SEEK_SET) /= 0 then
+         Log.Warn (File_Name, "Cannot rewind help file """ & HelpPath & """--help disabled");
+         Close (HelpFile);
+         return;
+      end if;
+
+      -- Allocate the help table
+      Help_Msgs := new Help_Table (1 .. HelpEnts);
+
       -- Loop through the help items, collecting the topic names and summary
       -- lines
+      Topic_Width := positive'First;
+      HelpEnts := 0;
       while not End_Of_File (HelpFile) loop
          Get_Line (HelpFile, HelpLine, Last);
 
@@ -221,7 +238,6 @@ package body File is
                declare
                   Topic   : string := HelpLine (Marker_Prefix'Length + 1 .. Last);
                   ItemPos : natural;
-                  Item    : Help_Item_Ptr;
                begin
 
                   -- Update the widest-topic value
@@ -235,17 +251,9 @@ package body File is
                   end loop;
 
                   -- We now have all the data we need to describe this help
-                  -- item, so build the new node
-                  Item := new Help_Item'(US (Topic), US (HelpLine (1 .. Last)), ItemPos, null);
-
-                  -- And link the new node into the end of the list
-                  if HelpTail = null then
-                     Help_List := Item;
-                     HelpTail := Help_List;
-                  else
-                     HelpTail.Next := Item;
-                     HelpTail := HelpTail.Next;
-                  end if;
+                  -- item, so put it into the table
+                  HelpEnts := HelpEnts + 1;
+                  Help_Msgs (HelpEnts) := Help_Item'(US (Topic), US (HelpLine (1 .. Last)), ItemPos);
                end;
             end if;
          end if;
@@ -256,7 +264,7 @@ package body File is
 
    exception
       when E : others =>
-         Put_Line (Standard_Error, "File init exception:  " & Ada.Exceptions.Exception_Information (E));
+         Put_Line (Standard_Error, "Help init exception:  " & Ada.Exceptions.Exception_Information (E));
    end Init_Help;
 
    ---------------------------------------------------------------------------
@@ -389,7 +397,8 @@ package body File is
 
       -- Count the non-blank lines in the file, to determine how big to make
       -- the index table.  This will be more than we need, since some lines
-      -- are section headers and such, but it won't be far off.
+      -- are section headers, sub-terms, refless, and such, but it won't be
+      -- far off.
       RMEnts := 0;
       while not End_Of_File (RMFile) loop
          Get_Line (RMFile, RMLine, Last);
@@ -439,7 +448,6 @@ package body File is
          LNum := LNum + 1;
       end loop;
 
-
       -- Done with the file
       Close (RMFile);
 
@@ -468,22 +476,18 @@ package body File is
 
       ------------------------------------------------------------------------
 
-      -- Pause between each line of help output, in seconds
-      Line_Pause : constant Duration := 0.75;
-
       -- Magic keyword "help topics"
       K_Levels   : constant string := "levels";
 
       ------------------------------------------------------------------------
 
       HelpPath : string := Config.Get_Value (Config.Item_HelpPath);
-      Item     : Help_Item_Ptr := Help_List;
       HelpNow  : GNAT.OS_Lib.OS_Time;
 
       ------------------------------------------------------------------------
 
       -- Print item-specific help
-      procedure Item_Help is
+      procedure Item_Help (Item : in natural) is
 
          ---------------------------------------------------------------------
 
@@ -513,7 +517,7 @@ package body File is
 
          -- Seek to the first line of the item-specific help and start
          -- printing
-         if fseek (HelpStrm, long (Item.Pos), SEEK_SET) /= 0 then
+         if fseek (HelpStrm, long (Help_Msgs (Item).Pos), SEEK_SET) /= 0 then
             Output.Say ("I'm sorry, I can't seem to find the help text for that topic--tell the bot operator, please.",
                         Req.Destination);
             return;
@@ -533,7 +537,7 @@ package body File is
    begin  -- Help
 
       -- See if we have anything to say
-      if Item = null then
+      if Help_Msgs = null then
          Output.Say ("Help seems to be disabled at the moment, sorry.  Tell the bot operator, please.", Req.Destination);
          return;
       end if;
@@ -544,9 +548,9 @@ package body File is
          -- No topic given, print summaries only
          Output.Say ("I currently know the following help topics:", Req.Destination);
          delay Line_Pause;
-         while Item /= null loop
-            Output.Say ("   " & Head (S (Item.Topic), Topic_Width) & "  " & S (Item.Summary), Req.Destination);
-            Item := Item.Next;
+         for Item in Help_Msgs'Range loop
+            Output.Say ("   " & Head (S (Help_Msgs (Item).Topic), Topic_Width) & "  " & S (Help_Msgs (Item).Summary),
+                        Req.Destination);
             delay Line_Pause;
          end loop;
 
@@ -578,28 +582,24 @@ package body File is
             Log.Dbg (File_Name, "Re-scanning help file """ & HelpPath & """");
             Init_Help;
 
-            -- After the rescan, it's possible that the help list is now empty
-            Item := Help_List;
-            if Item = null then
+            -- After the rescan, it's possible that the help table is now empty
+            if Help_Msgs = null then
                Output.Say ("I lost my help!  Please chide the bot op for cheesing the help file.", Req.Destination);
                return;
             end if;
          end if;
 
          -- Search the help list for the given topic
-         while Item /= null loop
-            exit when Equal (Item.Topic, Req.Data);
-            Item := Item.Next;
+         for Item in Help_Msgs'Range loop
+            if Equal (Help_Msgs (Item).Topic, Req.Data) then
+               -- Found it, print the help text and quit
+               Item_Help (Item);
+               return;
+            end if;
          end loop;
 
          -- If no find, say so and quit
-         if Item = null then
-            Output.Say ("I couldn't find the help topic """ & S (Req.Data) & """, sorry.", Req.Destination);
-            return;
-         end if;
-
-         -- Found it, print the help text
-         Item_Help;
+         Output.Say ("I couldn't find the help topic """ & S (Req.Data) & """, sorry.", Req.Destination);
       end if;
    end Help;
 
@@ -638,7 +638,7 @@ package body File is
 
       -- Scan the index for matches, count how many, and save the first few
       Matched := 0;
-      for Item in RM_Index'Range loop
+      for Item in 1 .. RM_Index_Count loop
          if Match (Pat.all, S (RM_Index (Item).Text)) = 1 then
             Matched := Matched + 1;
             if Matched <= Max_Print then
@@ -670,6 +670,7 @@ package body File is
             Refs := Matches (Item).Refs;
          end if;
          Output.Say (Matches (Item).Text & " " & Refs, Req.Destination);
+         delay Line_Pause;
       end loop;
 
    exception
