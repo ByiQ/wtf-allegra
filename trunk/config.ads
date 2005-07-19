@@ -18,6 +18,8 @@ package Config is
    Cmd_Auth_Tbl   : constant string := "cmdlevels";
    Cmd_Stat_Tbl   : constant string := "cmdstats";
    UserLvl_Tbl    : constant string := "usrlevels";
+   ActQuip_Tbl    : constant string := "actquips";
+   MsgQuip_Tbl    : constant string := "quips";
 
    -- Maximum length of a configuration item name or command name
    Name_Len_Max   : constant := 16;
@@ -120,6 +122,9 @@ package Config is
 -- Public subroutines
 --
 ------------------------------------------------------------------------------
+
+   -- Return ratio of action quips to message quips
+   function Act_Vs_Msg return float;
 
    -- Return a command's usage count
    function Command_Usage (Command : in Command_Type) return natural;

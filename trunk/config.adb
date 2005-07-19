@@ -69,6 +69,8 @@ package body Config is
    Cmd_Auth_Levels : array (Command_Type) of Auth_Level;
    Cmd_Usages      : array (Command_Type) of natural;
 
+   Action_Message_Ratio : float := 0.0;
+
 ------------------------------------------------------------------------------
 --
 -- Package subroutines
@@ -83,8 +85,12 @@ package body Config is
       Auth_Data : DB.DB_Result;
       Cfg_Data  : DB.DB_Result;
       Stat_Data : DB.DB_Result;
+      Act_Count : DB.DB_Result;
+      Msg_Count : DB.DB_Result;
       Item      : Config_Item;
       Cmd       : Command_Type;
+      NumActs   : natural;
+      NumMsgs   : natural;
 
    begin  -- Init
 
@@ -94,6 +100,8 @@ package body Config is
       DB.Fetch (Handle, "*", Config_Tbl,   "", Cfg_Data);
       DB.Fetch (Handle, "*", Cmd_Auth_Tbl, "", Auth_Data);
       DB.Fetch (Handle, "*", Cmd_Stat_Tbl, "", Stat_Data);
+      DB.Fetch (Handle, "count(msg)", ActQuip_Tbl, "", Act_Count);
+      DB.Fetch (Handle, "count(msg)", MsgQuip_Tbl, "", Msg_Count);
       DB.Disconnect (Handle);
 
       -- Initialize the configuration table from the db
@@ -154,6 +162,19 @@ package body Config is
          end;
       end loop;
 
+      -- Determine the ratio of action quips to message quips
+      if DB.Rows (Act_Count) > 0 then
+         NumActs := DB.Get_Value (Act_Count, 1, "count");
+      else
+         NumActs := 0;
+      end if;
+      if DB.Rows (Msg_Count) > 0 then
+         NumMsgs := DB.Get_Value (Msg_Count, 1, "count");
+      else
+         NumMsgs := 0;
+      end if;
+      Action_Message_Ratio := float (NumActs) / float (NumMsgs);
+
       -- Override certain config items from the command line
       declare
          use Ada.Command_Line;
@@ -184,6 +205,15 @@ package body Config is
 -- Public subroutines
 --
 ------------------------------------------------------------------------------
+
+   -- Return ratio of action quips to message quips
+   function Act_Vs_Msg return float is
+   begin  -- Act_Vs_Msg
+      Access_Control.Wait_For_Data;
+      return Action_Message_Ratio;
+   end Act_Vs_Msg;
+
+   ---------------------------------------------------------------------------
 
    -- Return a command's usage count
    function Command_Usage (Command : in Command_Type) return natural is

@@ -27,8 +27,6 @@ package body Database is
 
       Message_Limit : constant := 256;
 
-      Act_Vs_Say    : constant := 20.0 / 30.0;  -- really should just calculate from db counts
-
       ActQuips_Tbl  : constant string := "actquips";
       Factoid_Tbl   : constant string := "factoids";
       Factstats_Tbl : constant string := "factstats";
@@ -554,7 +552,7 @@ package body Database is
 
             when Quip_Operation =>
                if Ada.Numerics.Float_Random.Random (Randoms) <= float'Value (Config.Get_Value (Config.Item_Quips)) then
-                  if Ada.Numerics.Float_Random.Random (Randoms) <= Act_Vs_Say then
+                  if Ada.Numerics.Float_Random.Random (Randoms) <= Config.Act_Vs_Msg then
                      Say (Random_Select (Quips_Tbl), Request.Destination);
                   else
                      Say (IRC.CTCP_Marker & "ACTION " & Random_Select (ActQuips_Tbl) & IRC.CTCP_Marker, Request.Destination);
@@ -593,6 +591,13 @@ package body Database is
                Output_Request.Data := US (Random_Select (QuitMsg_Tbl));
                Output.Requests.Enqueue (Output_Request);
                exit;
+
+            when Snack_Operation =>
+               if Ada.Numerics.Float_Random.Random (Randoms) <= Config.Act_Vs_Msg then
+                  Say (Random_Select (Quips_Tbl), Request.Destination);
+               else
+                  Say (IRC.CTCP_Marker & "ACTION " & Random_Select (ActQuips_Tbl) & IRC.CTCP_Marker, Request.Destination);
+               end if;
 
             when Stats_Operation =>
                Show_Stats;

@@ -16,7 +16,7 @@ package Database is
                             RE_Tell_Operation, Rename_Operation,
                             ResetFactoid_Operation, SetAction_Operation,
                             SetFactoid_Operation, SetReply_Operation,
-                            Shutdown_Operation, Stats_Operation,
+                            Shutdown_Operation, Snack_Operation, Stats_Operation,
                             Tell_Operation );
 
    type Request_Rec is record

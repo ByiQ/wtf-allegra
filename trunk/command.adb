@@ -170,6 +170,21 @@ package body Command is
 
    ---------------------------------------------------------------------------
 
+   -- Check for a botsnack; respond and return true if it is
+   function Is_Snack (Msg : in UString) return boolean is
+   begin  -- Is_Snack
+      if Ada.Strings.Unbounded.Index (Msg, "botsnack") > 0 then
+         Database_Request.Operation := Database.Snack_Operation;
+         Database_Request.Destination := Destination;
+         Database.Requests.Enqueue (Database_Request);
+         return true;
+      else
+         return false;
+      end if;
+   end Is_Snack;
+
+   ---------------------------------------------------------------------------
+
    -- Print a level error message, with a distinguishing string
    procedure Level_Error (Level : in string;
                           Msg   : in string) is
@@ -655,6 +670,14 @@ package body Command is
    procedure Fetch_Bare (Cmd     : in string;
                          Sender  : in IRC.MsgTo_Rec) is
    begin  -- Fetch_Bare
+
+      -- Okay, as a concession to IRC bot customs, let's do this minor check
+      -- first
+      if Is_Snack (US (Cmd)) then
+         return;
+      end if;
+
+      -- Not a botsnack, treat as a factoid fetch
       Config.Command_Used (Config.Cmd_Fetch);
       if Cmd (Cmd'First) = '~' then
          Database_Request.Operation := Database.RE_Fetch_Operation;
@@ -937,9 +960,11 @@ package body Command is
                         NextLine := Lines'First;
                      end if;
                      if Request.Operation /= Save_Operation then
-                        Database_Request.Operation := Database.Quip_Operation;
-                        Database_Request.Destination := Destination;
-                        Database.Requests.Enqueue (Database_Request);
+                        if not Is_Snack (Command) then
+                           Database_Request.Operation := Database.Quip_Operation;
+                           Database_Request.Destination := Destination;
+                           Database.Requests.Enqueue (Database_Request);
+                        end if;
                      end if;
                   end if;
                end;
