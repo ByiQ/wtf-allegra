@@ -22,6 +22,8 @@ stats improvements:
 
 x rm lookup
 
+x write final stat summary into log
+
 ensure good exception handler coverage
 
 doc update and completion

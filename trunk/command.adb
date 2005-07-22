@@ -154,17 +154,35 @@ package body Command is
    ---------------------------------------------------------------------------
 
    -- Terminate all other tasks, thus allowing the bot to shut down once this
-   -- task terminates
+   -- task terminates, and do other wrap-up things.
    procedure Shutdown is
    begin  -- Shutdown
+
+      -- Tell those tasks who know how to shut themselves down
       Database_Request.Operation := Database.Shutdown_Operation;
       File_Request.Operation     := File.Shutdown_Operation;
       Database.Requests.Enqueue (Database_Request);
       File.Requests.Enqueue (File_Request);
+
+      -- Abort the tasks that don't have a request queue
       abort Input.Input_Task;
       abort Ping.Ping_Task;
+
+      -- Give things time to settle
       delay 3.0;
+
+      -- Save cached config items
       Config.WrapUp;
+
+      -- Log final run statistics
+      Log.Info (Command_Name, "Shutdown of      " & Identity.App_ID);
+      Log.Info (Command_Name, "Runtime:         " & Times.Elapsed (Start));
+      Log.Info (Command_Name, "Connected:       " & Times.Elapsed (Last_Connected));
+      Log.Info (Command_Name, "Reconnects:      " & Img (Reconnects - 1));
+      Log.Info (Command_Name, "Cmds processed:  " & Img (Cmds_Accepted));
+      Log.Info (Command_Name, "Cmds rejected:   " & Img (Cmds_Rejected));
+
+      -- Close the log file
       Log.WrapUp;
    end Shutdown;
 
