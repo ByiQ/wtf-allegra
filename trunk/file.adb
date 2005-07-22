@@ -534,6 +534,15 @@ package body File is
 
       ------------------------------------------------------------------------
 
+      -- Lay out a help summary line
+      procedure Fmt (Topic, Subject : in string) is
+      begin  -- Fmt
+         Output.Say ("   " & Head (Topic, Topic_Width) & "  " & Subject, Req.Destination);
+         delay Line_Pause;
+      end Fmt;
+
+      ------------------------------------------------------------------------
+
    begin  -- Help
 
       -- See if we have anything to say
@@ -548,15 +557,16 @@ package body File is
          -- No topic given, print summaries only
          Output.Say ("I currently know the following help topics:", Req.Destination);
          delay Line_Pause;
+
+         -- Main summary listing, extracted from help file
+         Fmt ("Topic", "Subject");
+         Fmt ("=====", "=======");
          for Item in Help_Msgs'Range loop
-            Output.Say ("   " & Head (S (Help_Msgs (Item).Topic), Topic_Width) & "  " & S (Help_Msgs (Item).Summary),
-                        Req.Destination);
-            delay Line_Pause;
+            Fmt (S (Help_Msgs (Item).Topic), S (Help_Msgs (Item).Summary));
          end loop;
 
          -- Magic keyword topics
-         Output.Say ("   " & Head (K_Levels, Topic_Width) & "  List command access levels", Req.Destination);
-         delay Line_Pause;
+         Fmt (K_Levels, "List command access levels");
 
          -- Summary trailer
          Output.Say ("The shortcut string is """ & Config.Get_Value (Config.Item_Shorthand) &

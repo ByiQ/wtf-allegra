@@ -28,6 +28,7 @@ Fetch a factoid definition by giving its name.  Both forms are equivalent:
    kittens
 
 A leading "~" on the factoid name treats the string as a regular expression.  See "help regexp" for details.
+The "list" command will show what factoids the bot already knows.
 ---tell
 
 Command:  tell (<nick>|me) [about] <factoid-name>
