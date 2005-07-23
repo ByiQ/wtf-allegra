@@ -43,6 +43,29 @@ package body Ping is
 
 ------------------------------------------------------------------------------
 --
+-- The timeout semaphore
+--
+------------------------------------------------------------------------------
+
+   -- Simple binary semaphore, used to tell the input task that a ping timeout
+   -- has occurred
+   protected body Timeout_Signal is
+
+      -- Indicate that a timeout has occurred
+      procedure Set is
+      begin  -- Set
+         Is_Set := true;
+      end Set;
+
+      -- Block until the signal is set, then clear it
+      entry Wait when Is_Set is
+      begin  -- Wait
+         Is_Set := false;
+      end Wait;
+   end Timeout_Signal;
+
+------------------------------------------------------------------------------
+--
 -- Public task
 --
 ------------------------------------------------------------------------------
@@ -69,12 +92,8 @@ package body Ping is
          select
             accept Input_Received;
 
-            -- When we receive input, reset the missed-ping counter, and drain
-            -- the timeout queue
+            -- When we receive input, reset the missed-ping counter
             Missed := 0;
-            while Timeout_Queue.Length > 0 loop
-               Timeout_Queue.Dequeue (Dont_Care);
-            end loop;
          or
             delay Ping_Delay;
 
@@ -83,10 +102,10 @@ package body Ping is
             Missed := Missed + 1;
 
             -- If we've missed too many, time the link out, and let the input
-            -- task know by enqueuing an item in the timeout queue
+            -- task know by setting the timeout semaphore
             if Missed >= Max_Missed_Pings then
                Log.Info (Ping_Name, "Link timed out after " & Img (natural (Ping_Delay) * Missed) & " seconds");
-               Timeout_Queue.Enqueue (true);
+               Timeout_Signal.Set;
                Missed := 0;
 
             -- Missed a ping, but not at our limit yet, so try again

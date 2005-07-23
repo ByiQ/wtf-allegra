@@ -103,12 +103,11 @@ package body Input is
       loop
 
          -- Try to read some input from server; can be aborted by timeout from
-         -- ping task (indicated by the arrival of an entry on the timeout
-         -- queue) or by I/O exception, leaving Got_Input false
+         -- ping task, or by I/O exception, leaving Got_Input false
          begin
             Got_Input := false;
             select
-               Ping.Timeout_Queue.Dequeue (Dont_Care);
+               Ping.Timeout_Signal.Wait;
                Dbg (Input_Name, "Read aborted by timeout");
             then abort
                IRC.Read (Input_Message);

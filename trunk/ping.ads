@@ -13,17 +13,18 @@ package Ping is
 
 ------------------------------------------------------------------------------
 --
--- Timeout queue
+-- The timeout semaphore
 --
 ------------------------------------------------------------------------------
 
-   -- Instantiate the protected-queue package with boolean (because we don't
-   -- care about the value, we're using the queue as a semaphore), and create
-   -- an instance of it.  Unlike the other task's request queues, this is an
-   -- "output" queue, in that its main purpose is to signal the input task
-   -- that the server connection monitoring operation has timed out.
-   package Timeout_Queue_Pkg is new PQueue (boolean);
-   Timeout_Queue : Timeout_Queue_Pkg.Protected_Queue_Type;
+   -- This semaphore is used to tell the timeout task that a ping timeout has
+   -- occurred
+   protected Timeout_Signal is
+      procedure Set;
+      entry     Wait;
+   private
+      Is_Set : boolean := false;
+   end Timeout_Signal;
 
 ------------------------------------------------------------------------------
 --
