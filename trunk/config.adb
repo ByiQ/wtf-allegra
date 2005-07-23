@@ -1,6 +1,6 @@
 
 --
--- Config -- Program configuration package for Allegra info-bot
+-- Config -- Program configuration utility package for Allegra info-bot
 --
 
 --
@@ -21,8 +21,19 @@ with DB;
 
 package body Config is
 
-   ---------------------------------------------------------------------------
+------------------------------------------------------------------------------
+--
+-- Access control semaphore
+--
+------------------------------------------------------------------------------
 
+   -- This package returns config values from memory variables where it caches
+   -- the values after reading them from the database at init time.  This
+   -- semaphore is used to prevent other tasks from fetching config items
+   -- before the init code can initalize the cache.  The Wait_For_Data entry
+   -- should be called by all config routines before they try to use the
+   -- cached values.  The Data_Available procedure is called by the init code
+   -- once the cache variables have all been set.
    protected Access_Control is
       procedure Data_Available;
       entry Wait_For_Data;
@@ -42,7 +53,11 @@ package body Config is
       end Wait_For_Data;
    end Access_Control;
 
-   ---------------------------------------------------------------------------
+------------------------------------------------------------------------------
+--
+-- Table to map configuration item names to their corresponding enum values
+--
+------------------------------------------------------------------------------
 
    -- The configuration item names
    type Cfg_Map_Array is array (Config_Item) of Item_Name;
@@ -65,10 +80,21 @@ package body Config is
       Item_UserName  => "username        "
      );
 
+------------------------------------------------------------------------------
+--
+-- Package variables
+--
+------------------------------------------------------------------------------
+
+   -- The cache variables.  Cmd_Usages is really more of a database thing than
+   -- a configuration thing, but the code sure is a lot nicer with it here.
    Config_Values   : array (Config_Item)  of UString;
    Cmd_Auth_Levels : array (Command_Type) of Auth_Level;
    Cmd_Usages      : array (Command_Type) of natural;
 
+   -- Another cache value, representing the number of action quips versus the
+   -- number of message quips, so we can distribute our quipping evenly over
+   -- both tables.
    Action_Message_Ratio : float := 0.0;
 
 ------------------------------------------------------------------------------
@@ -77,8 +103,7 @@ package body Config is
 --
 ------------------------------------------------------------------------------
 
-   -- Initialize the configuration, command auth level, and command statistics
-   -- tables from the database
+   -- Initialize the cache variables from the database
    procedure Init is
 
       Handle    : DB.DB_Handle;
@@ -175,7 +200,9 @@ package body Config is
       end if;
       Action_Message_Ratio := float (NumActs) / float (NumMsgs);
 
-      -- Override certain config items from the command line
+      -- Override certain config items from the command line.  Yes, this is
+      -- awfully clunky, but it's also simple, and has been adequate for
+      -- testing up to this point.
       declare
          use Ada.Command_Line;
       begin
@@ -272,6 +299,6 @@ package body Config is
 
    ---------------------------------------------------------------------------
 
-begin  -- Config
+begin  -- package Config initialization
    Init;
 end Config;

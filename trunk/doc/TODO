@@ -24,6 +24,8 @@ x rm lookup
 
 x write final stat summary into log
 
+change timeout queue to a semaphore
+
 ensure good exception handler coverage
 
 doc update and completion

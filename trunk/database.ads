@@ -1,14 +1,25 @@
-with
-  Ada.Strings.Unbounded,
-  PQueue;
 
-use
-  Ada.Strings.Unbounded;
+--
+-- Database -- Factoid and quote database manipulation task package for Allegra info-bot
+--
+
+
+--
+-- Application packages
+with PQueue;
+with Strings;
+use  Strings;
+
 
 package Database is
 
-   Database_Name:  constant string := "Database";
+------------------------------------------------------------------------------
+--
+-- Public types
+--
+------------------------------------------------------------------------------
 
+   -- Define the types of requests other tasks can make of this task
    type Operation_Type is ( Access_Operation, AddFactoid_Operation,
                             FactoidStats_Operation, Fetch_Operation,
                             Forget_Operation, List_Operation, Quip_Operation,
@@ -20,18 +31,34 @@ package Database is
                             Tell_Operation );
 
    type Request_Rec is record
-      Operation:    Operation_Type;
-      Destination:  Unbounded_String;
-      Origin:       Unbounded_String;
-      Requestor:    Unbounded_String;
-      Key:          Unbounded_String;
-      Data:         Unbounded_String;
+      Operation   : Operation_Type;
+      Destination : UString;  -- place to send output
+      Origin      : UString;  -- nick of requesting user
+      Requestor   : UString;  -- user ID of requesting user
+      Key         : UString;  -- request data, usually factoid name
+      Data        : UString;  -- request data, like factoid definition, etc.
    end record;
 
+------------------------------------------------------------------------------
+--
+-- Request queue
+--
+------------------------------------------------------------------------------
+
+   -- Instantiate the protected-queue package with our request type, and
+   -- create an instance of it to serve as this task's main input.
+   package Database_Queue_Pkg is new PQueue (Request_Rec);
+   Requests : Database_Queue_Pkg.Protected_Queue_Type;
+
+------------------------------------------------------------------------------
+--
+-- Public task
+--
+------------------------------------------------------------------------------
+
+   -- Declare the actual task
    task Database_Task;
 
-   package Database_Queue_Pkg is new PQueue (Request_Rec);
-
-   Requests:  Database_Queue_Pkg.Protected_Queue_Type;
+   ---------------------------------------------------------------------------
 
 end Database;

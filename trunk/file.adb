@@ -52,9 +52,6 @@ package body File is
    -- The marker that makes a marker line
    Marker_Prefix : constant string := "---";
 
-   -- Pause between each line of help or RM lookup output, in seconds
-   Line_Pause    : constant Duration := 0.75;
-
 ------------------------------------------------------------------------------
 --
 -- Package types
@@ -64,7 +61,8 @@ package body File is
    -- A help-file or RM-index line
    subtype Line_Str is string (1 .. Line_Max);
 
-   -- The help-message table's entry type, table type, and a pointer to the table
+   -- The help-message table's entry type, table type, and a pointer to the
+   -- table
    type Help_Item is record
       Topic   : UString;
       Summary : UString;
@@ -120,11 +118,17 @@ package body File is
       C_Mode : chars := Mode'Address;
 
    begin  -- Open_Help_File
+
+      -- Open the stream
       Strm := fopen (C_Name, C_Mode);
+
+      -- A null stream value means the open failed
       if Strm = NULL_Stream then
          Log.Warn (File_Name, "Could not open stream for help file """ & Path & """--help disabled");
          raise Ada.Text_IO.Name_Error;
       end if;
+
+      -- The stream open worked, so map/convert it into a real Ada File_Type
       Ada.Text_IO.C_Streams.Open (File, Ada.Text_IO.In_File, Strm);
    end Open_Help_File;
 
@@ -211,7 +215,7 @@ package body File is
       end loop;
 
       -- Rewind the help file and collect data this time through.  Must use
-      -- stream call, since Reset raises a Use_Error.
+      -- fseek stream call here, since Reset raises a Use_Error.
       if Interfaces.C_Streams.fseek (HelpStrm, 0, Interfaces.C_Streams.SEEK_SET) /= 0 then
          Log.Warn (File_Name, "Cannot rewind help file """ & HelpPath & """--help disabled");
          Close (HelpFile);
@@ -263,6 +267,7 @@ package body File is
       Close (HelpFile);
 
    exception
+      -- Putting the message into the log file seems to obscure it too much
       when E : others =>
          Put_Line (Standard_Error, "Help init exception:  " & Ada.Exceptions.Exception_Information (E));
    end Init_Help;
@@ -364,8 +369,9 @@ package body File is
                   else
                      -- Of course there have to be irregularities, sigh.  Some
                      -- sub-terms wrap to the next line; some are "See (also)"
-                     -- with no refs.  We ignore the former, and handle the
-                     -- latter in a rather brute-force fashion.
+                     -- with no refs.  We ignore the latter, and handle the
+                     -- former in a rather brute-force fashion, by simply
+                     -- reading the next line and using it as the refs.
                      if Sub'Length < 3 or else Sub (1..3) /= "See" then
                         Get_Line (RMFile, RMLine, Last);
                         LNum := LNum + 1;
@@ -376,7 +382,8 @@ package body File is
                end;
             else
 
-               -- Term-cont, which are just refs; nail them onto previous term's refs
+               -- Term-cont, which are just refs; nail them onto previous
+               -- term's refs, which are still indexed by RM_Index_Count
                RM_Index (RM_Index_Count).Refs := RM_Index (RM_Index_Count).Refs & " " & US (RMLine (1 .. Last));
             end if;
          end loop;
@@ -452,6 +459,7 @@ package body File is
       Close (RMFile);
 
    exception
+      -- Putting the message into the log file seems to obscure it too much
       when E : others =>
          Put_Line (Standard_Error, "RM init exception:  " & Ada.Exceptions.Exception_Information (E));
    end Init_RM;
@@ -477,7 +485,7 @@ package body File is
       ------------------------------------------------------------------------
 
       -- Magic keyword "help topics"
-      K_Levels   : constant string := "levels";
+      K_Levels : constant string := "levels";
 
       ------------------------------------------------------------------------
 
@@ -509,7 +517,7 @@ package body File is
             Open_Help_File (HelpPath, HelpStrm, HelpFile);
          exception
             when Ada.Text_IO.Name_Error =>
-               return;
+               return;  -- Already issued a message in Open_Help_File
             when others =>
                Log.Warn (File_Name, "Could not convert stream for help file """ & HelpPath & """--help disabled");
                return;
@@ -528,7 +536,7 @@ package body File is
             Get_Line (HelpFile, HelpLine, Last);
             exit when Is_Marker (HelpLine (1 .. Last));
             Output.Say (HelpLine (1 .. Last), Req.Destination);
-            delay Line_Pause;
+            delay Config.Line_Pause;
          end loop;
       end Item_Help;
 
@@ -538,7 +546,7 @@ package body File is
       procedure Fmt (Topic, Subject : in string) is
       begin  -- Fmt
          Output.Say ("   " & Head (Topic, Topic_Width) & "  " & Subject, Req.Destination);
-         delay Line_Pause;
+         delay Config.Line_Pause;
       end Fmt;
 
       ------------------------------------------------------------------------
@@ -556,7 +564,7 @@ package body File is
 
          -- No topic given, print summaries only
          Output.Say ("I currently know the following help topics:", Req.Destination);
-         delay Line_Pause;
+         delay Config.Line_Pause;
 
          -- Main summary listing, extracted from help file
          Fmt ("Topic", "Subject");
@@ -571,17 +579,17 @@ package body File is
          -- Summary trailer
          Output.Say ("The shortcut string is """ & Config.Get_Value (Config.Item_Shorthand) &
                      """; a leading ""~"" in a factoid name treats it as a regexp.", Req.Destination);
-         delay Line_Pause;
+         delay Config.Line_Pause;
          Output.Say ("Use ""help <topic>"" for details about one of the listed topics.", Req.Destination);
       else
 
          -- Check for magic keywords first
          if Equal (Req.Data, US (K_Levels)) then
             Output.Say ("Required access levels for each command:", Req.Destination);
-            delay Line_Pause;
+            delay Config.Line_Pause;
             for Cmd in Config.Valid_Commands loop
                Output.Say ("   " & Config.Cmd_Names (Cmd) & Img (Config.Get_Auth_Level (Cmd), 2), Req.Destination);
-               delay Line_Pause;
+               delay Config.Line_Pause;
             end loop;
             return;
          end if;
@@ -680,7 +688,7 @@ package body File is
             Refs := Matches (Item).Refs;
          end if;
          Output.Say (Matches (Item).Text & " " & Refs, Req.Destination);
-         delay Line_Pause;
+         delay Config.Line_Pause;
       end loop;
 
    exception
@@ -700,7 +708,11 @@ package body File is
       Output_Request : Output.Request_Rec;
 
    begin  -- File_Task
+
+      -- Main task request loop
       loop
+
+         -- Fetch next request from our request queue and handle it
          Requests.Dequeue (Request);
          case Request.Operation is
             when Shutdown_Operation =>
@@ -713,6 +725,8 @@ package body File is
                Help (Request);
 
             when Stats_Operation =>
+               -- Show the file stats as part of the "stats" command's overall
+               -- summary output
                Output.Say ("I know " & Img (Help_Msgs'Length) & " separate help topics, and have " &
                            Img (RM_Index_Count) & " searchable RM index entries.", Request.Destination);
          end case;

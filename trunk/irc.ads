@@ -5,9 +5,9 @@
 
 
 --
--- Standard packages
-with Ada.Strings.Unbounded;
-use  Ada.Strings.Unbounded;
+-- Local library packages
+with Strings;
+use  Strings;
 
 
 package IRC is
@@ -21,7 +21,7 @@ package IRC is
    -- Length of IRC server numeric reply fields
    Server_Reply_Length : constant := 3;
 
-   -- As per RFC 2812
+   -- As per RFC 2812, maximum parameters in an IRC message
    Max_Params          : constant := 15;
 
    -- Server reply constants that we are interested in
@@ -37,7 +37,7 @@ package IRC is
    CTCP_Marker         : constant character := ASCII.SOH;
 
    -- Used to represent a missing field value
-   Null_Field          : constant Unbounded_String := Null_Unbounded_String;
+   Null_Field          : constant UString := Null_UString;
 
 ------------------------------------------------------------------------------
 --
@@ -53,19 +53,19 @@ package IRC is
 
    -- An IRC message split into its separate fields
    type Message_Rec is record
-      Prefix  : Unbounded_String := Null_Field;
-      Command : Unbounded_String;
-      Params  : Unbounded_String;
+      Prefix  : UString := Null_Field;
+      Command : UString;
+      Params  : UString;
    end record;
 
+   -- The array in which we return parsed message parameters
    subtype Param_Count is natural range 0 .. Max_Params;
-
-   type Param_Arr is array ( 1 .. Max_Params ) of Unbounded_String;
+   type Param_Arr is array (1 .. Max_Params) of UString;
 
    type MsgTo_Rec is record
-      Nick:   Unbounded_String;
-      User:   Unbounded_String;
-      Host:   Unbounded_String;
+      Nick : UString;
+      User : UString;
+      Host : UString;
    end record;
 
 ------------------------------------------------------------------------------
@@ -80,25 +80,32 @@ package IRC is
 
 ------------------------------------------------------------------------------
 --
--- Exported subroutines
+-- Public subroutines
 --
 ------------------------------------------------------------------------------
 
-   procedure Open_Server (Name:  in string;
-                          Port:  in positive);
+   -- Connect to given IRC server on given port
+   procedure Open_Server (Name : in string;
+                          Port : in positive);
 
+   -- Close server connection
    procedure Close_Server;
 
-   procedure Read (Message: out Message_Rec);
+   -- Read a message from the server and parse into its components; blocks
+   -- until one is available
+   procedure Read (Message : out Message_Rec);
 
-   procedure Write (Message: in Message_Rec);
+   -- Write a message to the server
+   procedure Write (Message : in Message_Rec);
 
-   procedure Parse_Params (Param_Str:  in  Unbounded_String;
-                           Params:     out Param_Arr;
-                           Count:      out Param_Count);
+   -- Parse a server message parameter string into separate fields
+   procedure Parse_Params (Param_Str : in  UString;
+                           Params    : out Param_Arr;
+                           Count     : out Param_Count);
 
-   procedure Parse_MsgTo (Str:   in  Unbounded_String;
-                          MsgTo: out MsgTo_Rec);
+   -- Parse an IRC "msgto" string into nick/user/host fields
+   procedure Parse_MsgTo (Str   : in  UString;
+                          MsgTo : out MsgTo_Rec);
 
    ---------------------------------------------------------------------------
 

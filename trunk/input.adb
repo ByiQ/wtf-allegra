@@ -9,7 +9,12 @@ with Ada.Exceptions;
 with Ada.Characters.Handling;
 use  Ada.Characters.Handling;
 with Ada.Strings.Unbounded;
-use  Ada.Strings.Unbounded;
+
+
+--
+-- Local library packages
+with Strings;
+use  Strings;
 
 
 --
@@ -39,22 +44,12 @@ package body Input is
 
 ------------------------------------------------------------------------------
 --
--- Package variables
---
-------------------------------------------------------------------------------
-
-   Got_Input       : boolean;
-   Input_Message   : IRC.Message_Rec;
-   Command_Request : Command.Request_Rec;
-   Output_Request  : Output.Request_Rec;
-   Dont_Care       : boolean;
-
-------------------------------------------------------------------------------
---
 -- Package subroutines
 --
 ------------------------------------------------------------------------------
 
+   -- Return true if given string is in the form of an IRC server numeric
+   -- reply (three decimal digits)
    function Numeric_Reply (Field : in string) return boolean is
    begin  -- Numeric_Reply
       return Field'Length = IRC.Server_Reply_Length and then
@@ -83,11 +78,18 @@ package body Input is
 
 ------------------------------------------------------------------------------
 --
--- Exported task
+-- Public task
 --
 ------------------------------------------------------------------------------
 
    task body Input_Task_Type is
+
+      Got_Input       : boolean;
+      Input_Message   : IRC.Message_Rec;
+      Command_Request : Command.Request_Rec;
+      Output_Request  : Output.Request_Rec;
+      Dont_Care       : boolean;
+
    begin  -- Input_Task_Type
 
       -- Connect and queue up a login sequence to begin with
@@ -99,7 +101,8 @@ package body Input is
       loop
 
          -- Try to read some input from server; can be aborted by timeout from
-         -- ping task or by I/O exception, leaving Got_Input false
+         -- ping task (indicated by the arrival of an entry on the timeout
+         -- queue) or by I/O exception, leaving Got_Input false
          begin
             Got_Input := false;
             select
@@ -124,15 +127,16 @@ package body Input is
 
             -- Let the ping task know that we got something, and log it
             Ping.Ping_Task.Input_Received;
-            Dbg (Input_Name, "Got " & To_String (Input_Message.Prefix) & ", "  &
-                 To_String (Input_Message.Command) & ", " &
-                 To_String (Input_Message.Params));
+            Dbg (Input_Name, "Got " & S (Input_Message.Prefix) & ", "  &
+                 S (Input_Message.Command) & ", " &
+                 S (Input_Message.Params));
 
             -- Now categorize the input into a few broad classes
             declare
-               Cmd       : string := To_Lower (To_String (Input_Message.Command));
+               use Ada.Strings;  -- just so we can say "Unbounded.*" in a few places
+               Cmd       : string := To_Lower (S (Input_Message.Command));
                Nick      : string := To_Lower (Config.Get_Value (Config.Item_Nick));
-               Message   : Unbounded_String := To_Unbounded_String (To_Lower (To_String (Input_Message.Params)));
+               Message   : UString := US (To_Lower (S (Input_Message.Params)));
                Shorthand : string := Config.Get_Value (Config.Item_Shorthand);
                Params    : IRC.Param_Arr;
                Count     : IRC.Param_Count;
@@ -142,25 +146,33 @@ package body Input is
 
                -- If it's a PING, just respond immediately with a PONG
                if    Cmd = "ping"        then
-                  Dbg (Input_Name, "Pong with " & To_String (Input_Message.Params));
+                  Dbg (Input_Name, "Pong with " & S (Input_Message.Params));
                   Output_Request.Operation := Output.Pong_Operation;
                   Output_Request.Data      := Input_Message.Params;
                   Output.Requests.Enqueue (Output_Request);
 
                -- If it's a PRIVMSG, see if it's addressed to us in some way,
-               -- either by starting with our shorthand character, or by
-               -- containing our nick.  If it is one of those, send it to the
-               -- command task and let him figure out what to do with it.
+               -- either by starting with our shorthand string, or by
+               -- containing our nick.
                elsif Cmd = "privmsg"     then
-                  Has_SHand := Shorthand'Length > 0 and then Index (Message, Shorthand) > 0;
-                  Has_Nick  := Index (Message, Nick) > 0;
+
+                  -- Start by looking for nick or shorthand string anywhere
+                  Has_SHand := Shorthand'Length > 0 and then Unbounded.Index (Message, Shorthand) > 0;
+                  Has_Nick  := Unbounded.Index (Message, Nick) > 0;
+
+                  -- Split up the params, and make a closer examination of the
+                  -- message to see if the shorthand string is at the start of
+                  -- the message portion.
                   IRC.Parse_Params (Input_Message.Params, Params, Count);
                   if Has_SHand or else Has_Nick then
-                     Has_SHand := not Has_Nick and then Count >= 2 and then Index (Params (2), Shorthand) = 1;
+                     Has_SHand := not Has_Nick and then Count >= 2 and then Unbounded.Index (Params (2), Shorthand) = 1;
                   end if;
+
+                  -- If it's addressed to us somehow, send it to the command
+                  -- task as a "message"
                   if Has_SHand or else Has_Nick then
-                     Dbg (Input_Name, "Recognized message from " & To_String (Input_Message.Prefix) & ": " &
-                                      To_String (Input_Message.Params));
+                     Dbg (Input_Name, "Recognized message from " & S (Input_Message.Prefix) & ": " &
+                                      S (Input_Message.Params));
                      Command_Request.Operation := Command.Message_Operation;
                      Command_Request.Origin    := Input_Message.Prefix;
                      Command_Request.Target    := IRC.Null_Field;
@@ -172,6 +184,10 @@ package body Input is
                         Command_Request.Data   := Params (2);
                      end if;
                      Command.Requests.Enqueue (Command_Request);
+
+                  -- If it's not addressed to us, still send it to the command
+                  -- task, but as a "save" operation, so it can be retrieved
+                  -- later by a "last" command
                   else
                      Command_Request.Operation := Command.Save_Operation;
                      Command_Request.Origin    := Input_Message.Prefix;
@@ -187,8 +203,8 @@ package body Input is
                -- Assume that all NOTICE messages that come to us need to be
                -- inspected by the command task
                elsif Cmd = "notice"      then
-                  Dbg (Input_Name, "Notice from " & To_String (Input_Message.Prefix) & ": " &
-                                    To_String (Input_Message.Params));
+                  Dbg (Input_Name, "Notice from " & S (Input_Message.Prefix) & ": " &
+                                    S (Input_Message.Params));
                   IRC.Parse_Params (Input_Message.Params, Params, Count);
                   Command_Request.Operation := Command.Notice_Operation;
                   Command_Request.Origin    := Input_Message.Prefix;
@@ -204,7 +220,7 @@ package body Input is
 
                -- Send all numeric server replies to the command task
                elsif Numeric_Reply (Cmd) then
-                  Dbg (Input_Name, "Reply " & Cmd & ": " & To_String (Input_Message.Params));
+                  Dbg (Input_Name, "Reply " & Cmd & ": " & S (Input_Message.Params));
                   Command_Request.Operation := Command.Reply_Operation;
                   Command_Request.Reply     := positive'Value (Cmd);
                   Command_Request.Data      := Input_Message.Params;
@@ -213,7 +229,7 @@ package body Input is
                -- Not something we recognize, so just ignore it (though we log
                -- that fact in debug mode)
                else
-                  Dbg (Input_Name, "Ignoring " & Cmd & ": " & To_String (Input_Message.Params));
+                  Dbg (Input_Name, "Ignoring " & Cmd & ": " & S (Input_Message.Params));
                end if;
             end;
          else

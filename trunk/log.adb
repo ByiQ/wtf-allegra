@@ -1,101 +1,131 @@
-with
-  Ada.Calendar,
-  Ada.Exceptions,
-  Ada.Integer_Text_IO,
-  Ada.Strings.Fixed,
-  Ada.Strings.Unbounded,
-  Ada.Text_IO,
-  Config;
+
+--
+-- Log -- Log file management utility package for Allegra info-bot
+--
+
+
+--
+-- Standard packages
+with Ada.Exceptions;
+with Ada.Strings.Fixed;
+with Ada.Text_IO;
+
+
+--
+-- Local library packages
+with Strings;
+use  Strings;
+with Times;
+
+
+--
+-- Application packages
+with Config;
+
 
 package body Log is
 
-   -- Declarations
-   Name_Width:  constant := 12;  -- arbitrary, "wide enough"
+------------------------------------------------------------------------------
+--
+-- Package constants
+--
+------------------------------------------------------------------------------
 
-   type Log_Level_Enm is ( Level_None, Level_Err, Level_Warn, Level_Info, Level_Dbg );
+   Name_Width : constant := 12;  -- arbitrary, "wide enough"
 
-   Log_Level:                 Log_Level_Enm := Level_None;
-   Log_File:                  Ada.Text_IO.File_Type;
-   Current_Logfile_Pathname:  Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.Null_Unbounded_String;
+------------------------------------------------------------------------------
+--
+-- Package types
+--
+------------------------------------------------------------------------------
 
-   -- Local routines
-   Month_Names:  constant array (Ada.Calendar.Month_Number) of string (1 .. 3) :=
-     ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec");
+   -- The order of these enum constants determine the logging "levels".  Each
+   -- level includes all preceding levels.
+   type Log_Level_Enm is (Level_None, Level_Err, Level_Warn, Level_Info, Level_Dbg);
 
-   function Timestamp return string is
+------------------------------------------------------------------------------
+--
+-- Package variables
+--
+------------------------------------------------------------------------------
 
-      use Ada.Calendar;
+   -- Currently configured log level
+   Log_Level                : Log_Level_Enm := Level_None;
 
-      function Str (Num:    in natural;
-                    Width:  in positive  := 10;
-                    Pad:    in character := ' ') return string is
+   -- Currently configured log file pathname
+   Current_Logfile_Pathname : UString := Null_UString;
 
-         S:  string ( 1 .. Width );
+   -- Log file handle
+   Log_File                 : Ada.Text_IO.File_Type;
 
-      begin  -- Str
-         Ada.Integer_Text_IO.Put (S, Num);
-         if Pad /= ' ' then  -- Put pads with space by default
-            for Char in S'Range loop
-               if S (Char) = ' ' then
-                  S (Char) := Pad;
-               end if;
-            end loop;
-         end if;
-         return S;
-      end Str;
+------------------------------------------------------------------------------
+--
+-- Package subroutines
+--
+------------------------------------------------------------------------------
 
-      Now:   Time := Clock;  -- current system time
-      HH:    natural;
-      MM:    natural;
-      SS:    natural;
+   -- Print a standard format log line
+   procedure Log_It (From : in string;  Msg : in string) is
 
-   begin  -- Timestamp
-      SS := natural (Seconds (Now));
-      HH := SS / 3600;
-      SS := SS - HH * 3600;
-      MM := SS / 60;
-      SS := SS - MM * 60;
+      use Ada.Text_IO, Times;
 
-      return Str (Day (Now), 2) & " " & Month_Names (Month (Now)) & " " & Str (Year (Now), 4)
-        & " " &
-        Str (HH, 2, Pad => ' ') & ":" & Str (MM, 2, Pad => '0') & ":" & Str (SS, 2, Pad => '0');
-   end Timestamp;
+   begin  -- Log_It
+      Put_Line (Log_File, Date_String & " " & Time_String & " " & Ada.Strings.Fixed.Head (From, Name_Width) & ":  " & Msg);
+      Flush (Log_File);
+   end Log_It;
 
-   -- Exported procedures
-   procedure Err  (From:  string;   Msg:  string) is
+------------------------------------------------------------------------------
+--
+-- Public subroutines
+--
+------------------------------------------------------------------------------
+
+   -- Log if "err" verbosity level or above is set
+   procedure Err  (From : in string;   Msg : in string) is
    begin  -- Err
       if Log_Level >= Level_Err then
-         Ada.Text_IO.Put_Line (Log_File, Timestamp & " " & Ada.Strings.Fixed.Head (From, Name_Width) & ":  " & Msg);
-         Ada.Text_IO.Flush (Log_File);
+         Log_It (From, Msg);
       end if;
    end Err;
 
-   procedure Warn (From:  string;   Msg:  string) is
+   ---------------------------------------------------------------------------
+
+   -- Log if "warn" verbosity level or above is set
+   procedure Warn (From : in string;   Msg : in string) is
    begin  -- Warn
       if Log_Level >= Level_Warn then
-         Ada.Text_IO.Put_Line (Log_File, Timestamp & " " & Ada.Strings.Fixed.Head (From, Name_Width) & ":  " & Msg);
-         Ada.Text_IO.Flush (Log_File);
+         Log_It (From, Msg);
       end if;
    end Warn;
 
-   procedure Info (From:  string;   Msg:  string) is
+   ---------------------------------------------------------------------------
+
+   -- Log if "info" verbosity level or above is set
+   procedure Info (From : in string;   Msg : in string) is
    begin  -- Info
       if Log_Level >= Level_Info then
-         Ada.Text_IO.Put_Line (Log_File, Timestamp & " " & Ada.Strings.Fixed.Head (From, Name_Width) & ":  " & Msg);
-         Ada.Text_IO.Flush (Log_File);
+         Log_It (From, Msg);
       end if;
    end Info;
 
-   procedure Dbg  (From:  string;   Msg:  string) is
+   ---------------------------------------------------------------------------
+
+   -- Log if "dbg" verbosity level is set
+   procedure Dbg  (From : in string;   Msg : in string) is
    begin  -- Dbg
       if Log_Level >= Level_Dbg then
-         Ada.Text_IO.Put_Line (Log_File, Timestamp & " " & Ada.Strings.Fixed.Head (From, Name_Width) & ":  " & Msg);
-         Ada.Text_IO.Flush (Log_File);
+         Log_It (From, Msg);
       end if;
    end Dbg;
 
+   ---------------------------------------------------------------------------
+
+   -- Get the configured log level and logfile pathname, and open the log file
+   -- (for appending)
    procedure Init is
    begin  -- Init
+
+      -- Get the configured log level string and map it into our enum type
       declare
          use Config;
          Current_Level_Str:  string := Get_Value (Item_LogLevel);
@@ -115,28 +145,52 @@ package body Log is
          end if;
       end;
 
+      -- Get the configured log file pathname string
       declare
-         use Ada.Strings.Unbounded, Ada.Text_IO, Config;
-         Logfile_Pathname:  string := Get_Value (Item_LogPath);
+         use Ada.Text_IO;
+         Logfile_Pathname : string := Config.Get_Value (Config.Item_LogPath);
       begin
-         if Current_Logfile_Pathname /= Logfile_Pathname then
+
+         -- See if the log file pathname has changed since last init, and if
+         -- so, close the old one (if it's open) and open the new one
+         if S (Current_Logfile_Pathname) /= Logfile_Pathname then
             if Is_Open (Log_File) then
                Close (Log_File);
             end if;
+
+            -- Try opening an existing log file, for append
             begin
                Open (Log_File, Append_File, Logfile_Pathname);
+
             exception
+
+               -- If the file didn't exist, try to create it; an exception
+               -- here will propagate to the outer handler
                when Name_Error =>
                   Create (Log_File, Append_File, Logfile_Pathname);
+
+               -- This exception usually means we don't have write permissions
+               -- for an existing log file, so report it and disable logging
                when Use_Error =>
                   Put_Line (Standard_Error, "Cannot open log file """ & Logfile_Pathname & """ -- check permissions");
                   Log_Level := Level_None;
-               when others =>
-                  raise;  -- propagate to outer handler
+
+               -- No idea what to do about other exceptions, just report them
+               -- and disable logging
+               when E : others =>
+                  Put_Line (Standard_Error, "Cannot open log file """ & Logfile_Pathname & """ -- " &
+                            Ada.Exceptions.Exception_Name (E));
+                  Log_Level := Level_None;
             end;
-            Current_Logfile_Pathname := To_Unbounded_String (Logfile_Pathname);
+
+            -- If we make it here, things must have worked, so save the
+            -- pathname
+            Current_Logfile_Pathname := US (Logfile_Pathname);
          end if;
 
+      -- These handlers are for exceptions on the Create above. They just
+      -- report the error, and disable logging by setting the log level to
+      -- "none"
       exception
          when Name_Error =>
             Put_Line (Standard_Error, "Cannot create log file """ & Logfile_Pathname & """ -- badly-formed pathname");
@@ -144,19 +198,24 @@ package body Log is
          when Use_Error =>
             Put_Line (Standard_Error, "Cannot create log file """ & Logfile_Pathname & """ -- check permissions");
             Log_Level := Level_None;
-         when E: others =>
+         when E : others =>
             Put_Line (Standard_Error, "Cannot create log file """ & Logfile_Pathname & """ -- " &
                       Ada.Exceptions.Exception_Name (E));
             Log_Level := Level_None;
       end;
    end Init;
 
+   ---------------------------------------------------------------------------
+
+   -- Close the log file if it's open
    procedure WrapUp is
    begin  -- WrapUp
       if Ada.Text_IO.Is_Open (Log_File) then
          Ada.Text_IO.Close (Log_File);
       end if;
    end WrapUp;
+
+   ---------------------------------------------------------------------------
 
 begin  -- package Log initialization
    Init;

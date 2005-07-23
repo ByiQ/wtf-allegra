@@ -17,6 +17,7 @@ package Strings is
 --
 ------------------------------------------------------------------------------
 
+   -- Give this one a shorter local name
    Null_UString : constant Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.Null_Unbounded_String;
 
 ------------------------------------------------------------------------------
@@ -25,7 +26,7 @@ package Strings is
 --
 ------------------------------------------------------------------------------
 
-   -- Give this one a shorter name, since it's used so much
+   -- Give this one a shorter local name, since it's used so much
    subtype UString is Ada.Strings.Unbounded.Unbounded_String;
 
 ------------------------------------------------------------------------------

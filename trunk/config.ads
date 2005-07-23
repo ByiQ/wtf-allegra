@@ -1,6 +1,6 @@
 
 --
--- Config -- Program configuration package for Allegra info-bot
+-- Config -- Program configuration utility package for Allegra info-bot
 --
 
 
@@ -27,6 +27,9 @@ package Config is
    -- Range of authorization levels
    Min_Auth_Level : constant :=  0;
    Max_Auth_Level : constant := 10;
+
+   -- Pause between each line of multi-line output, in seconds
+   Line_Pause     : constant Duration := 0.75;
 
 ------------------------------------------------------------------------------
 --

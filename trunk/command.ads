@@ -23,7 +23,7 @@ package Command is
 --
 ------------------------------------------------------------------------------
 
-   -- The command operations this package knows about
+   -- The command operations this task knows about
    type Operation_Type is
      (
       Login_Operation,
@@ -35,8 +35,7 @@ package Command is
       Crash_Operation
      );
 
-   -- The command request type, and the command queue, which is how other
-   -- tasks communicate with this one
+   -- The command request type
    type Request_Rec is record
       Operation : Operation_Type;
       Origin    : Strings.UString;
@@ -44,9 +43,25 @@ package Command is
       Data      : Strings.UString;
       Reply     : IRC.Server_Reply;
    end record;
+
+------------------------------------------------------------------------------
+--
+-- Request queue
+--
+------------------------------------------------------------------------------
+
+   -- Instantiate the protected-queue package with our request type, and
+   -- create an instance of it to serve as this task's main input.
    package Command_Queue_Pkg is new PQueue (Request_Rec);
    Requests : Command_Queue_Pkg.Protected_Queue_Type;
 
+------------------------------------------------------------------------------
+--
+-- Public task
+--
+------------------------------------------------------------------------------
+
+   -- Declare the task object
    task Command_Task;
 
    ---------------------------------------------------------------------------
