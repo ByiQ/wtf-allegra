@@ -3,6 +3,7 @@
 -- Input -- Server input task package for Allegra info-bot
 --
 
+
 --
 -- Standard packages
 with Ada.Exceptions;
@@ -19,12 +20,12 @@ use  Strings;
 
 --
 -- Application packages
-with Command;
+with CommandQ;
 with Config;
 with IRC;
 with Log;
 use  Log;
-with Output;
+with OutputQ;
 with Ping;
 
 
@@ -71,7 +72,7 @@ package body Input is
 
             when E : others =>
                Err (Input_Name, "Other exception " & Ada.Exceptions.Exception_Information (E) & " during " & Msg);
-               Command.Crash (Input_Name);
+               CommandQ.Crash (Input_Name);
          end;
          delay Reconnect_Delay;  -- throttle connect requests
       end loop;
@@ -87,16 +88,16 @@ package body Input is
 
       Got_Input       : boolean;
       Input_Message   : IRC.Message_Rec;
-      Command_Request : Command.Request_Rec;
-      Output_Request  : Output.Request_Rec;
+      Command_Request : CommandQ.Request_Rec;
+      Output_Request  : OutputQ.Request_Rec;
       Dont_Care       : boolean;
 
    begin  -- Input_Task_Type
 
       -- Connect and queue up a login sequence to begin with
       Connect_To_Server ("initial server connect");
-      Command_Request.Operation := Command.Login_Operation;
-      Command.Requests.Enqueue (Command_Request);
+      Command_Request.Operation := CommandQ.Login_Operation;
+      CommandQ.Requests.Enqueue (Command_Request);
 
       -- Main input task loop
       loop
@@ -120,7 +121,7 @@ package body Input is
 
             when E: others =>
                Err (Input_Name, "Other exception " & Ada.Exceptions.Exception_Information (E) & " during read");
-               Command.Crash (Input_Name);
+               CommandQ.Crash (Input_Name);
          end;
 
          -- If we read a line from the server, do some initial processing and
@@ -149,9 +150,9 @@ package body Input is
                -- If it's a PING, just respond immediately with a PONG
                if    Cmd = "ping"        then
                   Dbg (Input_Name, "Pong with " & S (Input_Message.Params));
-                  Output_Request.Operation := Output.Pong_Operation;
+                  Output_Request.Operation := OutputQ.Pong_Operation;
                   Output_Request.Data      := Input_Message.Params;
-                  Output.Requests.Enqueue (Output_Request);
+                  OutputQ.Requests.Enqueue (Output_Request);
 
                -- If it's a PRIVMSG, see if it's addressed to us in some way,
                -- either by starting with our shorthand string, or by
@@ -175,7 +176,7 @@ package body Input is
                   if Has_SHand or else Has_Nick then
                      Dbg (Input_Name, "Recognized message from " & S (Input_Message.Prefix) & ": " &
                                       S (Input_Message.Params));
-                     Command_Request.Operation := Command.Message_Operation;
+                     Command_Request.Operation := CommandQ.Message_Operation;
                      Command_Request.Origin    := Input_Message.Prefix;
                      Command_Request.Target    := IRC.Null_Field;
                      Command_Request.Data      := IRC.Null_Field;
@@ -185,13 +186,13 @@ package body Input is
                      if Count >= 2 then
                         Command_Request.Data   := Params (2);
                      end if;
-                     Command.Requests.Enqueue (Command_Request);
+                     CommandQ.Requests.Enqueue (Command_Request);
 
                   -- If it's not addressed to us, still send it to the command
                   -- task, but as a "save" operation, so it can be retrieved
                   -- later by a "last" command
                   else
-                     Command_Request.Operation := Command.Save_Operation;
+                     Command_Request.Operation := CommandQ.Save_Operation;
                      Command_Request.Origin    := Input_Message.Prefix;
                      Command_Request.Target    := IRC.Null_Field;
                      if Count >= 2 then
@@ -199,7 +200,7 @@ package body Input is
                      else
                         Command_Request.Data   := IRC.Null_Field;
                      end if;
-                     Command.Requests.Enqueue (Command_Request);
+                     CommandQ.Requests.Enqueue (Command_Request);
                   end if;
 
                -- Assume that all NOTICE messages that come to us need to be
@@ -208,7 +209,7 @@ package body Input is
                   Dbg (Input_Name, "Notice from " & S (Input_Message.Prefix) & ": " &
                                     S (Input_Message.Params));
                   IRC.Parse_Params (Input_Message.Params, Params, Count);
-                  Command_Request.Operation := Command.Notice_Operation;
+                  Command_Request.Operation := CommandQ.Notice_Operation;
                   Command_Request.Origin    := Input_Message.Prefix;
                   Command_Request.Target    := IRC.Null_Field;
                   Command_Request.Data      := IRC.Null_Field;
@@ -218,15 +219,15 @@ package body Input is
                   if Count >= 2 then
                      Command_Request.Data   := Params (2);
                   end if;
-                  Command.Requests.Enqueue (Command_Request);
+                  CommandQ.Requests.Enqueue (Command_Request);
 
                -- Send all numeric server replies to the command task
                elsif Numeric_Reply (Cmd) then
                   Dbg (Input_Name, "Reply " & Cmd & ": " & S (Input_Message.Params));
-                  Command_Request.Operation := Command.Reply_Operation;
+                  Command_Request.Operation := CommandQ.Reply_Operation;
                   Command_Request.Reply     := positive'Value (Cmd);
                   Command_Request.Data      := Input_Message.Params;
-                  Command.Requests.Enqueue (Command_Request);
+                  CommandQ.Requests.Enqueue (Command_Request);
 
                -- Not something we recognize, so just ignore it (though we log
                -- that fact in debug mode)
@@ -239,15 +240,15 @@ package body Input is
             Info (Input_Name, "Reconnect to " & Config.Get_Value (Config.Item_Host) & ":" & Config.Get_Value (Config.Item_Port));
             IRC.Close_Server;
             Connect_To_Server ("server reconnect");
-            Command_Request.Operation := Command.Login_Operation;
-            Command.Requests.Enqueue (Command_Request);
+            Command_Request.Operation := CommandQ.Login_Operation;
+            CommandQ.Requests.Enqueue (Command_Request);
          end if;
       end loop;
 
    exception
       when E : others =>
          Err (Input_Name, "Exception " & Ada.Exceptions.Exception_Information (E));
-         Command.Crash (Input_Name);
+         CommandQ.Crash (Input_Name);
    end Input_Task_Type;
 
    ---------------------------------------------------------------------------

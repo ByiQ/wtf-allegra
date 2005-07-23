@@ -17,9 +17,14 @@ use  Strings;
 
 --
 -- Application packages
-with Command;
+with CommandQ;
 with IRC;
 with Log;
+
+
+--
+-- Request-queue package
+with OutputQ;
 
 
 package body Output is
@@ -35,81 +40,13 @@ package body Output is
 
 ------------------------------------------------------------------------------
 --
--- Package subroutines
---
-------------------------------------------------------------------------------
-
-   -- Tell the command that we've had an exception, and the bot should crash
-
-------------------------------------------------------------------------------
---
--- Public subroutines
---
-------------------------------------------------------------------------------
-
-   -- Simple interface to allow other tasks to write a message to the user
-   procedure Say (Msg : in UString;  To : in UString) is
-
-      Req : Request_Rec;
-
-   begin  -- Say
-      Req.Operation   := Message_Operation;
-      Req.Destination := To;
-      Req.Data        := Msg;
-      Requests.Enqueue (Req);
-   end Say;
-
-   ---------------------------------------------------------------------------
-
-   -- Simple interface to allow other tasks to write a message to the user
-   procedure Say (Msg : in string;  To : in UString) is
-
-      Req : Request_Rec;
-
-   begin  -- Say
-      Req.Operation   := Message_Operation;
-      Req.Destination := To;
-      Req.Data        := US (Msg);
-      Requests.Enqueue (Req);
-   end Say;
-
-   ---------------------------------------------------------------------------
-
-   -- Simple interface to allow other tasks to write a message to the user
-   procedure Say (Msg : in UString;  To : in string) is
-
-      Req : Request_Rec;
-
-   begin  -- Say
-      Req.Operation   := Message_Operation;
-      Req.Destination := US (To);
-      Req.Data        := Msg;
-      Requests.Enqueue (Req);
-   end Say;
-
-   ---------------------------------------------------------------------------
-
-   -- Simple interface to allow other tasks to write a message to the user
-   procedure Say (Msg : in string;  To : in string) is
-
-      Req : Request_Rec;
-
-   begin  -- Say
-      Req.Operation   := Message_Operation;
-      Req.Destination := US (To);
-      Req.Data        := US (Msg);
-      Requests.Enqueue (Req);
-   end Say;
-
-------------------------------------------------------------------------------
---
 -- Public task
 --
 ------------------------------------------------------------------------------
 
    task body Output_Task is
 
-      use Log;
+      use OutputQ, Log;
 
       -- The current request being processed
       Request : Request_Rec;
@@ -166,7 +103,7 @@ package body Output is
             when E : others =>
                Err (Output_Name, "Exception " & Ada.Exceptions.Exception_Information (E) &
                     " during write in " & Output_Name);
-               Command.Crash (Output_Name);
+               CommandQ.Crash (Output_Name);
          end;
       end loop;
    end Output_Task;

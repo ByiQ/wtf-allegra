@@ -5,6 +5,11 @@
 
 
 --
+-- Standard packages
+with Ada.Exceptions;
+
+
+--
 -- Local library packages
 with Strings;
 use  Strings;
@@ -12,9 +17,10 @@ use  Strings;
 
 --
 -- Application packages
+with CommandQ;
 with Config;
 with Log;
-with Output;
+with OutputQ;
 
 
 package body Ping is
@@ -47,7 +53,7 @@ package body Ping is
       Missed         : natural := 0;
 
       -- Request variable so we can send pings
-      Output_Request : Output.Request_Rec;
+      Output_Request : OutputQ.Request_Rec;
 
       -- Our "request".  Its value isn't important, only its presence.
       Dont_Care      : boolean;
@@ -85,12 +91,17 @@ package body Ping is
 
             -- Missed a ping, but not at our limit yet, so try again
             else
-               Output_Request.Operation := Output.Ping_Operation;
+               Output_Request.Operation := OutputQ.Ping_Operation;
                Output_Request.Data := US (":" & Config.Get_Value (Config.Item_Host));
-               Output.Requests.Enqueue (Output_Request);
+               OutputQ.Requests.Enqueue (Output_Request);
             end if;
          end select;
       end loop;
+
+   exception
+      when E : others =>
+         Log.Err (Ping_Name, "Exception " & Ada.Exceptions.Exception_Information (E));
+         CommandQ.Crash (Ping_Name);
    end Ping_Task_Type;
 
    ---------------------------------------------------------------------------

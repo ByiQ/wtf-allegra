@@ -23,12 +23,17 @@ use  Strings;
 -- Application packages
 with Auth;
 with Config;
-with Command;
+with CommandQ;
 with DB;
 use  DB;
 with IRC;
 with Log;
-with Output;
+with OutputQ;
+
+
+--
+-- Request-queue package
+with DatabaseQ;
 
 
 package body Database is
@@ -66,7 +71,7 @@ package body Database is
    Randoms        : Ada.Numerics.Float_Random.Generator;
 
    -- The database request we're processing at the moment
-   Request        : Request_Rec;
+   Request        : DatabaseQ.Request_Rec;
 
 ------------------------------------------------------------------------------
 --
@@ -82,9 +87,9 @@ package body Database is
    begin  -- Is_Owner_Operator
       if Creator /= To_Lower (Who) then
          if Auth.Level (Request.Requestor) < Auth.Bot_Operator_Level then
-            Output.Say ("I'm sorry " & Who & ", that factoid was created by " &
-                        Creator & " and I can't let you change it.  Check with " &
-                        Creator & " or my operator to get it changed.", Request.Destination);
+            OutputQ.Say ("I'm sorry " & Who & ", that factoid was created by " &
+                         Creator & " and I can't let you change it.  Check with " &
+                         Creator & " or my operator to get it changed.", Request.Destination);
             return false;
          end if;
       end if;
@@ -214,7 +219,7 @@ package body Database is
                     To_Lower (Escape (Fact)) & "," & Escape (S (Request.Data)) & ")");
          Statement (Handle, "insert into " & Factstats_Tbl & " (name,created,creator) values (" &
                     To_Lower (Escape (Fact)) & ",'now'," & Escape (To_Lower (S (Request.Origin))) & ")");
-         Output.Say ("""" & Fact & """ has been added!", Request.Destination);
+         OutputQ.Say ("""" & Fact & """ has been added!", Request.Destination);
 
       -- Factoid is already there, so tell the user that we can't do the set
       else
@@ -230,7 +235,7 @@ package body Database is
          else
             Msg := Msg & "them all, or an add (""factoid is also definition"") to add another.";
          end if;
-         Output.Say (Msg, Request.Destination);
+         OutputQ.Say (Msg, Request.Destination);
       end if;
 
       -- Done with the db now
@@ -258,7 +263,7 @@ package body Database is
       -- If it's not already there, treat it as a "set"
       Hits := Rows (Data);
       if Hits = 0 then
-         Output.Say ("I don't know a factoid """ & """ yet, but what the heck.", Request.Destination);
+         OutputQ.Say ("I don't know a factoid """ & """ yet, but what the heck.", Request.Destination);
          Disconnect (Handle);
          Set_Factoid;
          return;
@@ -267,7 +272,7 @@ package body Database is
       -- It's already there, so add the new definition and disconnect
       Statement (Handle, "insert into " & Factoid_Tbl & " (name,value) values (" &
                  To_Lower (Escape (Fact)) & "," & Escape (S (Request.Data)) & ")");
-      Output.Say ("Another definition for """ & Fact & """ has been added!", Request.Destination);
+      OutputQ.Say ("Another definition for """ & Fact & """ has been added!", Request.Destination);
       Disconnect (Handle);
    end Add_Factoid;
 
@@ -289,14 +294,14 @@ package body Database is
 
       -- If we got the stats, print them out in a nice human-readable format
       if Rows (Data) > 0 then
-         Output.Say ("The factoid named """ & Name & """ was created by " & Get_Value (Data, 1, "creator") &
-                     " on " & Get_Value (Data, 1, "created") & ".", Request.Destination);
+         OutputQ.Say ("The factoid named """ & Name & """ was created by " & Get_Value (Data, 1, "creator") &
+                      " on " & Get_Value (Data, 1, "created") & ".", Request.Destination);
          delay Config.Line_Pause;
          declare
             Count : string := Get_Value (Data, 1, "acc_count");
          begin
             if Count = "0" then
-               Output.Say ("It has never been accessed.", Request.Destination);
+               OutputQ.Say ("It has never been accessed.", Request.Destination);
             else
                if Count = "1" then
                   Msg := US ("It has been accessed once");
@@ -305,13 +310,13 @@ package body Database is
                end if;
                Msg := Msg & ", last by " & Get_Value (Data, 1, "acc_by") &
                  " on " & Get_Value (Data, 1, "acc_last") & ".";
-               Output.Say (Msg, Request.Destination);
+               OutputQ.Say (Msg, Request.Destination);
             end if;
          end;
 
       -- Couldn't find that factoid, too bad
       else
-         Output.Say ("I can't seem to locate a factoid named """ & Name & """, sorry.", Request.Destination);
+         OutputQ.Say ("I can't seem to locate a factoid named """ & Name & """, sorry.", Request.Destination);
       end if;
    end Factoid_Stats;
 
@@ -337,8 +342,8 @@ package body Database is
       -- If we didn't get anything, assume that the factoid doesn't exist;
       -- complain and return
       if Rows (Data) = 0 then
-         Output.Say ("I don't seem to know a factoid """ & Fact & """, so nothing was forgotten.",
-                     Request.Destination);
+         OutputQ.Say ("I don't seem to know a factoid """ & Fact & """, so nothing was forgotten.",
+                      Request.Destination);
          return;
       end if;
 
@@ -365,7 +370,7 @@ package body Database is
          if Count > 1 then
             Msg := Msg & "all" & natural'Image (Count) & " definitions of";
          end if;
-         Output.Say (Msg & " factoid """ & Fact & """!", Request.Destination);
+         OutputQ.Say (Msg & " factoid """ & Fact & """!", Request.Destination);
       end if;
 
       -- Done with the db now
@@ -431,7 +436,7 @@ package body Database is
                -- start a new one
                if Length (Msg) + Name'Length > Message_Limit then
                   if Length (Msg) > 0 then
-                     Output.Say (Msg, Request.Destination);
+                     OutputQ.Say (Msg, Request.Destination);
                   end if;
 
                   -- The "title" for second and subsequent lines is just a
@@ -454,12 +459,12 @@ package body Database is
 
          -- Print out last line if there is one
          if Length (Msg) > 0 then
-            Output.Say (Msg, Request.Destination);
+            OutputQ.Say (Msg, Request.Destination);
          end if;
 
       -- No matches, no factoid
       else
-         Output.Say ("No factoids match """ & Pat & """", Request.Destination);
+         OutputQ.Say ("No factoids match """ & Pat & """", Request.Destination);
       end if;
    end List_Factoids;
 
@@ -480,7 +485,7 @@ package body Database is
       -- Not sure when this (null factoid name) might happen, but if it does,
       -- treat it as a quip request and bail out
       if Ada.Strings.Unbounded.Length (Request.Data) < 1 then
-         Output.Say (Random_Select (Quips_Tbl), Request.Destination);
+         OutputQ.Say (Random_Select (Quips_Tbl), Request.Destination);
          return;
       end if;
 
@@ -500,9 +505,9 @@ package body Database is
          -- appropriate message for each.
          if not Equal (From, Null_UString) then
             if Equal (From, Request.Destination) then
-               Output.Say ("You wanted to know:", Request.Destination);
+               OutputQ.Say ("You wanted to know:", Request.Destination);
             else
-               Output.Say (From & " wanted me to tell you:", Request.Destination);
+               OutputQ.Say (From & " wanted me to tell you:", Request.Destination);
             end if;
          end if;
 
@@ -517,7 +522,7 @@ package body Database is
             -- request and bail out.
             for Row in 2 .. Hits loop
                if Get_Value (Data, Row, "name") /= Key then
-                  Output.Say ("""" & Request.Data & """ matches more than one factoid ...", Request.Destination);
+                  OutputQ.Say ("""" & Request.Data & """ matches more than one factoid ...", Request.Destination);
                   List_Factoids (S (Request.Data));
                   Disconnect (Handle);
                   return;
@@ -539,16 +544,16 @@ package body Database is
 
             -- Only print the factoid name on the first (or only) line
             if Row = 1 then
-               Output.Say (Get_Value (Data, Row, "name") & ":  " & Get_Value (Data, Row, "value"), Request.Destination);
+               OutputQ.Say (Get_Value (Data, Row, "name") & ":  " & Get_Value (Data, Row, "value"), Request.Destination);
             else
-               Output.Say (Get_Value (Data, Row, "value"), Request.Destination);
+               OutputQ.Say (Get_Value (Data, Row, "value"), Request.Destination);
             end if;
 
             -- If this is the second or subsequent line of a multi-definition
             -- factoid, print the definition separator
             if Hits > 1 and then Row /= Hits then
                delay Config.Line_Pause;
-               Output.Say (" - or -", Request.Destination);
+               OutputQ.Say (" - or -", Request.Destination);
                delay Config.Line_Pause;
             end if;
          end loop;
@@ -556,7 +561,7 @@ package body Database is
          -- If this was a "tell" operation, and wasn't a "tell me", report
          -- back to the original requestor what we did
          if (not Equal (From, Null_UString)) and then (not Equal (From, Request.Destination)) then
-            Output.Say ("I told " & Request.Destination & natural'Image (Hits) & " line(s).", Request.Origin);
+            OutputQ.Say ("I told " & Request.Destination & natural'Image (Hits) & " line(s).", Request.Origin);
          end if;
 
       -- Zero hits means no match; tailor the failure message according to
@@ -565,15 +570,15 @@ package body Database is
          Disconnect (Handle);
          if not Equal (From, Null_UString) then
             if Equal (From, Request.Destination) then
-               Output.Say ("You wanted to know about """ & Request.Data & """, but I couldn't find it.", From);
+               OutputQ.Say ("You wanted to know about """ & Request.Data & """, but I couldn't find it.", From);
             else
-               Output.Say (From & " asked me to tell you about """ & Request.Data & """, but I couldn't find it.",
-                           Request.Destination);
-               Output.Say ("Regrettably, I couldn't find """ & Request.Data & """ to tell " & S (Request.Destination),
-                           From);
+               OutputQ.Say (From & " asked me to tell you about """ & Request.Data & """, but I couldn't find it.",
+                            Request.Destination);
+               OutputQ.Say ("Regrettably, I couldn't find """ & Request.Data & """ to tell " & S (Request.Destination),
+                            From);
             end if;
          else
-            Output.Say ("Sorry, I couldn't find anything that matches """ & Request.Data & """", Request.Destination);
+            OutputQ.Say ("Sorry, I couldn't find anything that matches """ & Request.Data & """", Request.Destination);
          end if;
       end if;
    end Fetch_Factoid;
@@ -598,8 +603,8 @@ package body Database is
       -- If we didn't get anything, assume that the factoid doesn't exist;
       -- complain and return
       if Rows (Data) = 0 then
-         Output.Say ("I don't seem to know a factoid """ & OldName & """, so there's nothing to rename.",
-                     Request.Destination);
+         OutputQ.Say ("I don't seem to know a factoid """ & OldName & """, so there's nothing to rename.",
+                      Request.Destination);
          return;
       end if;
 
@@ -613,7 +618,7 @@ package body Database is
                     " where name=" & Escape (To_Lower (OldName)));
          Statement (Handle, "update " & Factstats_Tbl & " set name=" & Escape (To_Lower (NewName)) &
                     " where name=" & Escape (To_Lower (OldName)));
-         Output.Say ("I've renamed factoid """ & OldName & """ to """ & NewName & """!", Request.Destination);
+         OutputQ.Say ("I've renamed factoid """ & OldName & """ to """ & NewName & """!", Request.Destination);
       end if;
 
       -- Done with the db now
@@ -642,9 +647,9 @@ package body Database is
       -- If we didn't get anything, assume that the factoid doesn't exist;
       -- complain and return
       if Rows (Data) = 0 then
-         Output.Say ("I don't seem to know a factoid """ & Fact &
-                     """ ... if you want to set it, just do ""factoid is definition"".",
-                     Request.Destination);
+         OutputQ.Say ("I don't seem to know a factoid """ & Fact &
+                      """ ... if you want to set it, just do ""factoid is definition"".",
+                      Request.Destination);
          return;
       end if;
 
@@ -661,7 +666,7 @@ package body Database is
                     Escape (To_Lower (Fact)) & "," & Escape (S (Request.Data)) & ")");
 
          -- Tell the user that the deed is done
-         Output.Say ("I've changed factoid """ & Fact & """!", Request.Destination);
+         OutputQ.Say ("I've changed factoid """ & Fact & """!", Request.Destination);
       end if;
 
       -- Done with the db now
@@ -688,11 +693,11 @@ package body Database is
       if Hits > 0 then
          Statement (Handle, "update " & UserLvl_Tbl & " set level=" & S (Request.Data) &
                     "where name=" & Escape (To_Lower (S (Request.Key))));
-         Output.Say ("Access level for " & To_Lower (S (Request.Key)) & " updated to " & S (Request.Data), Request.Origin);
+         OutputQ.Say ("Access level for " & To_Lower (S (Request.Key)) & " updated to " & S (Request.Data), Request.Origin);
       else
          Statement (Handle, "insert into " & UserLvl_Tbl & " (name,level) values (" &
                     Escape (To_Lower (S (Request.Key))) & "," & S (Request.Data) & ")");
-         Output.Say ("Usermask " & To_Lower (S (Request.Key)) & " added with level " & S (Request.Data), Request.Origin);
+         OutputQ.Say ("Usermask " & To_Lower (S (Request.Key)) & " added with level " & S (Request.Data), Request.Origin);
       end if;
 
       -- Done with the db now
@@ -707,7 +712,7 @@ package body Database is
    -- Hook for future implementation of the "<factoid> is action <action>" command
    procedure Set_Action is
    begin  -- Set_Action
-      Output.Say ("The set-action command is not yet implemented.", Request.Destination);
+      OutputQ.Say ("The set-action command is not yet implemented.", Request.Destination);
    end Set_Action;
 
    ---------------------------------------------------------------------------
@@ -715,7 +720,7 @@ package body Database is
    -- Hook for future implementation of the "<factoid> is reply <reply>" command
    procedure Set_Reply is
    begin  -- Set_Reply
-      Output.Say ("The set-reply command is not yet implemented.", Request.Destination);
+      OutputQ.Say ("The set-reply command is not yet implemented.", Request.Destination);
    end Set_Reply;
 
    ---------------------------------------------------------------------------
@@ -753,8 +758,8 @@ package body Database is
       Disconnect (Handle);
 
       -- Report our results
-      Output.Say ("I currently know" & natural'Image (FCount) & " factoids and" & natural'Image (QCount) & " quotes.",
-                  Request.Destination);
+      OutputQ.Say ("I currently know" & natural'Image (FCount) & " factoids and" & natural'Image (QCount) & " quotes.",
+                   Request.Destination);
    end Show_Stats;
 
 ------------------------------------------------------------------------------
@@ -764,6 +769,9 @@ package body Database is
 ------------------------------------------------------------------------------
 
    task body Database_Task is
+
+      use DatabaseQ;
+
    begin  -- Database_Task
 
       -- Initialize the random number generator based on the time of day (by
@@ -801,10 +809,10 @@ package body Database is
                   -- If we do decide to make a quip, spread it over the two
                   -- forms (message and action)
                   if Ada.Numerics.Float_Random.Random (Randoms) <= Config.Act_Vs_Msg then
-                     Output.Say (Random_Select (Quips_Tbl), Request.Destination);
+                     OutputQ.Say (Random_Select (Quips_Tbl), Request.Destination);
                   else
-                     Output.Say (IRC.CTCP_Marker & "ACTION " & Random_Select (ActQuips_Tbl) & IRC.CTCP_Marker,
-                                 Request.Destination);
+                     OutputQ.Say (IRC.CTCP_Marker & "ACTION " & Random_Select (ActQuips_Tbl) & IRC.CTCP_Marker,
+                                  Request.Destination);
                   end if;
                end if;
 
@@ -814,9 +822,9 @@ package body Database is
                   Attrib : UString;
                begin
                   Random_Quote (Quote, Attrib);
-                  Output.Say (Quote, Request.Destination);
+                  OutputQ.Say (Quote, Request.Destination);
                   delay Config.Line_Pause;
-                  Output.Say ("  -- " & Attrib, Request.Destination);
+                  OutputQ.Say ("  -- " & Attrib, Request.Destination);
                end;
 
             when RE_Fetch_Operation =>
@@ -843,11 +851,11 @@ package body Database is
             when Shutdown_Operation =>
                -- Arrange to issue a random quit message before we go
                declare
-                  Output_Request : Output.Request_Rec;
+                  Output_Request : OutputQ.Request_Rec;
                begin
-                  Output_Request.Operation := Output.Shutdown_Operation;
+                  Output_Request.Operation := OutputQ.Shutdown_Operation;
                   Output_Request.Data := US (Random_Select (QuitMsg_Tbl));
-                  Output.Requests.Enqueue (Output_Request);
+                  OutputQ.Requests.Enqueue (Output_Request);
                   exit;  -- exit the main loop, thus shutting down the task
                end;
 
@@ -859,9 +867,9 @@ package body Database is
                -- As with a regular quip, spread it over the two forms
                -- (message and action)
                if Ada.Numerics.Float_Random.Random (Randoms) <= Config.Act_Vs_Msg then
-                  Output.Say (Random_Select (Quips_Tbl), Request.Destination);
+                  OutputQ.Say (Random_Select (Quips_Tbl), Request.Destination);
                else
-                  Output.Say (IRC.CTCP_Marker & "ACTION " & Random_Select (ActQuips_Tbl) & IRC.CTCP_Marker, Request.Destination);
+                  OutputQ.Say (IRC.CTCP_Marker & "ACTION " & Random_Select (ActQuips_Tbl) & IRC.CTCP_Marker, Request.Destination);
                end if;
 
             when Stats_Operation =>
@@ -878,7 +886,7 @@ package body Database is
       -- request to the command task, which shuts down the bot.
       when E : others =>
          Log.Err (Database_Name, "Exception:  " & Ada.Exceptions.Exception_Information (E));
-         Command.Crash (Database_Name);
+         CommandQ.Crash (Database_Name);
    end Database_Task;
 
    ---------------------------------------------------------------------------

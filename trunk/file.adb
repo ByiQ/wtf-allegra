@@ -31,9 +31,14 @@ use  Strings;
 --
 -- Application packages
 with Config;
-with Command;
+with CommandQ;
 with Log;
-with Output;
+with OutputQ;
+
+
+--
+-- Request-queue package
+with FileQ;
 
 
 package body File is
@@ -477,7 +482,7 @@ package body File is
    ---------------------------------------------------------------------------
 
    -- Process a "help" request
-   procedure Help (Req : in Request_Rec) is
+   procedure Help (Req : in FileQ.Request_Rec) is
 
       ------------------------------------------------------------------------
 
@@ -527,8 +532,8 @@ package body File is
          -- Seek to the first line of the item-specific help and start
          -- printing
          if fseek (HelpStrm, long (Help_Msgs (Item).Pos), SEEK_SET) /= 0 then
-            Output.Say ("I'm sorry, I can't seem to find the help text for that topic--tell the bot operator, please.",
-                        Req.Destination);
+            OutputQ.Say ("I'm sorry, I can't seem to find the help text for that topic--tell the bot operator, please.",
+                         Req.Destination);
             return;
          end if;
 
@@ -536,7 +541,7 @@ package body File is
          while not End_Of_File (HelpFile) loop
             Get_Line (HelpFile, HelpLine, Last);
             exit when Is_Marker (HelpLine (1 .. Last));
-            Output.Say (HelpLine (1 .. Last), Req.Destination);
+            OutputQ.Say (HelpLine (1 .. Last), Req.Destination);
             delay Config.Line_Pause;
          end loop;
       end Item_Help;
@@ -546,7 +551,7 @@ package body File is
       -- Lay out a help summary line
       procedure Fmt (Topic, Subject : in string) is
       begin  -- Fmt
-         Output.Say ("   " & Head (Topic, Topic_Width) & "  " & Subject, Req.Destination);
+         OutputQ.Say ("   " & Head (Topic, Topic_Width) & "  " & Subject, Req.Destination);
          delay Config.Line_Pause;
       end Fmt;
 
@@ -556,7 +561,7 @@ package body File is
 
       -- See if we have anything to say
       if Help_Msgs = null then
-         Output.Say ("Help seems to be disabled at the moment, sorry.  Tell the bot operator, please.", Req.Destination);
+         OutputQ.Say ("Help seems to be disabled at the moment, sorry.  Tell the bot operator, please.", Req.Destination);
          return;
       end if;
 
@@ -564,7 +569,7 @@ package body File is
       if Equal (Req.Data, Null_UString) then
 
          -- No topic given, print summaries only
-         Output.Say ("I currently know the following help topics:", Req.Destination);
+         OutputQ.Say ("I currently know the following help topics:", Req.Destination);
          delay Config.Line_Pause;
 
          -- Main summary listing, extracted from help file
@@ -578,18 +583,18 @@ package body File is
          Fmt (K_Levels, "List command access levels");
 
          -- Summary trailer
-         Output.Say ("The shortcut string is """ & Config.Get_Value (Config.Item_Shorthand) &
-                     """; a leading ""~"" in a factoid name treats it as a regexp.", Req.Destination);
+         OutputQ.Say ("The shortcut string is """ & Config.Get_Value (Config.Item_Shorthand) &
+                      """; a leading ""~"" in a factoid name treats it as a regexp.", Req.Destination);
          delay Config.Line_Pause;
-         Output.Say ("Use ""help <topic>"" for details about one of the listed topics.", Req.Destination);
+         OutputQ.Say ("Use ""help <topic>"" for details about one of the listed topics.", Req.Destination);
       else
 
          -- Check for magic keywords first
          if Equal (Req.Data, US (K_Levels)) then
-            Output.Say ("Required access levels for each command:", Req.Destination);
+            OutputQ.Say ("Required access levels for each command:", Req.Destination);
             delay Config.Line_Pause;
             for Cmd in Config.Valid_Commands loop
-               Output.Say ("   " & Config.Cmd_Names (Cmd) & Img (Config.Get_Auth_Level (Cmd), 2), Req.Destination);
+               OutputQ.Say ("   " & Config.Cmd_Names (Cmd) & Img (Config.Get_Auth_Level (Cmd), 2), Req.Destination);
                delay Config.Line_Pause;
             end loop;
             return;
@@ -603,7 +608,7 @@ package body File is
 
             -- After the rescan, it's possible that the help table is now empty
             if Help_Msgs = null then
-               Output.Say ("I lost my help!  Please chide the bot op for cheesing the help file.", Req.Destination);
+               OutputQ.Say ("I lost my help!  Please chide the bot op for cheesing the help file.", Req.Destination);
                return;
             end if;
          end if;
@@ -618,14 +623,14 @@ package body File is
          end loop;
 
          -- If no find, say so and quit
-         Output.Say ("I couldn't find the help topic """ & S (Req.Data) & """, sorry.", Req.Destination);
+         OutputQ.Say ("I couldn't find the help topic """ & S (Req.Data) & """, sorry.", Req.Destination);
       end if;
    end Help;
 
    ---------------------------------------------------------------------------
 
    -- Do a lookup in the RM index table
-   procedure Lookup (Req : in Request_Rec) is
+   procedure Lookup (Req : in FileQ.Request_Rec) is
 
       ------------------------------------------------------------------------
 
@@ -668,16 +673,16 @@ package body File is
 
       -- If no matches, let user know that
       if Matched < 1 then
-         Output.Say ("The pattern """ & S (Req.Data) & """ did not match any RM index entries, sorry.",
-                     Req.Destination);
+         OutputQ.Say ("The pattern """ & S (Req.Data) & """ did not match any RM index entries, sorry.",
+                      Req.Destination);
          return;
       end if;
 
       -- If we got too many, just say so and we're done
       if Matched > Max_Print then
-         Output.Say ("The pattern """ & S (Req.Data) & """ matched " & Img (Matched) &
-                     " RM index entries.  Try narrowing your search by using a more specific pattern.",
-                     Req.Destination);
+         OutputQ.Say ("The pattern """ & S (Req.Data) & """ matched " & Img (Matched) &
+                      " RM index entries.  Try narrowing your search by using a more specific pattern.",
+                      Req.Destination);
          return;
       end if;
 
@@ -688,14 +693,14 @@ package body File is
          else
             Refs := Matches (Item).Refs;
          end if;
-         Output.Say (Matches (Item).Text & " " & Refs, Req.Destination);
+         OutputQ.Say (Matches (Item).Text & " " & Refs, Req.Destination);
          delay Config.Line_Pause;
       end loop;
 
    exception
       when E : others =>
          Log.Err (File_Name, "RM lookup exception:  " & Ada.Exceptions.Exception_Information (E));
-         Command.Crash (File_Name);
+         CommandQ.Crash (File_Name);
    end Lookup;
 
 ------------------------------------------------------------------------------
@@ -706,8 +711,9 @@ package body File is
 
    task body File_Task is
 
-      Request        : Request_Rec;
-      Output_Request : Output.Request_Rec;
+      use FileQ;
+
+      Request : Request_Rec;
 
    begin  -- File_Task
 
@@ -729,15 +735,15 @@ package body File is
             when Stats_Operation =>
                -- Show the file stats as part of the "stats" command's overall
                -- summary output
-               Output.Say ("I know " & Img (Help_Msgs'Length) & " separate help topics, and have " &
-                           Img (RM_Index_Count) & " searchable RM index entries.", Request.Destination);
+               OutputQ.Say ("I know " & Img (Help_Msgs'Length) & " separate help topics, and have " &
+                            Img (RM_Index_Count) & " searchable RM index entries.", Request.Destination);
          end case;
       end loop;
 
    exception
       when E : others =>
          Log.Err (File_Name, "Exception:  " & Ada.Exceptions.Exception_Information (E));
-         Command.Crash (File_Name);
+         CommandQ.Crash (File_Name);
    end File_Task;
 
    ---------------------------------------------------------------------------

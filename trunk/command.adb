@@ -33,13 +33,19 @@ with Times;
 -- Application packages
 with Auth;
 with Config;
-with Database;
-with File;
+with DatabaseQ;
+with FileQ;
 with Input;
+with IRC;
 with Log;
 use  Log;
-with Output;
+with OutputQ;
 with Ping;
+
+
+--
+-- Request-queue package
+with CommandQ;
 
 
 package body Command is
@@ -118,14 +124,14 @@ package body Command is
 
    -- The command request we're processing at the moment, and some components
    -- of it
-   Request          : Request_Rec;
+   Request          : CommandQ.Request_Rec;
    Sender           : IRC.MsgTo_Rec;
    Destination      : UString;
 
    -- Request variables for making requests to other tasks
-   Database_Request : Database.Request_Rec;
-   File_Request     : File.Request_Rec;
-   Output_Request   : Output.Request_Rec;
+   Database_Request : DatabaseQ.Request_Rec;
+   File_Request     : FileQ.Request_Rec;
+   Output_Request   : OutputQ.Request_Rec;
 
    -- Set true when we are to exit this task (set by the "quit" command)
    Do_Exit          : boolean;
@@ -169,7 +175,7 @@ package body Command is
    -- Local instance of this routine, that sends to the nominal destination
    procedure Say (Msg : in string) is
    begin  -- Say
-      Output.Say (Msg, Destination);
+      OutputQ.Say (Msg, Destination);
    end Say;
 
    ---------------------------------------------------------------------------
@@ -194,10 +200,10 @@ package body Command is
    begin  -- Shutdown
 
       -- Tell those tasks who know how to shut themselves down
-      Database_Request.Operation := Database.Shutdown_Operation;
-      File_Request.Operation     := File.Shutdown_Operation;
-      Database.Requests.Enqueue (Database_Request);
-      File.Requests.Enqueue (File_Request);
+      Database_Request.Operation := DatabaseQ.Shutdown_Operation;
+      File_Request.Operation     := FileQ.Shutdown_Operation;
+      DatabaseQ.Requests.Enqueue (Database_Request);
+      FileQ.Requests.Enqueue (File_Request);
 
       -- Abort the tasks that don't have a request queue
       abort Input.Input_Task;
@@ -227,9 +233,9 @@ package body Command is
    function Is_Snack (Msg : in UString) return boolean is
    begin  -- Is_Snack
       if Ada.Strings.Unbounded.Index (Msg, "botsnack") > 0 then
-         Database_Request.Operation := Database.Snack_Operation;
+         Database_Request.Operation := DatabaseQ.Snack_Operation;
          Database_Request.Destination := Destination;
-         Database.Requests.Enqueue (Database_Request);
+         DatabaseQ.Requests.Enqueue (Database_Request);
          return true;
       else
          return false;
@@ -333,21 +339,21 @@ package body Command is
          -- If so, strip it and do a regexp lookup; if not, do regular lookup.
          if Length (Fact) > 0 then
             if Element (Fact, 1) = '~' then
-               Database_Request.Operation := Database.RE_Fetch_Operation;
+               Database_Request.Operation := DatabaseQ.RE_Fetch_Operation;
                Database_Request.Data      := US (Slice (Fact, 2, Length (Fact)));
             else
-               Database_Request.Operation := Database.Fetch_Operation;
+               Database_Request.Operation := DatabaseQ.Fetch_Operation;
                Database_Request.Data      := Fact;
             end if;
          else
             -- Factoid dwindled to null after stripping, so just do a quip
-            Database_Request.Operation := Database.Quip_Operation;
+            Database_Request.Operation := DatabaseQ.Quip_Operation;
          end if;
 
          -- Submit whatever sort of database request we have built so far
          Database_Request.Origin      := Sender.Nick;
          Database_Request.Destination := Destination;
-         Database.Requests.Enqueue (Database_Request);
+         DatabaseQ.Requests.Enqueue (Database_Request);
       else
          -- Didn't manage to recognize the command pattern
          Say ("I can't quite make out your question--try again, maybe?");
@@ -378,10 +384,10 @@ package body Command is
       -- Bundle the request and send it to the file task for processing.  Note
       -- that we use Sender.Nick instead of Destination, to force RM search
       -- output to always go to the requestor as a private message.
-      File_Request.Operation   := File.RM_Operation;
+      File_Request.Operation   := FileQ.RM_Operation;
       File_Request.Data        := US (Cmd (Matches (1).First .. Matches (1).Last));
       File_Request.Destination := Sender.Nick;
-      File.Requests.Enqueue (File_Request);
+      FileQ.Requests.Enqueue (File_Request);
    end Find;
 
    ---------------------------------------------------------------------------
@@ -406,12 +412,12 @@ package body Command is
       end if;
 
       -- Bundle the request and send it to the database task for processing
-      Database_Request.Operation   := Database.Forget_Operation;
+      Database_Request.Operation   := DatabaseQ.Forget_Operation;
       Database_Request.Key         := US (Cmd (Matches (1).First .. Matches (1).Last));
       Database_Request.Origin      := Sender.Nick;
       Database_Request.Requestor   := Request.Origin;
       Database_Request.Destination := Destination;
-      Database.Requests.Enqueue (Database_Request);
+      DatabaseQ.Requests.Enqueue (Database_Request);
    end Forget;
 
    ---------------------------------------------------------------------------
@@ -430,7 +436,7 @@ package body Command is
       -- Start formatting a request for the file task.  Note that we use
       -- Sender.Nick instead of Destination, to force help output to always go
       -- to the requestor as a private message.
-      File_Request.Operation   := File.Help_Operation;
+      File_Request.Operation   := FileQ.Help_Operation;
       File_Request.Destination := Sender.Nick;
 
       -- Tell the file task whether we have an argument (help topic) or not
@@ -441,7 +447,7 @@ package body Command is
       end if;
 
       -- Send the request to the file task for processing
-      File.Requests.Enqueue (File_Request);
+      FileQ.Requests.Enqueue (File_Request);
    end Help;
 
    ---------------------------------------------------------------------------
@@ -485,7 +491,7 @@ package body Command is
          -- Send the line to the user.  Note that we use Sender.Nick instead
          -- of Destination, to force "last" output to always go to the
          -- requestor as a private message.
-         Output.Say (Line, Sender.Nick);
+         OutputQ.Say (Line, Sender.Nick);
       end List_Line;
 
       ------------------------------------------------------------------------
@@ -554,10 +560,10 @@ package body Command is
       end if;
 
       -- Bundle the request and send it to the database task for processing
-      Database_Request.Operation   := Database.List_Operation;
+      Database_Request.Operation   := DatabaseQ.List_Operation;
       Database_Request.Data        := Pat;
       Database_Request.Destination := Destination;
-      Database.Requests.Enqueue (Database_Request);
+      DatabaseQ.Requests.Enqueue (Database_Request);
    end List;
 
    ---------------------------------------------------------------------------
@@ -596,9 +602,9 @@ package body Command is
    begin  -- Quote
 
       -- Bundle the request and send it to the database task for processing
-      Database_Request.Operation   := Database.Quote_Operation;
+      Database_Request.Operation   := DatabaseQ.Quote_Operation;
       Database_Request.Destination := Destination;
-      Database.Requests.Enqueue (Database_Request);
+      DatabaseQ.Requests.Enqueue (Database_Request);
    end Quote;
 
    ---------------------------------------------------------------------------
@@ -623,13 +629,13 @@ package body Command is
       end if;
 
       -- Bundle the request and send it to the database task for processing
-      Database_Request.Operation   := Database.Rename_Operation;
+      Database_Request.Operation   := DatabaseQ.Rename_Operation;
       Database_Request.Key         := US (Cmd (Matches (1).First .. Matches (1).Last));
       Database_Request.Data        := US (Cmd (Matches (3).First .. Matches (3).Last));
       Database_Request.Origin      := Sender.Nick;
       Database_Request.Requestor   := Request.Origin;
       Database_Request.Destination := Destination;
-      Database.Requests.Enqueue (Database_Request);
+      DatabaseQ.Requests.Enqueue (Database_Request);
    end Rename;
 
    ---------------------------------------------------------------------------
@@ -658,13 +664,13 @@ package body Command is
          Fact : string := Cmd (Matches (1).First .. Matches (1).Last);
          To   : string := Cmd (Matches (3).First .. Matches (3).Last);
       begin
-         Database_Request.Operation   := Database.ResetFactoid_Operation;
+         Database_Request.Operation   := DatabaseQ.ResetFactoid_Operation;
          Database_Request.Key         := US (Fact);
          Database_Request.Data        := US (To);
          Database_Request.Origin      := Sender.Nick;
          Database_Request.Requestor   := Request.Origin;
          Database_Request.Destination := Destination;
-         Database.Requests.Enqueue (Database_Request);
+         DatabaseQ.Requests.Enqueue (Database_Request);
       end;
    end Reset;
 
@@ -698,24 +704,24 @@ package body Command is
          -- The "factoid is also def" adds a new definition
          if Match (Pat_AlsoSet.all, To) = To'First then
             Match (Pat_AlsoSet.all, To, Matches);
-            Database_Request.Operation   := Database.AddFactoid_Operation;
+            Database_Request.Operation   := DatabaseQ.AddFactoid_Operation;
             Database_Request.Data        := US (To (Matches (1).First .. Matches (1).Last));
 
          -- The "factoid is action <action>" sets an action as a factoid response
          elsif Match (Pat_ActionSet.all, To) = To'First then
             Match (Pat_ActionSet.all, To, Matches);
-            Database_Request.Operation   := Database.SetAction_Operation;
+            Database_Request.Operation   := DatabaseQ.SetAction_Operation;
             Database_Request.Data        := US (To (Matches (1).First .. Matches (1).Last));
 
          -- The "factoid is reply <reply>" sets a fixed reply as a factoid response
          elsif Match (Pat_ReplySet.all, To) = To'First then
             Match (Pat_ReplySet.all, To, Matches);
-            Database_Request.Operation   := Database.SetReply_Operation;
+            Database_Request.Operation   := DatabaseQ.SetReply_Operation;
             Database_Request.Data        := US (To (Matches (1).First .. Matches (1).Last));
 
          -- Simple "factoid is def" form
          else
-            Database_Request.Operation   := Database.SetFactoid_Operation;
+            Database_Request.Operation   := DatabaseQ.SetFactoid_Operation;
             Database_Request.Data        := US (To);
          end if;
 
@@ -723,7 +729,7 @@ package body Command is
          Database_Request.Key         := US (Fact);
          Database_Request.Origin      := Sender.Nick;
          Database_Request.Destination := Destination;
-         Database.Requests.Enqueue (Database_Request);
+         DatabaseQ.Requests.Enqueue (Database_Request);
       end;
    end Set;
 
@@ -754,11 +760,11 @@ package body Command is
          end if;
 
          -- Submit the operation to the database task
-         Database_Request.Operation := Database.Access_Operation;
+         Database_Request.Operation := DatabaseQ.Access_Operation;
          Database_Request.Origin    := Sender.Nick;
          Database_Request.Key       := US (Mask);
          Database_Request.Data      := US (Level);
-         Database.Requests.Enqueue (Database_Request);
+         DatabaseQ.Requests.Enqueue (Database_Request);
       exception
          -- Mostly this will catch constraint errors from the Value call above
          when others =>
@@ -808,10 +814,10 @@ package body Command is
 
          -- Now ask the file and database tasks to print the statistics that
          -- they know about
-         Database_Request.Operation := Database.Stats_Operation;
-         File_Request.Operation     := File.Stats_Operation;
+         Database_Request.Operation := DatabaseQ.Stats_Operation;
+         File_Request.Operation     := FileQ.Stats_Operation;
          File_Request.Destination   := Destination;
-         File.Requests.Enqueue (File_Request);
+         FileQ.Requests.Enqueue (File_Request);
 
       -- With an argument, it's either "stats <factoid>" or "stats commands"
       else
@@ -825,9 +831,9 @@ package body Command is
             -- command stats output to always go to the requestor as a private
             -- message.
             if To_Lower (About) = "commands" then
-               Output.Say ("Command statistics:", Sender.Nick);
+               OutputQ.Say ("Command statistics:", Sender.Nick);
                for VCmd in Config.Valid_Commands loop
-                  Output.Say ("   " & Config.Cmd_Names (VCmd) & Img (Config.Command_Usage (VCmd), 4), Sender.Nick);
+                  OutputQ.Say ("   " & Config.Cmd_Names (VCmd) & Img (Config.Command_Usage (VCmd), 4), Sender.Nick);
                   delay Config.Line_Pause;
                end loop;
 
@@ -838,14 +844,14 @@ package body Command is
 
                -- Not a magic keyword, treat as a factoid name
                Database_Request.Key         := US (About);
-               Database_Request.Operation   := Database.FactoidStats_Operation;
+               Database_Request.Operation   := DatabaseQ.FactoidStats_Operation;
             end if;
          end;
       end if;
 
       -- Finish the database request and send it to the database task
       Database_Request.Destination := Destination;
-      Database.Requests.Enqueue (Database_Request);
+      DatabaseQ.Requests.Enqueue (Database_Request);
    end Stats;
 
    ---------------------------------------------------------------------------
@@ -892,16 +898,16 @@ package body Command is
 
          -- See if factoid name is a regexp
          if Fact (Fact'First) = '~' then
-            Database_Request.Operation := Database.RE_Tell_Operation;
+            Database_Request.Operation := DatabaseQ.RE_Tell_Operation;
             Database_Request.Data      := US (Fact (Fact'First + 1 .. Fact'Last));
          else
-            Database_Request.Operation := Database.Tell_Operation;
+            Database_Request.Operation := DatabaseQ.Tell_Operation;
             Database_Request.Data      := US (Fact);
          end if;
 
          -- Finish the database request and send it to the database task
          Database_Request.Origin       := Sender.Nick;
-         Database.Requests.Enqueue (Database_Request);
+         DatabaseQ.Requests.Enqueue (Database_Request);
       end;
    end Tell;
 
@@ -923,17 +929,17 @@ package body Command is
 
       -- See if factoid name is a regexp
       if Cmd (Cmd'First) = '~' then
-         Database_Request.Operation := Database.RE_Fetch_Operation;
+         Database_Request.Operation := DatabaseQ.RE_Fetch_Operation;
          Database_Request.Data      := US (Cmd (Cmd'First + 1 .. Cmd'Last));
       else
-         Database_Request.Operation := Database.Fetch_Operation;
+         Database_Request.Operation := DatabaseQ.Fetch_Operation;
          Database_Request.Data      := US (Cmd);
       end if;
 
       -- Finish the database request and send it to the database task
       Database_Request.Origin       := Sender.Nick;
       Database_Request.Destination  := Destination;
-      Database.Requests.Enqueue (Database_Request);
+      DatabaseQ.Requests.Enqueue (Database_Request);
    end Fetch_Bare;
 
    ---------------------------------------------------------------------------
@@ -965,16 +971,16 @@ package body Command is
       -- Freenode sends us a CTCP VERSION as soon as we register, so answer it
       -- (and anybody else who asks our version) intelligently
       if Keywd ("VERSION") then
-         Output.Say (IRC.CTCP_Marker & "VERSION " & Identity.App_ID & IRC.CTCP_Marker, Tgt);
+         OutputQ.Say (IRC.CTCP_Marker & "VERSION " & Identity.App_ID & IRC.CTCP_Marker, Tgt);
 
       -- Standard answer to CTCP ACTION (but can this ever happen?)
       elsif Keywd ("ACTION") then
-         Output.Say (IRC.CTCP_Marker & "ACTION don't play dat!" & IRC.CTCP_Marker, Tgt);
+         OutputQ.Say (IRC.CTCP_Marker & "ACTION don't play dat!" & IRC.CTCP_Marker, Tgt);
 
       -- Send standard ERRMSG reply to all other CTCP requests.  This is where
       -- things like FINGER, USERINFO, PING, etc., could be added.
       else
-         Output.Say (IRC.CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & IRC.CTCP_Marker, Tgt);
+         OutputQ.Say (IRC.CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & IRC.CTCP_Marker, Tgt);
       end if;
    end Process_CTCP_Request;
 
@@ -1022,25 +1028,25 @@ package body Command is
             case CmdType is
                when Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List | Cmd_Last =>
                   -- These commands are assumed to require only the default
-                  Output.Say ("You must have pissed somebody off, cuz you're persona non grata.", To);
+                  OutputQ.Say ("You must have pissed somebody off, cuz you're persona non grata.", To);
                when Cmd_MyAccess =>
-                  Output.Say ("Why don't you just ask them what their access level is?", To);
+                  OutputQ.Say ("Why don't you just ask them what their access level is?", To);
                when Cmd_SetAccess =>
-                  Output.Say ("Only my operator can do that, sorry.", To);
+                  OutputQ.Say ("Only my operator can do that, sorry.", To);
                when Cmd_Forget | Cmd_Rename | Cmd_Reset | Cmd_Set =>
-                  Output.Say ("Only known users can update the factoid database, sorry.", To);
+                  OutputQ.Say ("Only known users can update the factoid database, sorry.", To);
                when Cmd_Quit =>
-                  Output.Say ("I'm sorry " & S (Sender.Nick) & ", I don't know you well enough to take orders from you.", To);
+                  OutputQ.Say ("I'm sorry " & S (Sender.Nick) & ", I don't know you well enough to take orders from you.", To);
                when Cmd_Quote =>
-                  Output.Say ("You need a higher access level--ask the bot operator about it.", To);
+                  OutputQ.Say ("You need a higher access level--ask the bot operator about it.", To);
                when Cmd_Stats =>
-                  Output.Say ("You'll be able to access the stats soon enough, if you hang around and contribute.", To);
+                  OutputQ.Say ("You'll be able to access the stats soon enough, if you hang around and contribute.", To);
                when Cmd_Tell =>
-                  Output.Say ("That's pretty personal, isn't it?  Let's give you a while, then we'll see.", To);
+                  OutputQ.Say ("That's pretty personal, isn't it?  Let's give you a while, then we'll see.", To);
                when Cmd_None =>
                   -- This is a "shouldn't happen", but at least we can see it
                   -- if it ever does
-                  Output.Say ("This is another fine mess you've gotten us into, Stanley!", To);
+                  OutputQ.Say ("This is another fine mess you've gotten us into, Stanley!", To);
             end case;
          end if;
       end Exec;
@@ -1142,27 +1148,9 @@ package body Command is
    -- because they have had an unhandled exception themselves.
    procedure Do_Crash is
    begin  -- Do_Crash
-      Output.Say ("I'm not feeling well ... think I'll go lie down.", Channel);
+      OutputQ.Say ("I'm not feeling well ... think I'll go lie down.", Channel);
       Shutdown;
    end Do_Crash;
-
-------------------------------------------------------------------------------
---
--- Public subroutines
---
-------------------------------------------------------------------------------
-
-   -- Cause the bot to do an emergency shutdown, by telling the command task
-   -- to crash it
-   procedure Crash (Who : in string) is
-
-      Crash_Request : Request_Rec;
-
-   begin  -- Crash
-      Crash_Request.Operation := Crash_Operation;
-      Crash_Request.Data      := US (Who);
-      Requests.Enqueue (Crash_Request);
-   end Crash;
 
 ------------------------------------------------------------------------------
 --
@@ -1172,6 +1160,8 @@ package body Command is
 
    -- This is the command task
    task body Command_Task is
+
+      use CommandQ;
 
       Msg_Type : Message_Type_Enm;
 
@@ -1207,27 +1197,27 @@ package body Command is
 
                -- Begin login sequence by sending NICK message
                Info (Command_Name, "Log in as " & S (Current_Nick));
-               Output_Request.Operation := Output.Nick_Operation;
+               Output_Request.Operation := OutputQ.Nick_Operation;
                Output_Request.Data      := Current_Nick;
-               Output.Requests.Enqueue (Output_Request);
-               Output_Request.Operation := Output.User_Operation;
+               OutputQ.Requests.Enqueue (Output_Request);
+               Output_Request.Operation := OutputQ.User_Operation;
 
                -- Let the server think about that for a bit; required for pircd, at least
                delay 3.0;
 
                -- Now send the rest of the login sequence
-               Output_Request.Operation := Output.User_Operation;
+               Output_Request.Operation := OutputQ.User_Operation;
                Output_Request.Data      := US (Config.Get_Value (Config.Item_UserName) &
                                                " 0 * :" & Config.Get_Value (Config.Item_RealName));
-               Output.Requests.Enqueue (Output_Request);
+               OutputQ.Requests.Enqueue (Output_Request);
 
             -- Now that the input task handles pings directly, nobody sends
             -- pings to us any more, so this can probably be removed
             when Ping_Operation =>
                Dbg (Command_Name, "Ping with " & S (Request.Data));
-               Output_Request.Operation := Output.Ping_Operation;
+               Output_Request.Operation := OutputQ.Ping_Operation;
                Output_Request.Data      := Request.Data;
-               Output.Requests.Enqueue (Output_Request);
+               OutputQ.Requests.Enqueue (Output_Request);
 
             -- Here's our main brains: IRC messages and actions come here
             when Message_Operation | Save_Operation =>
@@ -1323,9 +1313,9 @@ package body Command is
                      -- database task to think about doing a quip.
                      if Request.Operation /= Save_Operation then
                         if not Is_Snack (Command) then
-                           Database_Request.Operation := Database.Quip_Operation;
+                           Database_Request.Operation := DatabaseQ.Quip_Operation;
                            Database_Request.Destination := Destination;
-                           Database.Requests.Enqueue (Database_Request);
+                           DatabaseQ.Requests.Enqueue (Database_Request);
                         end if;
                      end if;
                   end if;
@@ -1340,7 +1330,7 @@ package body Command is
                -- instead.
                if Fixed.Index (To_Lower (S (Request.Origin)), "nickserv") > 0 and
                   Fixed.Index (To_Lower (S (Request.Data)), "this nickname is owned") > 0 then
-                  Output.Say ("identify " & Config.Get_Value (Config.Item_NickPass), "nickserv");
+                  OutputQ.Say ("identify " & Config.Get_Value (Config.Item_NickPass), "nickserv");
                end if;
 
             -- Somebody (us or another task) wants us to quit
@@ -1357,9 +1347,9 @@ package body Command is
                   -- server has shut up for now, and it's time to try joining
                   -- our channel
                   Dbg (Command_Name, "Done with MOTD, joining " & Channel);
-                  Output_Request.Operation := Output.Join_Operation;
+                  Output_Request.Operation := OutputQ.Join_Operation;
                   Output_Request.Data      := US (Channel);
-                  Output.Requests.Enqueue (Output_Request);
+                  OutputQ.Requests.Enqueue (Output_Request);
                elsif Request.Reply = IRC.RPL_WELCOME then
                   -- The welcome message tells us that we've succeeded in
                   -- reconnecting (and registering, which to us is the real
