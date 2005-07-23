@@ -878,13 +878,7 @@ package body Database is
       -- request to the command task, which shuts down the bot.
       when E : others =>
          Log.Err (Database_Name, "Exception:  " & Ada.Exceptions.Exception_Information (E));
-         declare
-            Crash_Request : Command.Request_Rec;
-         begin
-            Crash_Request.Operation := Command.Crash_Operation;
-            Crash_Request.Data      := US (Database_Name);
-            Command.Requests.Enqueue (Crash_Request);
-         end;
+         Command.Crash (Database_Name);
    end Database_Task;
 
    ---------------------------------------------------------------------------

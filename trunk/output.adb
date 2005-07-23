@@ -17,6 +17,7 @@ use  Strings;
 
 --
 -- Application packages
+with Command;
 with IRC;
 with Log;
 
@@ -165,6 +166,7 @@ package body Output is
             when E : others =>
                Err (Output_Name, "Exception " & Ada.Exceptions.Exception_Information (E) &
                     " during write in " & Output_Name);
+               Command.Crash (Output_Name);
          end;
       end loop;
    end Output_Task;

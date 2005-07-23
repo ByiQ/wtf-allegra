@@ -31,6 +31,7 @@ use  Strings;
 --
 -- Application packages
 with Config;
+with Command;
 with Log;
 with Output;
 
@@ -694,6 +695,7 @@ package body File is
    exception
       when E : others =>
          Log.Err (File_Name, "RM lookup exception:  " & Ada.Exceptions.Exception_Information (E));
+         Command.Crash (File_Name);
    end Lookup;
 
 ------------------------------------------------------------------------------
@@ -731,6 +733,11 @@ package body File is
                            Img (RM_Index_Count) & " searchable RM index entries.", Request.Destination);
          end case;
       end loop;
+
+   exception
+      when E : others =>
+         Log.Err (File_Name, "Exception:  " & Ada.Exceptions.Exception_Information (E));
+         Command.Crash (File_Name);
    end File_Task;
 
    ---------------------------------------------------------------------------

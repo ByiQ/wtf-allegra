@@ -69,8 +69,9 @@ package body Input is
             when IRC.Connect_Error =>
                Dbg (Input_Name, "Connect error during " & Msg);
 
-            when E: others =>
+            when E : others =>
                Err (Input_Name, "Other exception " & Ada.Exceptions.Exception_Information (E) & " during " & Msg);
+               Command.Crash (Input_Name);
          end;
          delay Reconnect_Delay;  -- throttle connect requests
       end loop;
@@ -119,6 +120,7 @@ package body Input is
 
             when E: others =>
                Err (Input_Name, "Other exception " & Ada.Exceptions.Exception_Information (E) & " during read");
+               Command.Crash (Input_Name);
          end;
 
          -- If we read a line from the server, do some initial processing and
@@ -241,6 +243,11 @@ package body Input is
             Command.Requests.Enqueue (Command_Request);
          end if;
       end loop;
+
+   exception
+      when E : others =>
+         Err (Input_Name, "Exception " & Ada.Exceptions.Exception_Information (E));
+         Command.Crash (Input_Name);
    end Input_Task_Type;
 
    ---------------------------------------------------------------------------
