@@ -23,16 +23,25 @@ TASK_PACKAGES = \
 	input \
 	output \
 	ping
+QUEUE_PACKAGES = \
+	commandq \
+	outputq
+QUEUE_SPECS = \
+	databaseq \
+	fileq
 UTIL_PACKAGES = \
 	auth \
 	config \
 	db \
 	irc \
-	log \
+	log
+LIBRARY_PACKAGES = \
 	pqueue \
 	strings \
 	times
-PACKAGES = ${TASK_PACKAGES} ${UTIL_PACKAGES}
+PACKAGES       = ${TASK_PACKAGES} ${QUEUE_PACKAGES} ${UTIL_PACKAGES} ${LIBRARY_PACKAGES}
+PACKAGE_SPECS  = $(addsuffix .ads,${PACKAGES} ${QUEUE_SPECS})
+PACKAGE_BODIES = $(addsuffix .adb,${PACKAGES})
 
 #
 # The top-level target
@@ -53,7 +62,7 @@ BUILD_DATE=$(shell date +'%d %b %Y')
 
 ${IDENTITY_BODY}: app_ident
 
-app_ident: identity.adp
+app_ident: identity.adp identity.ads
 	gnatprep -DAppName=\"${NAME}\" -DAppVer=\"${VERREV}\" -DBuild_Date="\"${BUILD_DATE}\"" $< ${IDENTITY_BODY}
 
 #
