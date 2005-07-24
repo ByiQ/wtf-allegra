@@ -185,6 +185,7 @@
           <li>quips: Quips that are normal messages</li>
           <li>quitmsgs: Quit messages</li>
           <li>quotes: Quotes, retrievable via the bot's "quote" command</li>
+          <li>usrlevels: Command authorization levels assigned to various usermasks</li>
         </ul>
         You will need to provide your own values for these tables.  One simple
         way to do this is via the PostgreSQL utility "psql", using shell commands
@@ -193,10 +194,24 @@
           <li><tt>psql -d allegra -c "insert into actquips (msg) values ('runs the 100-metre dash')"</tt></li>
           <li><tt>psql -d allegra -c "insert into quips (msg) values ('I hear you knocking, but you can''t get in!')"</tt></li>
           <li><tt>psql -d allegra -c "insert into quitmsgs (msg) values ('I shall now take my leave.')"</tt></li>
-          <li><tt>psql -d allegra -c "insert into quotes (quote,attr) values ('Bah!',Ebenezer 'Scrooge')"</tt></li>
+          <li><tt>psql -d allegra -c "insert into quotes (quote,attr) values ('Bah!','Ebenezer Scrooge')"</tt></li>
+          <li><tt>psql -d allegra -c "insert into usrlevels values ('nick!user@some.host.net',6)"</tt></li>
         </ul>
         You may insert as many of each sort of message as you wish.  The bot
-        will select randomly from among the ones found in the tables.
+        will select randomly from among the ones found in the tables.  Adding
+        entries to the usrlevels table gives users who match the usermask that
+        access level for executing bot commands.  We recommended that you:
+        <ol>
+          <li>Add your own usermask immediately, with bot operator access (level 10).</li>
+
+          <li>Be careful in giving out bot operator access to anybody else.
+          Be sure you trust them implicitly, although most of the damage they
+          might do can be corrected by adjusting the database directly using
+          psql.  However, without a <a href="#maintenance">backup</a>, you
+          can't recover deleted factoids!
+          </li>
+        </ol>
+        
       </li>
 
       <li>
@@ -406,8 +421,22 @@
     </p>
     <ul>
       <li><a href="#ranvals">Adding new values</a> to the random-message tables.</li>
+
       <li><a href="#chgcfg">Changing values</a> in the configuration.</li>
-      <li>Her log file will grow endlessly, and while it doesn't log too much
+
+      <li>Backing up the database.  After the bot has been running for a
+      while, the factoid database, user auth table, and command statistics can
+      become rather valuable and difficult to recreate.  We recommend that you
+      perform regular backups of the database; to that end, we have provided a
+      simple shell script, "support/backup", that uses the PostgreSQL shell
+      command pg_dump to create a full backup of the current database.  If you
+      <a href="#installation">call your database</a> something other than
+      "allegra", you will need to change that name on the pg_dump command in
+      that script.  It puts the backup in a file named
+      "db-backup.<em>YYYY-MM-DD</em>", where "<em>YYYY-MM-DD</em>" is the date
+      you ran the script.</li>
+
+      <li>Her log file will grow endlessly, and while she doesn't log too much
       when the default "err" log level is set, it can grow quite quickly if
       you set "dbg" and run on a busy channel.  Consider using something like
       <a href="http://iain.cx/src/logrotate/">the logrotate utility</a> to
@@ -419,7 +448,7 @@
     <address><a href="mailto:allegra@niestu.com">Mail About Allegra</a></address>
 <!-- Created: Sun Jul 24 00:47:04 MST 2005 -->
 <!-- hhmts start -->
-Last modified: Sun Jul 24 05:45:40 MST 2005
+Last modified: Sun Jul 24 06:55:06 MST 2005
 <!-- hhmts end -->
   </body>
 </html>
