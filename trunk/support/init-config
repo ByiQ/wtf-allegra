@@ -82,7 +82,7 @@ INSERT INTO config VALUES ('channel',   'Ada');
 INSERT INTO config VALUES ('helppath',  'support/help-file');
 INSERT INTO config VALUES ('host',      'irc.freenode.net');
 INSERT INTO config VALUES ('lastsize',  '5');
-INSERT INTO config VALUES ('loglevel',  'err');
+INSERT INTO config VALUES ('loglevel',  'info');
 INSERT INTO config VALUES ('logpath',   '/var/log/allegra.log');
 INSERT INTO config VALUES ('nick',      'Allegra');
 INSERT INTO config VALUES ('nickpass',  'mypassword');

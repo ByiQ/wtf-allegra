@@ -20,21 +20,21 @@ stats improvements:
  x   count of known quotes
  x   individual command usage stats
 
-x rm lookup
+ x rm lookup
 
-x write final stat summary into log
+ x write final stat summary into log
 
-x ensure good exception handler coverage
+ x ensure good exception handler coverage
 
-x change timeout queue to a semaphore
+ x change timeout queue to a semaphore
 
 doc update and completion
 
 final polish
 
-distribution test
+ x distribution test
 
-public posting
+ x public posting
 
 
 nickserv GHOST command, and nick change
