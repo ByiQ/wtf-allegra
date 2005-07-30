@@ -118,7 +118,7 @@ package body Input is
             when IRC.Connect_Error =>
                Dbg (Input_Name, "Connect error during read");
 
-            when E: others =>
+            when E : others =>
                Err (Input_Name, "Other exception " & Ada.Exceptions.Exception_Information (E) & " during read");
                CommandQ.Crash (Input_Name);
          end;

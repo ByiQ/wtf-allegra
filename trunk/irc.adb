@@ -69,6 +69,11 @@ package body IRC is
    procedure Close_Server is
    begin  -- Close_Server
       Sockets.Shutdown (Sockets.Socket_FD (Handle));
+
+   exception
+      -- Map adasockets exceptions into our local generic exception
+      when others =>
+         raise Connect_Error;
    end Close_Server;
 
    ---------------------------------------------------------------------------
@@ -81,54 +86,62 @@ package body IRC is
       Start      : positive;
       Len        : natural;
 
-      -- Read the actual line from the server
-      Input_Line : string := Sockets.Get_Line (Handle);
-
    begin  -- Read
 
-      -- Now parse the message into its components: prefix, command, and
-      -- parameters
-      Scan := Input_Line'First;
-      Len  := Input_Line'Last;
+      -- This inner block is necessary so we can catch socket exceptions that
+      -- may occur when we read the line from the server, and map them into
+      -- our package's exception.  Doing the Get_Line in the declarations
+      -- (like we used to) means that this procedure block's context hasn't
+      -- been established yet, thus letting the adasockets exception get
+      -- propagated to the caller.
+      declare
+         Input_Line : string := Sockets.Get_Line (Handle);
+      begin
 
-      -- First, find the prefix if it's there
-      Message.Prefix := Null_Field;
-      if Scan <= Len and then Input_Line (Scan) = ':' then
-         Scan := Scan + 1;
-         Start := Scan;
-         while Scan <= Len and then Input_Line (Scan) /= Space loop
-            Scan := Scan + 1;
-         end loop;
-         if Scan > Start then
-            Message.Prefix := US (Input_Line (Start .. Scan - 1));
-         end if;
-      end if;
+         -- Now parse the message into its components: prefix, command, and
+         -- parameters
+         Scan := Input_Line'First;
+         Len  := Input_Line'Last;
 
-      -- Next, find the command
-      Message.Command := Null_Field;
-      if Scan <= Len then
-         if Input_Line (Scan) = Space then
+         -- First, find the prefix if it's there
+         Message.Prefix := Null_Field;
+         if Scan <= Len and then Input_Line (Scan) = ':' then
             Scan := Scan + 1;
+            Start := Scan;
+            while Scan <= Len and then Input_Line (Scan) /= Space loop
+               Scan := Scan + 1;
+            end loop;
+            if Scan > Start then
+               Message.Prefix := US (Input_Line (Start .. Scan - 1));
+            end if;
          end if;
-         Start := Scan;
-         while Scan <= Len and then Input_Line (Scan) /= Space loop
-            Scan := Scan + 1;
-         end loop;
-         if Scan > Start then
-            Message.Command := US (Input_Line (Start .. Scan - 1));
-         end if;
-      end if;
 
-      -- Finally, find the parameter string
-      Message.Params := Null_Field;
-      if Scan <= Len then
-         if Input_Line (Scan) = Space then
-            Scan := Scan + 1;
-         end if;
+         -- Next, find the command
+         Message.Command := Null_Field;
          if Scan <= Len then
-            Message.Params := US (Input_Line (Scan .. Len));
+            if Input_Line (Scan) = Space then
+               Scan := Scan + 1;
+            end if;
+            Start := Scan;
+            while Scan <= Len and then Input_Line (Scan) /= Space loop
+               Scan := Scan + 1;
+            end loop;
+            if Scan > Start then
+               Message.Command := US (Input_Line (Start .. Scan - 1));
+            end if;
          end if;
-      end if;
+
+         -- Finally, find the parameter string
+         Message.Params := Null_Field;
+         if Scan <= Len then
+            if Input_Line (Scan) = Space then
+               Scan := Scan + 1;
+            end if;
+            if Scan <= Len then
+               Message.Params := US (Input_Line (Scan .. Len));
+            end if;
+         end if;
+      end;
 
    exception
       -- Map adasockets exceptions, and any other exceptions we might
@@ -156,7 +169,7 @@ package body IRC is
 
    exception
       -- Map adasockets exceptions, and any other exceptions we might
-      -- encounter during parsing, into our local generic exception
+      -- encounter during message assembly, into our local generic exception
       when others =>
          raise Connect_Error;
    end Write;
