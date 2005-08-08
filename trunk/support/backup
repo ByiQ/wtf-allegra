@@ -1,8 +1,26 @@
 #!/bin/sh
 
-suffix=$(date +'%Y-%m-%d')
-name="db-backup.$suffix"
+# Use backup directory name if given on the command line, otherwise use cwd
+if [ "$1" ]; then
+   dir="$1"
+else
+   dir="."
+fi
 
+# Figure out the basename for today's backup
+suffix=$(date +'%Y-%m-%d')
+base="$dir/db-backup.$suffix"
+name="$base"
+
+# Avoid collisions if more than one backup on the same day
+num=1
+while [ -e "$name" ]; do
+   name="$base.$num"
+   let num="$num+1"
+done
+
+# Do the actual backup
 pg_dump allegra >$name
 
+# Report success
 echo "Backed up database to $name"
