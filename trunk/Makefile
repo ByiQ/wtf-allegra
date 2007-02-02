@@ -5,14 +5,12 @@
 # Chip Richards, NiEstu, Phoenix AZ, December 2003
 #
 
-#
 # Configuration
 PGADA_DIR   = /opt/pgada
 PGADA_INC   = ${PGADA_DIR}/include
 PGADA_LIB   = ${PGADA_DIR}/lib
 DEBUG       =
 
-#
 # Program structure
 MAIN          = allegra
 IDENTITY_BODY = identity.adb
@@ -39,16 +37,13 @@ PACKAGES       = ${TASK_PACKAGES} ${QUEUE_PACKAGES} ${UTIL_PACKAGES}
 PACKAGE_SPECS  = $(addsuffix .ads,${PACKAGES} ${QUEUE_SPECS})
 PACKAGE_BODIES = $(addsuffix .adb,${PACKAGES})
 
-#
 # The top-level target
 all: app_ident ${MAIN}
 
-#
 # Program-building targets
 ${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY_BODY}
 	gnatmake ${DEBUG} ${MAIN}.adb -aI${PGADA_INC} -aO${PGADA_LIB} $$(adasockets-config) -lpgada
 
-#
 # App identity package body is produced by preprocessor
 NAME=$(shell perl -e 'print ucfirst ("${MAIN}")')
 VER=$(shell svn propget version .)
@@ -61,10 +56,13 @@ ${IDENTITY_BODY}: app_ident
 app_ident: identity.adp identity.ads
 	gnatprep -DAppName=\"${NAME}\" -DAppVer=\"${VERREV}\" -DBuild_Date="\"${BUILD_DATE}\"" $< ${IDENTITY_BODY}
 
-#
 # Utility targets
 clean:
 	rm -f b~* *.o *.ali
 
 realclean: clean
 	rm ${MAIN}
+
+# Target to create snapshot tarball
+snapshot:
+	support/make-snapshot ${MAIN}-${VERREV}.tar.bz2
