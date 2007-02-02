@@ -35,11 +35,7 @@ UTIL_PACKAGES = \
 	db \
 	irc \
 	log
-LIBRARY_PACKAGES = \
-	pqueue \
-	strings \
-	times
-PACKAGES       = ${TASK_PACKAGES} ${QUEUE_PACKAGES} ${UTIL_PACKAGES} ${LIBRARY_PACKAGES}
+PACKAGES       = ${TASK_PACKAGES} ${QUEUE_PACKAGES} ${UTIL_PACKAGES}
 PACKAGE_SPECS  = $(addsuffix .ads,${PACKAGES} ${QUEUE_SPECS})
 PACKAGE_BODIES = $(addsuffix .adb,${PACKAGES})
 

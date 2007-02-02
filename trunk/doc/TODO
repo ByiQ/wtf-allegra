@@ -1,4 +1,27 @@
 
+bugs:
+ - exception handler doesn't always lead to clean termination
+ - bad access usermask causes exception
+
+improvements:
+ - ordering for multi-part factoids
+
+ - access "none" to delete user access entries
+
+ - make "find" accept an RM specifier (83/95/05), defaulting to current (95 right now)
+
+ - quote with regex
+
+ - switch to stream_text_io
+
+ - nickserv GHOST command, and nick change
+
+ - factoid => reply/action
+
+ - make user auth cache a variable-size array, not a linked list
+
+ - stylesheet for docs
+
  x nick collisions and other stateful jobs (ping -> "periodic" task?  other error returns?)
 
  x handle freenode version query (start by adding Identity package)
@@ -36,13 +59,5 @@ final polish
 
  x public posting
 
-
-nickserv GHOST command, and nick change
-
-factoid => reply/action
-
-make user auth cache a variable-size array, not a linked list
-
-quote regexp?
-
-stylesheet for docs?
+bugs
+ x set-access command (or rather, re-read of user table) causes exception

@@ -169,6 +169,7 @@ package body Auth is
          Free (Next);
          Next := Tail;
       end loop;
+      User_Head := null;
 
       -- Connect to the database, fetch the user auth level table, then disconnect
       DB.Connect (Handle, Host => "", DB => Config.Allegra_DB);

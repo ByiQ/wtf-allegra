@@ -59,29 +59,32 @@
     <ul>
       <li>Kernel: Linux 2.4.27-2-k7</li>
       <li>Distribution: <a href="http://www.debian.org/">Debian</a> "etch" (testing)</li>
-      <li>Compiler: <a href="http://libre.adacore.com/GNAT/">GNAT</a> 3.15p (Debian package gnat, version 3.15p-12)</li>
+      <li>Compiler: <a href="http://libre.adacore.com/GNAT/">GNAT</a> 4.1.2 (Debian package gnat, version 4.1.1-15)</li>
     </ul>
 
     <p>
-      It depends on two Ada support libraries, one of which is a standard
-      Debian package, one of which is not, and was built from source:
+      It depends on three Ada support libraries, one of which is a standard
+      Debian package, two of which are not, and were built from source:
     </p>
     <ul>
       <li><a href="http://www.rfc1149.net/devel/adasockets">AdaSockets</a>, a
-      socket library for Ada by Samuel Tardieu: Debian package libadasockets0
-      for the run-time, libadasockets0-dev for building, both version
-      1.8.4.7-1</li>
+      socket library for Ada by Samuel Tardieu: Debian package libadasockets1
+      for the run-time, libadasockets-dev for building, both version
+      1.8.4.7-4</li>
 
       <li><a href="http://www.rfc1149.net/devel/pgada">PGAda</a>, a binding to
       the libpq API library for the PostgreSQL database, also by M. Tardieu:
       version 0.0.1</li>
+
+      <li><a href="http://www.niestu.com/software/">NAIL</a>, a simple set of
+      Ada utility packages, developed locally; current version 20050812</li>
     </ul>
 
     <p>
       In turn, PGAda depends on libpq (currently provided by the Debian
-      package libpq3, version 7.4.7-6sarge1), and once running, the bot
-      expects a <a href="http://www.postgresql.org/">PostgreSQL</a> server to
-      be available (package postgresql, version 7.4.7-6sarge1).
+      packages libpq-dev and libpq4, both version 8.1.6-1), and once running,
+      the bot expects a <a href="http://www.postgresql.org/">PostgreSQL</a>
+      server to be available (package postgresql, version 7.5.22).
     </p>
 
     <p>
@@ -98,8 +101,7 @@
       anybody creates a set of patches to replace AdaSockets with
       GNAT.Sockets, please speak up.  AdaSockets is a fine piece of work, but
       GNAT.Sockets is quickly becoming a de facto standard for GNAT programs.
-      (Although it is quite broken in older versions of GNAT, specifically the
-      3.15p used for primary development.)
+      (Although it is quite broken in older versions of GNAT.)
     </p>
 
 
@@ -115,13 +117,14 @@
     <p style="margin-left: 2em;"><tt>make</tt></p>
     <p>
       If all goes well, this creates the binary, "allegra", which may be
-      installed anywhere you wish.  It has no dependencies on external files;
-      it fetches all of its configuration from the "allegra" database on the
-      PostgreSQL server, which is assumed to be running on the same host.  To
-      use a server on a different host, the "Host" argument to the "Connect"
-      call in config.adb would need to be set to the hostname where the server
-      is running.  Possibly, this might be made more configurable in a future
-      release, like being taken from a command-line option.
+      installed anywhere you wish.  It has no hard-coded dependencies on
+      external files; it fetches all of its configuration from the "allegra"
+      database on the PostgreSQL server, which is assumed to be running on the
+      same host.  To use a server on a different host, the "Host" argument to
+      the "Connect" call in config.adb would need to be set to the hostname
+      where the server is running.  Possibly, this might be made more
+      configurable in a future release, like being taken from a command-line
+      option.
     </p>
 
     <p>
@@ -365,7 +368,7 @@
     </p>
 
     <p>
-      To override any of the above-mentioned configuration five values, use
+      To override any of the above-mentioned five configuration values, use
       one or more of these positional command-line parameters:
     </p>
     <p style="margin-left: 2em;"><tt>allegra <em>irc-host irc-port nick channel logpath</em></tt></p>
@@ -448,7 +451,7 @@
     <address><a href="mailto:allegra@niestu.com">Mail About Allegra</a></address>
 <!-- Created: Sun Jul 24 00:47:04 MST 2005 -->
 <!-- hhmts start -->
-Last modified: Sun Jul 24 06:55:06 MST 2005
+Last modified: Fri Feb  2 14:49:56 MST 2007
 <!-- hhmts end -->
   </body>
 </html>

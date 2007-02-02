@@ -814,7 +814,7 @@ package body Command is
 
          -- Now ask the file and database tasks to print the statistics that
          -- they know about
-         Database_Request.Operation := DatabaseQ.Stats_Operation;
+         Database_Request.Operation := DatabaseQ.Stats_Operation;  -- operation is enqueued later
          File_Request.Operation     := FileQ.Stats_Operation;
          File_Request.Destination   := Destination;
          FileQ.Requests.Enqueue (File_Request);
