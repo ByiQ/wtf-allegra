@@ -232,7 +232,7 @@ package body Command is
    -- Check for a botsnack; respond and return true if it is
    function Is_Snack (Msg : in UString) return boolean is
    begin  -- Is_Snack
-      if Ada.Strings.Unbounded.Index (Msg, "botsnack") > 0 then
+      if Ada.Strings.Unbounded.Index (Msg, "botsnack") > 0 or Ada.Strings.Unbounded.Index (Msg, "botsnak") > 0 then
          Database_Request.Operation := DatabaseQ.Snack_Operation;
          Database_Request.Destination := Destination;
          DatabaseQ.Requests.Enqueue (Database_Request);
