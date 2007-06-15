@@ -113,7 +113,7 @@ package body Database is
    begin  -- Random_Select
 
       -- Connect and fetch the count of rows in the table
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "count(msg)", Table, "", Data);
 
       -- Get the count into a local variable; return a null string if we
@@ -158,7 +158,7 @@ package body Database is
    begin  -- Random_Quote
 
       -- Connect and fetch the count of rows in the table
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "count(quote)", Quotes_Tbl, "", Data);
 
       -- See if we got the count back
@@ -208,7 +208,7 @@ package body Database is
    begin  -- Set_Factoid
 
       -- Connect and try to fetch the factoid, to see if it's already there
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "name", Factoid_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
 
       -- If we got no hits on that factoid name, insert it into the table as a
@@ -257,7 +257,7 @@ package body Database is
    begin  -- Add_Factoid
 
       -- Connect and try to fetch the factoid, to see if it's already there
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "name", Factoid_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
 
       -- If it's not already there, treat it as a "set"
@@ -288,7 +288,7 @@ package body Database is
    begin  -- Factoid_Stats
 
       -- Connect, fetch the factoid's stats, and disconnect
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "*", Factstats_Tbl, "where name=" & Escape (To_Lower (Name)), Data);
       Disconnect (Handle);
 
@@ -336,7 +336,7 @@ package body Database is
 
       -- Connect and fetch the ID of the user who created this factoid
       -- originally
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "creator", Factstats_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
 
       -- If we didn't get anything, assume that the factoid doesn't exist;
@@ -395,7 +395,7 @@ package body Database is
       -- Connect and fetch the names of factoids matching the regexp.  We use
       -- "distinct" here, because we don't care whether a factoid has multiple
       -- definitions or not--we're only interested in the name.
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "distinct name", Factoid_Tbl, "where name ~* " & Escape (To_Lower (Pat)) & " order by name", Data);
       Disconnect (Handle);
 
@@ -492,7 +492,7 @@ package body Database is
       -- Have a factoid name, so connect and try to fetch it and its
       -- definition.  May fetch several rows, either multiple defs for a
       -- single factoid name, or multiple names matching a regexp.
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "name,value", Factoid_Tbl, "where name" & Op & Escape (To_Lower (S (Request.Data))), Data);
 
       -- See how many hits we got from our query, and proceed differently if
@@ -597,7 +597,7 @@ package body Database is
 
       -- Connect and fetch the ID of the user who created this factoid
       -- originally
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "creator", Factstats_Tbl, "where name=" & Escape (To_Lower (OldName)), Data);
 
       -- If we didn't get anything, assume that the factoid doesn't exist;
@@ -641,7 +641,7 @@ package body Database is
 
       -- Connect and fetch the ID of the user who created this factoid
       -- originally
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "creator", Factstats_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
 
       -- If we didn't get anything, assume that the factoid doesn't exist;
@@ -685,7 +685,7 @@ package body Database is
    begin  -- Set_Access
 
       -- Connect and try to fetch the usermask from the user auth table
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "name", UserLvl_Tbl, "where name = " & Escape (To_Lower (S (Request.Key))), Data);
 
       -- If we got the usermask, then this is an update; if not, it's an insert
@@ -738,7 +738,7 @@ package body Database is
 
       -- Connect and fetch the count of unique factoid names in the factoid
       -- table
-      Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       Fetch (Handle, "count(distinct name)", Factoid_Tbl, "", Data);
 
       -- If we got data, extract the value; otherwise it stays 0

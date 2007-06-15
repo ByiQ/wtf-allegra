@@ -12,6 +12,10 @@ package Config is
 --
 ------------------------------------------------------------------------------
 
+
+   -- Name of the database host, new for PostgreSQL 8
+   DB_Hostname    : constant string := "/tmp";  -- location of Unix named pipe
+
    -- Names of our database tables
    Allegra_DB     : constant string := "allegra";
    Config_Tbl     : constant string := "config";

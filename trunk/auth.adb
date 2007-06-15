@@ -172,7 +172,7 @@ package body Auth is
       User_Head := null;
 
       -- Connect to the database, fetch the user auth level table, then disconnect
-      DB.Connect (Handle, Host => "", DB => Config.Allegra_DB);
+      DB.Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
       DB.Fetch (Handle, "*", Config.UserLvl_Tbl, "", Auth_Data);
       DB.Disconnect (Handle);
 
