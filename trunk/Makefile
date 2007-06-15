@@ -65,4 +65,4 @@ realclean: clean
 
 # Target to create snapshot tarball
 snapshot:
-	support/make-snapshot ${MAIN}-${VERREV}.tar.bz2
+	support/make-snapshot ${MAIN}-${VERREV}
