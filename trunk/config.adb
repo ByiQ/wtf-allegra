@@ -122,17 +122,25 @@ package body Config is
       -- Connect to the db and get all three tables we need to init, then
       -- disconnect
       DB.Connect (Handle, Host => DB_Hostname, DB => Allegra_DB);
-      DB.Fetch (Handle, "*", Config_Tbl,   "", Cfg_Data);
-      DB.Fetch (Handle, "*", Cmd_Auth_Tbl, "", Auth_Data);
-      DB.Fetch (Handle, "*", Cmd_Stat_Tbl, "", Stat_Data);
-      DB.Fetch (Handle, "count(msg)", ActQuip_Tbl, "", Act_Count);
-      DB.Fetch (Handle, "count(msg)", MsgQuip_Tbl, "", Msg_Count);
+
+      DB.Prepare (Cfg_Data, "select * from " & Config_Tbl);
+      DB.Execute (Cfg_Data, Handle);
+      DB.Prepare (Auth_Data, "select * from " & Cmd_Auth_Tbl);
+      DB.Execute (Auth_Data, Handle);
+      DB.Prepare (Stat_Data, "select * from " & Cmd_Stat_Tbl);
+      DB.Execute (Stat_Data, Handle);
+      DB.Prepare (Act_Count, "select count(msg) from " & ActQuip_Tbl);
+      DB.Execute (Act_Count, Handle);
+      DB.Prepare (Msg_Count, "select count(msg) from " & MsgQuip_Tbl);
+      DB.Execute (Msg_Count, Handle);
+
       DB.Disconnect (Handle);
 
       -- Initialize the configuration table from the db
       for Row in 1 .. DB.Rows (Cfg_Data) loop
+         DB.Fetch (Cfg_Data);
          declare
-            Name:  string := DB.Get_Value (Cfg_Data, Row, "name");
+            Name:  string := DB.Get_Value (Cfg_Data, "name");
          begin
             Item := Item_None;
             for Index in Cfg_Map'Range loop
@@ -143,7 +151,7 @@ package body Config is
             end loop;
             if Item /= Item_None then
                declare
-                  Value_Str:  string := DB.Get_Value (Cfg_Data, Row, "value");
+                  Value_Str:  string := DB.Get_Value (Cfg_Data, "value");
                begin
                   Config_Values (Item) := US (Value_Str);
                end;
@@ -153,8 +161,9 @@ package body Config is
 
       -- Initialize the command authorization level table from the db
       for Row in 1 .. DB.Rows (Auth_Data) loop
+         DB.Fetch (Auth_Data);
          declare
-            Name:  string := DB.Get_Value (Auth_Data, Row, "name");
+            Name:  string := DB.Get_Value (Auth_Data, "name");
          begin
             Cmd := Cmd_None;
             for Index in Cmd_Names'Range loop
@@ -164,15 +173,16 @@ package body Config is
                end if;
             end loop;
             if Cmd /= Cmd_None then
-               Cmd_Auth_Levels (Cmd) := DB.Get_Value (Auth_Data, Row, "level");
+               Cmd_Auth_Levels (Cmd) := DB.Get_Value (Auth_Data, "level");
             end if;
          end;
       end loop;
 
       -- Initialize the command statistics table from the db
       for Row in 1 .. DB.Rows (Stat_Data) loop
+         DB.Fetch (Stat_Data);
          declare
-            Name:  string := DB.Get_Value (Stat_Data, Row, "name");
+            Name:  string := DB.Get_Value (Stat_Data, "name");
          begin
             Cmd := Cmd_None;
             for Index in Valid_Commands loop
@@ -182,19 +192,21 @@ package body Config is
                end if;
             end loop;
             if Cmd /= Cmd_None then
-               Cmd_Usages (Cmd) := DB.Get_Value (Stat_Data, Row, "used");
+               Cmd_Usages (Cmd) := DB.Get_Value (Stat_Data, "used");
             end if;
          end;
       end loop;
 
       -- Determine the ratio of action quips to message quips
+      DB.Fetch (Act_Count);
       if DB.Rows (Act_Count) > 0 then
-         NumActs := DB.Get_Value (Act_Count, 1, "count");
+         NumActs := DB.Get_Value (Act_Count, "count");
       else
          NumActs := 0;
       end if;
+      DB.Fetch (Msg_Count);
       if DB.Rows (Msg_Count) > 0 then
-         NumMsgs := DB.Get_Value (Msg_Count, 1, "count");
+         NumMsgs := DB.Get_Value (Msg_Count, "count");
       else
          NumMsgs := 0;
       end if;
@@ -281,7 +293,8 @@ package body Config is
    -- Save any cached configuration values to the db
    procedure WrapUp is
 
-      Handle    : DB.DB_Handle;
+      Handle : DB.DB_Handle;
+      Query  : DB.DB_Result;
 
    begin  -- WrapUp
 
@@ -290,9 +303,10 @@ package body Config is
       Access_Control.Wait_For_Data;
       DB.Connect (Handle, Host => DB_Hostname, DB => Allegra_DB);
       for Cmd in Valid_Commands loop
-         DB.Statement (Handle, "update " & Cmd_Stat_Tbl & " set used=" & Img (Cmd_Usages (Cmd)) &
-                               " where name=" & DB.Escape (RTrim (Cmd_Names (Cmd))));
-
+         DB.Prepare (Query, "update " & Cmd_Stat_Tbl & " set used=" & Img (Cmd_Usages (Cmd)) &
+                            " where name=");
+         DB.Append_Quoted (Query, Handle, RTrim (Cmd_Names (Cmd)));
+         DB.Execute (Query, Handle);
       end loop;
       DB.Disconnect (Handle);
    end WrapUp;
