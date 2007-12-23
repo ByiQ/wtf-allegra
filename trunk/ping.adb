@@ -73,13 +73,10 @@ package body Ping is
    task body Ping_Task_Type is
 
       -- Number of pings we've missed so far
-      Missed         : natural := 0;
+      Missed         : Natural := 0;
 
       -- Request variable so we can send pings
       Output_Request : OutputQ.Request_Rec;
-
-      -- Our "request".  Its value isn't important, only its presence.
-      Dont_Care      : boolean;
 
    begin  -- Ping_Task_Type
 
