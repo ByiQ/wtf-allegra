@@ -173,15 +173,17 @@ package body Auth is
 
       -- Connect to the database, fetch the user auth level table, then disconnect
       DB.Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
-      DB.Fetch (Handle, "*", Config.UserLvl_Tbl, "", Auth_Data);
+      DB.Prepare (Auth_Data, "select * from " & Config.UserLvl_Tbl);
+      DB.Execute (Auth_Data, Handle);
       DB.Disconnect (Handle);
 
       -- Copy the user auth data into our linked list
       for Row in 1 .. DB.Rows (Auth_Data) loop
+         DB.Fetch (Auth_Data);
          declare
-            UName    : string := DB.Get_Value (Auth_Data, Row, "name");
+            UName    : string := DB.Get_Value (Auth_Data, "name");
             Name     : UString := US (UName);
-            Level    : Config.Auth_Level := DB.Get_Value (Auth_Data, Row, "level");
+            Level    : Config.Auth_Level := DB.Get_Value (Auth_Data, "level");
             New_User : User_Ptr := new User_Rec'(ID => Name, Level => Level, Next => null);
          begin
             if User_Head = null then
