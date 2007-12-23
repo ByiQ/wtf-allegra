@@ -4,17 +4,16 @@
 --
 
 
---
 -- Standard packages
+with Ada.Characters.Latin_1;
+with Ada.Streams;
 with Ada.Strings.Unbounded;
 
 
---
--- Third-party library packages
-with Sockets;  -- adasockets
+-- GNAT-specific library packages
+with GNAT.Sockets;
 
 
---
 -- Local library packages
 with Strings;
 use  Strings;
@@ -31,6 +30,10 @@ package body IRC is
    -- We like this one a lot
    Space : constant character := Ada.Strings.Space;
 
+   -- Far beyond the max line length an IRC server should ever send us (the
+   -- RFC says 512).
+   Max_Line_Length : constant := 1024;
+
 ------------------------------------------------------------------------------
 --
 -- Package variables
@@ -40,25 +43,82 @@ package body IRC is
    -- The socket handle of our current server connection.  This package only
    -- handles one server connection at a time, but that's sufficient for most
    -- needs.
-   Handle : Sockets.Socket_FD;
+   Handle : GNAT.Sockets.Socket_Type;
 
 ------------------------------------------------------------------------------
 --
--- Package variables
+-- Package routines
+--
+------------------------------------------------------------------------------
+
+   -- Read a line (string of characters terminated by a newline, hex 0A) from
+   -- a socket, ignoring CRs (hex 0D) while we're at it.  Adapted from Sam
+   -- Tardieu's adasockets code.
+   procedure Get_Line (Socket : in  GNAT.Sockets.Socket_Type;
+                       Line   : out String;
+                       Last   : out Natural) is
+
+      Index   : Positive := Line'First;
+      Char    : Character;
+      Channel : constant GNAT.Sockets.Stream_Access := GNAT.Sockets.Stream (Socket);
+
+   begin  -- Get_Line
+      loop
+         Char := Character'Input (Channel);
+         if Char = Ada.Characters.Latin_1.LF then
+            Last := Index - 1;
+            return;
+         elsif Char /= Ada.Characters.Latin_1.CR then
+            Line (Index) := Char;
+            Index := Index + 1;
+            if Index > Line'Last then
+               Last := Line'Last;
+               return;
+            end if;
+         end if;
+      end loop;
+   end Get_Line;
+
+   ---------------------------------------------------------------------------
+
+   -- Write a string to a socket.  Unlike adasockets' Put_Line, does not add a
+   -- CRLF.
+   procedure Put_String (Socket : in GNAT.Sockets.Socket_Type;
+                         Str    : in String) is
+
+      Channel : constant GNAT.Sockets.Stream_Access := GNAT.Sockets.Stream (Socket);
+
+   begin  -- Put_String
+      for C in Str'Range loop
+         Character'Output (Channel, Str (C));
+      end loop;
+   end Put_String;
+
+------------------------------------------------------------------------------
+--
+-- Exported routines
 --
 ------------------------------------------------------------------------------
 
    -- Connect to given IRC server on given port
-   procedure Open_Server (Name : in string;
-                          Port : in positive) is
+   procedure Open_Server (Name : in String;
+                          Port : in Positive) is
+
+      use GNAT.Sockets;
+
+      Address : Sock_Addr_Type;
+
    begin  -- Open_Server
 
       -- Create a socket to use for the IRC server connection, then connect it
-      Sockets.Socket (Sockets.Socket_FD (Handle));
-      Sockets.Connect (Sockets.Socket_FD (Handle), Name, Port);
+      Create_Socket (Handle);
+      Set_Socket_Option (Handle, Socket_Level, (Reuse_Address, True));
+      Address.Addr := Addresses (Get_Host_By_Name (Name));
+      Address.Port := Port_Type (Port);
+      Connect_Socket (Handle, Address);
 
    exception
-      -- Map adasockets exceptions into our local generic exception
+      -- Map socket exceptions into our local generic exception
       when others =>
          raise Connect_Error;
    end Open_Server;
@@ -68,10 +128,10 @@ package body IRC is
    -- Close server connection
    procedure Close_Server is
    begin  -- Close_Server
-      Sockets.Shutdown (Sockets.Socket_FD (Handle));
+      GNAT.Sockets.Finalize;
 
    exception
-      -- Map adasockets exceptions into our local generic exception
+      -- Map socket exceptions into our local generic exception
       when others =>
          raise Connect_Error;
    end Close_Server;
@@ -82,70 +142,62 @@ package body IRC is
    -- until one is available
    procedure Read (Message : out Message_Rec) is
 
+      Input_Line : String (1 .. Max_Line_Length);
       Scan       : positive;
       Start      : positive;
       Len        : natural;
 
    begin  -- Read
 
-      -- This inner block is necessary so we can catch socket exceptions that
-      -- may occur when we read the line from the server, and map them into
-      -- our package's exception.  Doing the Get_Line in the declarations
-      -- (like we used to) means that this procedure block's context hasn't
-      -- been established yet, thus letting the adasockets exception get
-      -- propagated to the caller.
-      declare
-         Input_Line : string := Sockets.Get_Line (Handle);
-      begin
+      -- Fetch the line from the server
+      Get_Line (Handle, Input_Line, Len);
 
-         -- Now parse the message into its components: prefix, command, and
-         -- parameters
-         Scan := Input_Line'First;
-         Len  := Input_Line'Last;
+      -- Now parse the message into its components: prefix, command, and
+      -- parameters
+      Scan := Input_Line'First;
 
-         -- First, find the prefix if it's there
-         Message.Prefix := Null_Field;
-         if Scan <= Len and then Input_Line (Scan) = ':' then
+      -- First, find the prefix if it's there
+      Message.Prefix := Null_Field;
+      if Scan <= Len and then Input_Line (Scan) = ':' then
+         Scan := Scan + 1;
+         Start := Scan;
+         while Scan <= Len and then Input_Line (Scan) /= Space loop
             Scan := Scan + 1;
-            Start := Scan;
-            while Scan <= Len and then Input_Line (Scan) /= Space loop
-               Scan := Scan + 1;
-            end loop;
-            if Scan > Start then
-               Message.Prefix := US (Input_Line (Start .. Scan - 1));
-            end if;
+         end loop;
+         if Scan > Start then
+            Message.Prefix := US (Input_Line (Start .. Scan - 1));
          end if;
+      end if;
 
-         -- Next, find the command
-         Message.Command := Null_Field;
-         if Scan <= Len then
-            if Input_Line (Scan) = Space then
-               Scan := Scan + 1;
-            end if;
-            Start := Scan;
-            while Scan <= Len and then Input_Line (Scan) /= Space loop
-               Scan := Scan + 1;
-            end loop;
-            if Scan > Start then
-               Message.Command := US (Input_Line (Start .. Scan - 1));
-            end if;
+      -- Next, find the command
+      Message.Command := Null_Field;
+      if Scan <= Len then
+         if Input_Line (Scan) = Space then
+            Scan := Scan + 1;
          end if;
+         Start := Scan;
+         while Scan <= Len and then Input_Line (Scan) /= Space loop
+            Scan := Scan + 1;
+         end loop;
+         if Scan > Start then
+            Message.Command := US (Input_Line (Start .. Scan - 1));
+         end if;
+      end if;
 
-         -- Finally, find the parameter string
-         Message.Params := Null_Field;
-         if Scan <= Len then
-            if Input_Line (Scan) = Space then
-               Scan := Scan + 1;
-            end if;
-            if Scan <= Len then
-               Message.Params := US (Input_Line (Scan .. Len));
-            end if;
+      -- Finally, find the parameter string
+      Message.Params := Null_Field;
+      if Scan <= Len then
+         if Input_Line (Scan) = Space then
+            Scan := Scan + 1;
          end if;
-      end;
+         if Scan <= Len then
+            Message.Params := US (Input_Line (Scan .. Len));
+         end if;
+      end if;
 
    exception
-      -- Map adasockets exceptions, and any other exceptions we might
-      -- encounter during parsing, into our local generic exception
+      -- Map socket exceptions, and any other exceptions we might encounter
+      -- during parsing, into our local generic exception
       when others =>
          raise Connect_Error;
    end Read;
@@ -154,22 +206,25 @@ package body IRC is
 
    -- Write a message to the server
    procedure Write (Message : in Message_Rec) is
+
+      CRLF : constant String := Ada.Characters.Latin_1.CR & Ada.Characters.Latin_1.LF;
+
    begin  -- Write
 
       -- Assemble and write the actual message string from the components of
       -- the given message record; specifically, the prefix may be null
       if not Equal (Message.Prefix, Null_Field) then
-         Sockets.Put_Line (Handle, ":" & S (Message.Prefix) & Space &
-                           S (Message.Command) & Space &
-                           S (Message.Params));
+         Put_String (Handle, ":" & S (Message.Prefix) & Space &
+                                   S (Message.Command) & Space &
+                                   S (Message.Params) & CRLF);
       else
-         Sockets.Put_Line (Handle, S (Message.Command) & Space &
-                           S (Message.Params));
+         Put_String (Handle, S (Message.Command) & Space &
+                             S (Message.Params) & CRLF);
       end if;
 
    exception
-      -- Map adasockets exceptions, and any other exceptions we might
-      -- encounter during message assembly, into our local generic exception
+      -- Map socket exceptions, and any other exceptions we might encounter
+      -- during message assembly, into our local generic exception
       when others =>
          raise Connect_Error;
    end Write;
