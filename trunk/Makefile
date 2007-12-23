@@ -6,9 +6,6 @@
 #
 
 # Configuration
-PGADA_DIR   = /opt/pgada
-PGADA_INC   = ${PGADA_DIR}/include
-PGADA_LIB   = ${PGADA_DIR}/lib
 DEBUG       =
 
 # Program structure
@@ -42,7 +39,7 @@ all: app_ident ${MAIN}
 
 # Program-building targets
 ${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY_BODY}
-	gnatmake ${DEBUG} ${MAIN}.adb -aI${PGADA_INC} -aO${PGADA_LIB} $$(adasockets-config) -lpgada
+	gnatmake ${DEBUG} ${MAIN}.adb -largs -lnail
 
 # App identity package body is produced by preprocessor
 NAME=$(shell perl -e 'print ucfirst ("${MAIN}")')
