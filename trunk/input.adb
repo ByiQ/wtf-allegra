@@ -86,11 +86,10 @@ package body Input is
 
    task body Input_Task_Type is
 
-      Got_Input       : boolean;
+      Got_Input       : Boolean;
       Input_Message   : IRC.Message_Rec;
       Command_Request : CommandQ.Request_Rec;
       Output_Request  : OutputQ.Request_Rec;
-      Dont_Care       : boolean;
 
    begin  -- Input_Task_Type
 
