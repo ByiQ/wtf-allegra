@@ -20,6 +20,7 @@ with Ada.Text_IO.C_Streams;
 with GNAT.OS_Lib;
 with GNAT.Regpat;
 with Interfaces.C_Streams;
+with System.Regpat;  -- for exception declaration only
 
 
 --
@@ -160,7 +161,7 @@ package body File is
    -- Returns true if the given line is a marker line
    function Is_Marker (Line : in string) return boolean is
    begin  -- Is_Marker
-      return Line'Length > Marker_Prefix'Length and then Line (1 .. Marker_Prefix'Length) = Marker_Prefix;
+      return Line'Length > Marker_Prefix'Length and then Line (Line'First .. Line'First + Marker_Prefix'Length - 1) = Marker_Prefix;
    end Is_Marker;
 
    ---------------------------------------------------------------------------
@@ -320,15 +321,15 @@ package body File is
 
          -- Skip section headers, except the second (and presumably any
          -- subsequent) "C" is for "Interfaces.C", dangit
-         if Line'Length = 1 and Is_Upper (Line (1)) then
-            if Line (1) = 'C' and not Seen_C then
+         if Line'Length = 1 and Is_Upper (Line (Line'First)) then
+            if Line (Line'First) = 'C' and not Seen_C then
                Seen_C := true;
                return;
             end if;
          end if;
 
          -- Ensure that this is a head-term
-         if Line (1) = ' ' then
+         if Line (Line'First) = ' ' then
             Put_Line (Standard_Error, "RM index line " & Img (LNum) & " not a head-term; format unrecognized.");
             raise Program_Error;
          end if;
@@ -336,7 +337,7 @@ package body File is
          -- Okay, head term; split into text and refs, if any
          RefsAt := Index (Line, Ref_Sep);
          if RefsAt > 0 then
-            HTxt := US (Line (1 .. RefsAt - 1));
+            HTxt := US (Line (Line'First .. RefsAt - 1));
             Refs := US (LTrim (Line (RefsAt .. Line'Last)));
          else
             HTxt := US (Line);
@@ -360,11 +361,11 @@ package body File is
 
             -- See if it's a sub-term or a continuation of the previous
             -- sub-term
-            if RMLine (1) = ' ' then
+            if RMLine (Line'First) = ' ' then
 
                -- Sub-term; strip off leading blanks, then split it up
                declare
-                  Sub : string := LTrim (RMLine (1 .. Last));
+                  Sub : string := LTrim (RMLine (Line'First .. Last));
                begin
                   RefsAt := Index (Sub, Ref_Sep);
                   if RefsAt > 0 then
@@ -378,11 +379,11 @@ package body File is
                      -- with no refs.  We ignore the latter, and handle the
                      -- former in a rather brute-force fashion, by simply
                      -- reading the next line and using it as the refs.
-                     if Sub'Length < 3 or else Sub (1..3) /= "See" then
+                     if Sub'Length < 3 or else Sub (Line'First..Line'First+2) /= "See" then
                         Get_Line (RMFile, RMLine, Last);
                         LNum := LNum + 1;
                         RM_Index_Count := RM_Index_Count + 1;
-                        RM_Index (RM_Index_Count) := RM_Index_Item'(HTxt & " " & US (Sub), US (LTrim (RMLine (1..Last))));
+                        RM_Index (RM_Index_Count) := RM_Index_Item'(HTxt & " " & US (Sub), US (LTrim (RMLine (Line'First..Last))));
                      end if;
                   end if;
                end;
@@ -390,7 +391,7 @@ package body File is
 
                -- Term-cont, which are just refs; nail them onto previous
                -- term's refs, which are still indexed by RM_Index_Count
-               RM_Index (RM_Index_Count).Refs := RM_Index (RM_Index_Count).Refs & " " & US (RMLine (1 .. Last));
+               RM_Index (RM_Index_Count).Refs := RM_Index (RM_Index_Count).Refs & " " & US (RMLine (Line'First .. Last));
             end if;
          end loop;
       end Process_Index_Entry;
@@ -651,7 +652,7 @@ package body File is
 
       ------------------------------------------------------------------------
 
-      Pat     : Matcher_Ptr := new Pattern_Matcher'(Compile (S (Req.Data),  Case_Insensitive));
+      Pat     : Matcher_Ptr;
       Matched : natural;
       Matches : array (1 .. Max_Print) of RM_Index_Item;
       Refs    : UString;
@@ -659,6 +660,9 @@ package body File is
       ------------------------------------------------------------------------
 
    begin  -- Lookup
+
+      -- Compile the regex
+      Pat := new Pattern_Matcher'(Compile (S (Req.Data),  Case_Insensitive));
 
       -- Scan the index for matches, count how many, and save the first few
       Matched := 0;
@@ -698,6 +702,10 @@ package body File is
       end loop;
 
    exception
+      when System.Regpat.Expression_Error =>
+         OutputQ.Say ("The pattern """ & S (Req.Data) & """ is illegal, sorry.  Try ""!help regex"" for tips.",
+                      Req.Destination);
+
       when E : others =>
          Log.Err (File_Name, "RM lookup exception:  " & Ada.Exceptions.Exception_Information (E));
          CommandQ.Crash (File_Name);
