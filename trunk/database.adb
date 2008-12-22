@@ -63,15 +63,23 @@ package body Database is
 
 ------------------------------------------------------------------------------
 --
+-- Package exceptions
+--
+------------------------------------------------------------------------------
+
+   Connect_Error : exception;
+
+------------------------------------------------------------------------------
+--
 -- Package variables
 --
 ------------------------------------------------------------------------------
 
    -- Random number generator, for random quote/quip selection and such
-   Randoms        : Ada.Numerics.Float_Random.Generator;
+   Randoms : Ada.Numerics.Float_Random.Generator;
 
    -- The database request we're processing at the moment
-   Request        : DatabaseQ.Request_Rec;
+   Request : DatabaseQ.Request_Rec;
 
 ------------------------------------------------------------------------------
 --
@@ -98,6 +106,18 @@ package body Database is
 
    ---------------------------------------------------------------------------
 
+   procedure Safe_Connect (Handle : out DB_Handle) is
+   begin  -- Safe_Connect
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+   exception
+      when others =>
+         OutputQ.Say ("Can't connect to the factoid database.  Release the hounds!  (And tell the bot operator, please.)",
+                      Request.Destination);
+         raise Connect_Error;
+   end Safe_Connect;
+
+   ---------------------------------------------------------------------------
+
    -- Select a random entry from given database table and return it; used for
    -- quips and quit messages.  Requires the table to have a "num" column
    -- which contains the row number.
@@ -113,7 +133,7 @@ package body Database is
    begin  -- Random_Select
 
       -- Connect and fetch the count of rows in the table
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select count(msg) from " & Table);
       Execute (Data, Handle);
       Fetch (Data);
@@ -144,6 +164,15 @@ package body Database is
       else
          return "";
       end if;
+
+   exception
+      when Connect_Error =>
+         return "";  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("*burp*  Sorry, that gave me gas:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
+         return "";
    end Random_Select;
 
    ---------------------------------------------------------------------------
@@ -162,7 +191,7 @@ package body Database is
    begin  -- Random_Quote
 
       -- Connect and fetch the count of rows in the table
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select count(quote) from " & Quotes_Tbl);
       Execute (Data, Handle);
       Fetch (Data);
@@ -200,6 +229,14 @@ package body Database is
       Disconnect (Handle);
       Quote  := Null_UString;
       Attrib := Null_UString;
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("Here's a quote for you:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Random_Quote;
 
    ---------------------------------------------------------------------------
@@ -216,7 +253,7 @@ package body Database is
    begin  -- Set_Factoid
 
       -- Connect and try to fetch the factoid, to see if it's already there
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select name from " & Factoid_Tbl & " where name=");
       Append_Quoted (Data, Handle, To_Lower (Fact));
       Execute (Data, Handle);
@@ -261,6 +298,14 @@ package body Database is
 
       -- Done with the db now
       Disconnect (Handle);
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("That didn't set too well with me:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Set_Factoid;
 
    ---------------------------------------------------------------------------
@@ -278,7 +323,7 @@ package body Database is
    begin  -- Add_Factoid
 
       -- Connect and try to fetch the factoid, to see if it's already there
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select name from " & Factoid_Tbl & " where name=");
       Append_Quoted (Data, Handle, To_Lower (Fact));
       Execute (Data, Handle);
@@ -303,6 +348,14 @@ package body Database is
 
       OutputQ.Say ("Another definition for """ & Fact & """ has been added!", Request.Destination);
       Disconnect (Handle);
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("I forgot how to add ... " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Add_Factoid;
 
    ---------------------------------------------------------------------------
@@ -317,7 +370,7 @@ package body Database is
    begin  -- Factoid_Stats
 
       -- Connect, fetch the factoid's stats, and disconnect
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select * from " & Factstats_Tbl & " where name=");
       Append_Quoted (Data, Handle, To_Lower (Name));
       Execute (Data, Handle);
@@ -350,6 +403,14 @@ package body Database is
       else
          OutputQ.Say ("I can't seem to locate a factoid named """ & Name & """, sorry.", Request.Destination);
       end if;
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("Statistics always confused me:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Factoid_Stats;
 
    ---------------------------------------------------------------------------
@@ -368,7 +429,7 @@ package body Database is
 
       -- Connect and fetch the ID of the user who created this factoid
       -- originally
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select creator from " & Factstats_Tbl & " where name=");
       Append_Quoted (Data, Handle, To_Lower (Fact));
       Execute (Data, Handle);
@@ -417,6 +478,14 @@ package body Database is
 
       -- Done with the db now
       Disconnect (Handle);
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("I forgot how to bot:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Forget_Factoid;
 
    ---------------------------------------------------------------------------
@@ -437,7 +506,7 @@ package body Database is
       -- Connect and fetch the names of factoids matching the regexp.  We use
       -- "distinct" here, because we don't care whether a factoid has multiple
       -- definitions or not--we're only interested in the name.
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select distinct name from " & Factoid_Tbl & " where name ~*");
       Append_Quoted (Data, Handle, To_Lower (Pat));
       Append (Data, " order by name");
@@ -512,6 +581,14 @@ package body Database is
       else
          OutputQ.Say ("No factoids match """ & Pat & """", Request.Destination);
       end if;
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("Instead of a list, I got this:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end List_Factoids;
 
    ---------------------------------------------------------------------------
@@ -538,7 +615,7 @@ package body Database is
       -- Have a factoid name, so connect and try to fetch it and its
       -- definition.  May fetch several rows, either multiple defs for a
       -- single factoid name, or multiple names matching a regexp.
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select name,value from " & Factoid_Tbl & " where name" & Op);
       Append_Quoted (Data, Handle, To_Lower (S (Request.Data)));
       Execute (Data, Handle);
@@ -641,6 +718,14 @@ package body Database is
             OutputQ.Say ("Sorry, I couldn't find anything that matches """ & Request.Data & """", Request.Destination);
          end if;
       end if;
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("I seem to have fetched up a hairball:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Fetch_Factoid;
 
    ---------------------------------------------------------------------------
@@ -655,9 +740,8 @@ package body Database is
 
    begin  -- Rename_Factoid
 
-      -- Connect and fetch the ID of the user who created this factoid
-      -- originally
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      -- Connect and fetch the ID of the user who created this factoid originally
+      Safe_Connect (Handle);
       Prepare (Data, "select creator from " & Factstats_Tbl & " where name=");
       Append_Quoted (Data, Handle, To_Lower (OldName));
       Execute (Data, Handle);
@@ -695,6 +779,14 @@ package body Database is
 
       -- Done with the db now
       Disconnect (Handle);
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("What's in a name:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Rename_Factoid;
 
    ---------------------------------------------------------------------------
@@ -713,7 +805,7 @@ package body Database is
 
       -- Connect and fetch the ID of the user who created this factoid
       -- originally
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select creator from " & Factstats_Tbl & " where name=");
       Append_Quoted (Data, Handle, To_Lower (Fact));
       Execute (Data, Handle);
@@ -753,6 +845,14 @@ package body Database is
 
       -- Done with the db now
       Disconnect (Handle);
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("I think I need to reset my brain:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Reset_Factoid;
 
    ---------------------------------------------------------------------------
@@ -767,7 +867,7 @@ package body Database is
    begin  -- Set_Access
 
       -- Connect and try to fetch the usermask from the user auth table
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select name from " & UserLvl_Tbl & " where name=");
       Append_Quoted (Data, Handle, To_Lower (S (Request.Key)));
       Execute (Data, Handle);
@@ -796,6 +896,14 @@ package body Database is
 
       -- Re-read the user auth cache
       Auth.Init;
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("I seem to have accessed a bug:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Set_Access;
 
    ---------------------------------------------------------------------------
@@ -829,7 +937,7 @@ package body Database is
 
       -- Connect and fetch the count of unique factoid names in the factoid
       -- table
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Safe_Connect (Handle);
       Prepare (Data, "select count(distinct name) from " & Factoid_Tbl);
       Execute (Data, Handle);
       Fetch (Data);
@@ -855,6 +963,14 @@ package body Database is
       -- Report our results
       OutputQ.Say ("I currently know" & natural'Image (FCount) & " factoids and" & natural'Image (QCount) & " quotes.",
                    Request.Destination);
+
+   exception
+      when Connect_Error =>
+         null;  -- message already sent
+
+      when E : others =>
+         OutputQ.Say ("Statistics show ... a bug:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
+         Disconnect (Handle);
    end Show_Stats;
 
 ------------------------------------------------------------------------------
