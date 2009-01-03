@@ -975,7 +975,7 @@ package body Command is
 
       -- Standard answer to CTCP ACTION (but can this ever happen?)
       elsif Keywd ("TIME") then
-         OutputQ.Say (IRC.CTCP_Marker & "TIME Here in sunny Arizona USA, it is " &
+         OutputQ.Say (IRC.CTCP_Marker & "TIME : Here in sunny Arizona USA, it is " &
                         Fixed.Trim (Times.Date_String & " " & Times.Time_String, Side => Both) &
                         IRC.CTCP_Marker, Tgt);
 
