@@ -974,6 +974,12 @@ package body Command is
          OutputQ.Say (IRC.CTCP_Marker & "VERSION " & Identity.App_ID & IRC.CTCP_Marker, Tgt);
 
       -- Standard answer to CTCP ACTION (but can this ever happen?)
+      elsif Keywd ("TIME") then
+         OutputQ.Say (IRC.CTCP_Marker & "TIME Here in sunny Arizona USA, it is " &
+                        Times.Date_String & " " & Times.Time_String &
+                        IRC.CTCP_Marker, Tgt);
+
+      -- Standard answer to CTCP ACTION (but can this ever happen?)
       elsif Keywd ("ACTION") then
          OutputQ.Say (IRC.CTCP_Marker & "ACTION don't play dat!" & IRC.CTCP_Marker, Tgt);
 
