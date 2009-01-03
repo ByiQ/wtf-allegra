@@ -80,4 +80,18 @@ package body OutputQ is
 
    ---------------------------------------------------------------------------
 
+   -- Simple interface to allow other tasks to write a notice to the user
+   procedure Note (Msg : in string;  To : in string) is
+
+      Req : Request_Rec;
+
+   begin  -- Note
+      Req.Operation   := Notice_Operation;
+      Req.Destination := US (To);
+      Req.Data        := US (Msg);
+      Requests.Enqueue (Req);
+   end Note;
+
+   ---------------------------------------------------------------------------
+
 end OutputQ;

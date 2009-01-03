@@ -21,7 +21,7 @@ package OutputQ is
 
    -- Define the types of requests other tasks can make of this task
    type Operation_Type is ( Shutdown_Operation, Nick_Operation, User_Operation, Join_Operation,
-                            Message_Operation, Ping_Operation, Pong_Operation );
+                            Message_Operation, Notice_Operation, Ping_Operation, Pong_Operation );
    type Request_Rec is record
       Operation   : Operation_Type;
       Destination : UString;
@@ -47,10 +47,11 @@ package OutputQ is
 
    -- Simple interfaces to allow other tasks to write a message to the user.
    -- These just format and enqueue an output queue request.
-   procedure Say (Msg : in UString;  To : in UString);
-   procedure Say (Msg : in string;   To : in UString);
-   procedure Say (Msg : in UString;  To : in string);
-   procedure Say (Msg : in string;   To : in string);
+   procedure Say  (Msg : in UString;  To : in UString);
+   procedure Say  (Msg : in string;   To : in UString);
+   procedure Say  (Msg : in UString;  To : in string);
+   procedure Say  (Msg : in string;   To : in string);
+   procedure Note (Msg : in string;   To : in string);  -- for CTCP responses
 
    ---------------------------------------------------------------------------
 
