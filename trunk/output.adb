@@ -86,6 +86,11 @@ package body Output is
                        S (Request.Data));
                   IRC.Write (IRC.Message_Rec'(IRC.Null_Field, US ("PRIVMSG"),
                                               Request.Destination & " :" & Request.Data));
+               when Notice_Operation =>
+                  Dbg (Output_Name, "Writing NOTICE to " & S (Request.Destination) & ": " &
+                       S (Request.Data));
+                  IRC.Write (IRC.Message_Rec'(IRC.Null_Field, US ("NOTICE"),
+                                              Request.Destination & " :" & Request.Data));
 
                when Ping_Operation =>
                   Dbg (Output_Name, "Writing PING: " & S (Request.Data));
