@@ -971,22 +971,22 @@ package body Command is
       -- Freenode sends us a CTCP VERSION as soon as we register, so answer it
       -- (and anybody else who asks our version) intelligently
       if Keywd ("VERSION") then
-         OutputQ.Say (IRC.CTCP_Marker & "VERSION " & Identity.App_ID & IRC.CTCP_Marker, Tgt);
+         OutputQ.Note (IRC.CTCP_Marker & "VERSION " & Identity.App_ID & IRC.CTCP_Marker, Tgt);
 
       -- Standard answer to CTCP ACTION (but can this ever happen?)
       elsif Keywd ("TIME") then
-         OutputQ.Say (IRC.CTCP_Marker & "TIME : Here in sunny Arizona USA, it is " &
+         OutputQ.Note (IRC.CTCP_Marker & "TIME : Here in sunny Arizona USA, it is " &
                         Fixed.Trim (Times.Date_String & " " & Times.Time_String, Side => Both) &
                         IRC.CTCP_Marker, Tgt);
 
       -- Standard answer to CTCP ACTION (but can this ever happen?)
       elsif Keywd ("ACTION") then
-         OutputQ.Say (IRC.CTCP_Marker & "ACTION don't play dat!" & IRC.CTCP_Marker, Tgt);
+         OutputQ.Note (IRC.CTCP_Marker & "ACTION don't play dat!" & IRC.CTCP_Marker, Tgt);
 
       -- Send standard ERRMSG reply to all other CTCP requests.  This is where
       -- things like FINGER, USERINFO, PING, etc., could be added.
       else
-         OutputQ.Say (IRC.CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & IRC.CTCP_Marker, Tgt);
+         OutputQ.Note (IRC.CTCP_Marker & "ERRMSG Sorry, I'm not that kind of bot." & IRC.CTCP_Marker, Tgt);
       end if;
    end Process_CTCP_Request;
 
