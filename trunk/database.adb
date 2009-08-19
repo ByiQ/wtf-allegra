@@ -473,7 +473,7 @@ package body Database is
          if Count > 1 then
             Msg := Msg & "all" & Natural'Image (Count) & " definitions of";
          end if;
-         OutputQ.Say (Msg & " factoid """ & Fact & """!", Request.Destination);
+         OutputQ.Say (Msg & "factoid """ & Fact & """!", Request.Destination);
       end if;
 
       -- Done with the db now
