@@ -20,7 +20,6 @@ with Ada.Text_IO.C_Streams;
 with GNAT.OS_Lib;
 with GNAT.Regpat;
 with Interfaces.C_Streams;
-with System.Regpat;  -- for exception declaration only
 
 
 --
@@ -702,7 +701,7 @@ package body File is
       end loop;
 
    exception
-      when System.Regpat.Expression_Error =>
+      when GNAT.Regpat.Expression_Error =>
          OutputQ.Say ("The pattern """ & S (Req.Data) & """ is illegal, sorry.  Try ""!help regex"" for tips.",
                       Req.Destination);
 
