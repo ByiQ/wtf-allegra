@@ -22,5 +22,13 @@ done
 # Do the actual backup
 pg_dump allegra >$name
 
+# Email backups of the backup to selected kindly users
+cat <<EOF | mutt -s "Allegra database backup for $suffix" -a $name -- "jkimball4@gmail.com"
+Here is the Allegra database backup for this week.  Thanks for stashing them!
+
+-- 
+Chip
+EOF
+
 # Report success
 echo "Backed up database to $name"
