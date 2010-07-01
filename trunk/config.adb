@@ -195,10 +195,11 @@ package body Config is
       end if;
       if DB.Rows (Msg_Count) > 0 then
          NumMsgs := DB.Get_Value (Msg_Count, 1, "count");
+         Action_Message_Ratio := float (NumActs) / float (NumMsgs);
       else
          NumMsgs := 0;
+         Action_Message_Ratio := 0.0;
       end if;
-      Action_Message_Ratio := float (NumActs) / float (NumMsgs);
 
       -- Override certain config items from the command line.  Yes, this is
       -- awfully clunky, but it's also simple, and has been adequate for
