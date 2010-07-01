@@ -90,6 +90,7 @@ INSERT INTO config VALUES ('port',      '6667');
 INSERT INTO config VALUES ('quips',     '0.5');
 INSERT INTO config VALUES ('realname',  'Allegra InfoBot');
 INSERT INTO config VALUES ('shorthand', '!');
+INSERT INTO config VALUES ('shorturl',  'ada.cx');
 INSERT INTO config VALUES ('username',  'allegra');
 
 INSERT INTO cmdlevels VALUES ('myaccess',    1);
@@ -106,6 +107,7 @@ INSERT INTO cmdlevels VALUES ('quote',       2);
 INSERT INTO cmdlevels VALUES ('rename',      5);
 INSERT INTO cmdlevels VALUES ('reset',       5);
 INSERT INTO cmdlevels VALUES ('set',         5);
+INSERT INTO cmdlevels VALUES ('short',       1);
 INSERT INTO cmdlevels VALUES ('stats',       2);
 INSERT INTO cmdlevels VALUES ('tell',        3);
 
@@ -123,6 +125,7 @@ INSERT INTO cmdstats  VALUES ('quote',       0);
 INSERT INTO cmdstats  VALUES ('rename',      0);
 INSERT INTO cmdstats  VALUES ('reset',       0);
 INSERT INTO cmdstats  VALUES ('set',         0);
+INSERT INTO cmdstats  VALUES ('short',       0);
 INSERT INTO cmdstats  VALUES ('stats',       0);
 INSERT INTO cmdstats  VALUES ('tell',        0);
 
