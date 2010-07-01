@@ -1,11 +1,13 @@
 
+--
 -- DB -- Low-level database utility package for Allegra info-bot
+--
 
--- Standard library packages
-with Ada.Finalization;
 
+--
 -- Third-party library packages
-with APQ.PostgreSQL.Client;
+with PGAda.Database;
+with PGAda.Syntax;
 
 
 package DB is
@@ -16,9 +18,9 @@ package DB is
 --
 ------------------------------------------------------------------------------
 
-   -- Database connection and query objects
-   subtype DB_Handle is APQ.PostgreSQL.Client.Connection_Type;
-   subtype DB_Result is APQ.PostgreSQL.Client.Query_Type;
+   -- Rename these to shorter and (for me) more familiar names
+   subtype DB_Handle is PGAda.Database.Connection_Type;
+   subtype DB_Result is PGAda.Database.Result_Type;
 
 ------------------------------------------------------------------------------
 --
@@ -38,57 +40,55 @@ package DB is
 
    -- Establish a connection to the given database on the given host.  May
    -- raise Connect_Error.
-   procedure Connect (Handle : in out DB_Handle;
-                      Host   : in     String;
-                      DB     : in     String);
+   procedure Connect (Handle : out DB_Handle;
+                      Host   : in  string;
+                      DB     : in  string);
 
    -- Terminate the database connection
    procedure Disconnect (Handle : in out DB_Handle);
 
-   -- These value-returning functions require a bit of thunking
-   function Get_Value (Result : DB_Result;
-                       Col    : Positive)
-   return String;
+   -- Perform a SQL "select" query to retrieve data from the database.  The
+   -- query is constructed thusly:
+   --
+   -- select Fields from Table Clause
+   procedure Fetch (Handle : in  DB_Handle;
+                    Fields : in  string;
+                    Table  : in  string;
+                    Clause : in  string;
+                    Result : out DB_Result);
 
-   function Get_Value (Result : DB_Result;
-                       Col    : Positive)
-   return Integer;
-
-   function Get_Value (Result : DB_Result;
-                       Field  : String)
-   return String;
-
-   function Get_Value (Result : DB_Result;
-                       Field  : String)
-   return Integer;
+   -- Perform an arbitrary SQL statement, useful for things like insert,
+   -- delete, and update
+   procedure Statement (Handle : in DB_Handle;
+                        Stmt   : in string);
 
    -- Re-export these library routines so that users don't need to "with" the
    -- PGAda packages
-   procedure Prepare (Query : in out DB_Result;
-                      Start : in     String;
-                      After : in     String := APQ.Line_Feed)
-   renames APQ.PostgreSQL.Client.Prepare;
+   function Escape (S : string) return string renames PGAda.Syntax.Escape;
 
-   procedure Append (Query : in out DB_Result;
-                     Start : in     String;
-                     After : in     String := "")
-   renames APQ.PostgreSQL.Client.Append;
+   function Get_Value (Result : in DB_Result;
+                       Row    : in positive;
+                       Col    : in positive)
+                      return string renames PGAda.Database.Get_Value;
 
-   procedure Append_Quoted (Query  : in out DB_Result;
-                            Handle : in     DB_Handle;
-                            Str    : in     String);
+   function Get_Value (Result : in DB_Result;
+                       Row    : in positive;
+                       Col    : in positive)
+                      return integer renames PGAda.Database.Get_Value;
 
-   procedure Execute (Query  : in out DB_Result;
-                      Handle : in out DB_Handle);
+   function Get_Value (Result : in DB_Result;
+                       Row    : in positive;
+                       Field  : in string)
+                      return string renames PGAda.Database.Get_Value;
 
----   procedure Fetch (Query : in out DB_Result) renames APQ.PostgreSQL.Client.Fetch;
-   procedure Fetch (Query : in out DB_Result);
+   function Get_Value (Result : in DB_Result;
+                       Row    : in positive;
+                       Field  : in string)
+                      return integer renames PGAda.Database.Get_Value;
 
-   procedure Rewind (Query : in out DB_Result) renames APQ.PostgreSQL.Client.Rewind;
+   function Rows (Result : in DB_Result) return natural    renames PGAda.Database.Nbr_Tuples;
 
-   function Rows (Result : DB_Result) return Natural;
-
-   function Cols (Result : DB_Result) return Natural;
+   function Cols (Result : in DB_Result) return natural    renames PGAda.Database.Nbr_Fields;
 
    ---------------------------------------------------------------------------
 

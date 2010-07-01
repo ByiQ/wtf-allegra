@@ -63,23 +63,15 @@ package body Database is
 
 ------------------------------------------------------------------------------
 --
--- Package exceptions
---
-------------------------------------------------------------------------------
-
-   Connect_Error : exception;
-
-------------------------------------------------------------------------------
---
 -- Package variables
 --
 ------------------------------------------------------------------------------
 
    -- Random number generator, for random quote/quip selection and such
-   Randoms : Ada.Numerics.Float_Random.Generator;
+   Randoms        : Ada.Numerics.Float_Random.Generator;
 
    -- The database request we're processing at the moment
-   Request : DatabaseQ.Request_Rec;
+   Request        : DatabaseQ.Request_Rec;
 
 ------------------------------------------------------------------------------
 --
@@ -106,18 +98,6 @@ package body Database is
 
    ---------------------------------------------------------------------------
 
-   procedure Safe_Connect (Handle : out DB_Handle) is
-   begin  -- Safe_Connect
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
-   exception
-      when others =>
-         OutputQ.Say ("Can't connect to the factoid database.  Release the hounds!  (And tell the bot operator, please.)",
-                      Request.Destination);
-         raise Connect_Error;
-   end Safe_Connect;
-
-   ---------------------------------------------------------------------------
-
    -- Select a random entry from given database table and return it; used for
    -- quips and quit messages.  Requires the table to have a "num" column
    -- which contains the row number.
@@ -133,15 +113,13 @@ package body Database is
    begin  -- Random_Select
 
       -- Connect and fetch the count of rows in the table
-      Safe_Connect (Handle);
-      Prepare (Data, "select count(msg) from " & Table);
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "count(msg)", Table, "", Data);
 
       -- Get the count into a local variable; return a null string if we
       -- couldn't fetch the count
       if Rows (Data) > 0 then
-         Count := Get_Value (Data, "count");
+         Count := Get_Value (Data, 1, "count");
       else
          Count := 0;
       end if;
@@ -153,26 +131,15 @@ package body Database is
       Index := (integer (float (Count) * Random (Randoms)) mod Count) + 1;
 
       -- Fetch the row we've randomly selected, and disconnect
-      Prepare (Data, "select msg from " & Table & " where num=" & Positive'Image (Index));
-      Execute (Data, Handle);
-      Fetch (Data);
+      Fetch (Handle, "msg", Table, "where num=" & positive'Image (Index), Data);
       Disconnect (Handle);
 
       -- If we got data, return it; if not, return a null string
       if Rows (Data) > 0 then
-         return Get_Value (Data, "msg");
+         return Get_Value (Data, 1, "msg");
       else
          return "";
       end if;
-
-   exception
-      when Connect_Error =>
-         return "";  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("*burp*  Sorry, that gave me gas:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
-         return "";
    end Random_Select;
 
    ---------------------------------------------------------------------------
@@ -191,14 +158,12 @@ package body Database is
    begin  -- Random_Quote
 
       -- Connect and fetch the count of rows in the table
-      Safe_Connect (Handle);
-      Prepare (Data, "select count(quote) from " & Quotes_Tbl);
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "count(quote)", Quotes_Tbl, "", Data);
 
       -- See if we got the count back
       if Rows (Data) > 0 then
-         Count := Get_Value (Data, "count");
+         Count := Get_Value (Data, 1, "count");
       else
          Count := 0;
       end if;
@@ -210,15 +175,13 @@ package body Database is
          Index := (integer (float (Count) * Random (Randoms)) mod Count) + 1;
 
          -- Fetch the row we've randomly selected
-         Prepare (Data, "select quote,attr from " & Quotes_Tbl &  " where num=" & Positive'Image (Index));
-         Execute (Data, Handle);
-         Fetch (Data);
+         Fetch (Handle, "quote,attr", Quotes_Tbl, "where num=" & positive'Image (Index), Data);
 
          -- If we got a quote, disconnect from the db, and return the data values
          if Rows (Data) > 0 then
             Disconnect (Handle);
-            Quote  := US (Source => Get_Value (Data, "quote"));
-            Attrib := US (Source => Get_Value (Data, "attr"));
+            Quote  := US (Source => Get_Value (Data, 1, "quote"));
+            Attrib := US (Source => Get_Value (Data, 1, "attr"));
             return;
          end if;
       end if;
@@ -229,14 +192,6 @@ package body Database is
       Disconnect (Handle);
       Quote  := Null_UString;
       Attrib := Null_UString;
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("Here's a quote for you:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Random_Quote;
 
    ---------------------------------------------------------------------------
@@ -253,30 +208,17 @@ package body Database is
    begin  -- Set_Factoid
 
       -- Connect and try to fetch the factoid, to see if it's already there
-      Safe_Connect (Handle);
-      Prepare (Data, "select name from " & Factoid_Tbl & " where name=");
-      Append_Quoted (Data, Handle, To_Lower (Fact));
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "name", Factoid_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
 
       -- If we got no hits on that factoid name, insert it into the table as a
       -- new entry
       Hits := Rows (Data);
       if Hits = 0 then
-         Prepare (Data, "insert into " & Factoid_Tbl & " (name,value) values (");
-         Append_Quoted (Data, Handle, To_Lower (Fact));
-         Append (Data, ",");
-         Append_Quoted (Data, Handle, S (Request.Data));
-         Append (Data, ")");
-         Execute (Data, Handle);
-
-         Prepare (Data, "insert into " & Factstats_Tbl & " (name,created,creator) values (");
-         Append_Quoted (Data, Handle, To_Lower (Fact));
-         Append (Data, ",'now',");
-         Append_Quoted (Data, Handle, To_Lower (S (Request.Origin)));
-         Append (Data, ")");
-         Execute (Data, Handle);
-
+         Statement (Handle, "insert into " & Factoid_Tbl & " (name,value) values (" &
+                    To_Lower (Escape (Fact)) & "," & Escape (S (Request.Data)) & ")");
+         Statement (Handle, "insert into " & Factstats_Tbl & " (name,created,creator) values (" &
+                    To_Lower (Escape (Fact)) & ",'now'," & Escape (To_Lower (S (Request.Origin))) & ")");
          OutputQ.Say ("""" & Fact & """ has been added!", Request.Destination);
 
       -- Factoid is already there, so tell the user that we can't do the set
@@ -298,14 +240,6 @@ package body Database is
 
       -- Done with the db now
       Disconnect (Handle);
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("That didn't set too well with me:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Set_Factoid;
 
    ---------------------------------------------------------------------------
@@ -323,11 +257,8 @@ package body Database is
    begin  -- Add_Factoid
 
       -- Connect and try to fetch the factoid, to see if it's already there
-      Safe_Connect (Handle);
-      Prepare (Data, "select name from " & Factoid_Tbl & " where name=");
-      Append_Quoted (Data, Handle, To_Lower (Fact));
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "name", Factoid_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
 
       -- If it's not already there, treat it as a "set"
       Hits := Rows (Data);
@@ -339,23 +270,10 @@ package body Database is
       end if;
 
       -- It's already there, so add the new definition and disconnect
-      Prepare (Data, "insert into " & Factoid_Tbl & " (name,value) values (");
-      Append_Quoted (Data, Handle, To_Lower (Fact));
-      Append (Data, ",");
-      Append_Quoted (Data, Handle, S (Request.Data));
-      Append (Data, ")");
-      Execute (Data, Handle);
-
+      Statement (Handle, "insert into " & Factoid_Tbl & " (name,value) values (" &
+                 To_Lower (Escape (Fact)) & "," & Escape (S (Request.Data)) & ")");
       OutputQ.Say ("Another definition for """ & Fact & """ has been added!", Request.Destination);
       Disconnect (Handle);
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("I forgot how to add ... " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Add_Factoid;
 
    ---------------------------------------------------------------------------
@@ -370,20 +288,17 @@ package body Database is
    begin  -- Factoid_Stats
 
       -- Connect, fetch the factoid's stats, and disconnect
-      Safe_Connect (Handle);
-      Prepare (Data, "select * from " & Factstats_Tbl & " where name=");
-      Append_Quoted (Data, Handle, To_Lower (Name));
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "*", Factstats_Tbl, "where name=" & Escape (To_Lower (Name)), Data);
       Disconnect (Handle);
 
       -- If we got the stats, print them out in a nice human-readable format
       if Rows (Data) > 0 then
-         OutputQ.Say ("The factoid named """ & Name & """ was created by " & Get_Value (Data, "creator") &
-                      " on " & Get_Value (Data, "created") & ".", Request.Destination);
+         OutputQ.Say ("The factoid named """ & Name & """ was created by " & Get_Value (Data, 1, "creator") &
+                      " on " & Get_Value (Data, 1, "created") & ".", Request.Destination);
          delay Config.Line_Pause;
          declare
-            Count : string := Get_Value (Data, "acc_count");
+            Count : string := Get_Value (Data, 1, "acc_count");
          begin
             if Count = "0" then
                OutputQ.Say ("It has never been accessed.", Request.Destination);
@@ -393,8 +308,8 @@ package body Database is
                else
                   Msg := US ("It has been accessed " & Count & " times");
                end if;
-               Msg := Msg & ", last by " & Get_Value (Data, "acc_by") &
-                 " on " & Get_Value (Data, "acc_last") & ".";
+               Msg := Msg & ", last by " & Get_Value (Data, 1, "acc_by") &
+                 " on " & Get_Value (Data, 1, "acc_last") & ".";
                OutputQ.Say (Msg, Request.Destination);
             end if;
          end;
@@ -403,14 +318,6 @@ package body Database is
       else
          OutputQ.Say ("I can't seem to locate a factoid named """ & Name & """, sorry.", Request.Destination);
       end if;
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("Statistics always confused me:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Factoid_Stats;
 
    ---------------------------------------------------------------------------
@@ -429,11 +336,8 @@ package body Database is
 
       -- Connect and fetch the ID of the user who created this factoid
       -- originally
-      Safe_Connect (Handle);
-      Prepare (Data, "select creator from " & Factstats_Tbl & " where name=");
-      Append_Quoted (Data, Handle, To_Lower (Fact));
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "creator", Factstats_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
 
       -- If we didn't get anything, assume that the factoid doesn't exist;
       -- complain and return
@@ -445,47 +349,32 @@ package body Database is
 
       -- Only process the request if made by the original creator, or by the
       -- bot operator
-      if Is_Owner_Operator (S (Request.Origin), Get_Value (Data, "creator")) then
+      if Is_Owner_Operator (S (Request.Origin), Get_Value (Data, 1, "creator")) then
 
          -- Find out how many definitions we're deleting, so we can report
          -- that number back to the user
-         Prepare (Data, "select count(name) from " & Factoid_Tbl & " where name=");
-         Append_Quoted (Data, Handle, To_Lower (Fact));
-         Execute (Data, Handle);
-         Fetch (Data);
+         Fetch (Handle, "count(name)", Factoid_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
          if Rows (Data) > 0 then
-            Count := Get_Value (Data, "count");
+            Count := Get_Value (Data, 1, "count");
          else
             Count := 1;  -- shouldn't happen, but if it does, 1 is a safe assumption
          end if;
 
          -- Delete this factoid's entries from both the factoid table and the
          -- factoid statistics table
-         Prepare (Data, "delete from " & Factoid_Tbl & " where name=");
-         Append_Quoted (Data, Handle, To_Lower (Fact));
-         Execute (Data, Handle);
-         Prepare (Data, "delete from " & Factstats_Tbl & " where name=");
-         Append_Quoted (Data, Handle, To_Lower (Fact));
-         Execute (Data, Handle);
+         Statement (Handle, "delete from " & Factoid_Tbl   & " where name=" & Escape (To_Lower (Fact)));
+         Statement (Handle, "delete from " & Factstats_Tbl & " where name=" & Escape (To_Lower (Fact)));
 
          -- Tell the user what we did
          Msg := US ("I've forgotten ");
          if Count > 1 then
-            Msg := Msg & "all" & Natural'Image (Count) & " definitions of";
+            Msg := Msg & "all" & natural'Image (Count) & " definitions of";
          end if;
-         OutputQ.Say (Msg & "factoid """ & Fact & """!", Request.Destination);
+         OutputQ.Say (Msg & " factoid """ & Fact & """!", Request.Destination);
       end if;
 
       -- Done with the db now
       Disconnect (Handle);
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("I forgot how to bot:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Forget_Factoid;
 
    ---------------------------------------------------------------------------
@@ -506,11 +395,8 @@ package body Database is
       -- Connect and fetch the names of factoids matching the regexp.  We use
       -- "distinct" here, because we don't care whether a factoid has multiple
       -- definitions or not--we're only interested in the name.
-      Safe_Connect (Handle);
-      Prepare (Data, "select distinct name from " & Factoid_Tbl & " where name ~*");
-      Append_Quoted (Data, Handle, To_Lower (Pat));
-      Append (Data, " order by name");
-      Execute (Data, Handle);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "distinct name", Factoid_Tbl, "where name ~* " & Escape (To_Lower (Pat)) & " order by name", Data);
       Disconnect (Handle);
 
       -- See if we got any matches
@@ -519,7 +405,7 @@ package body Database is
 
          -- Flag determining whether to add a comma separator between names in
          -- the output line
-         First := True;
+         First := true;
 
          -- Step through all the names we got.  They're unique because we used
          -- "distinct" in our db query.
@@ -542,9 +428,8 @@ package body Database is
             -- Get the next factoid name and tack it onto the end of the line
             -- we're building, which the first time through is just the title,
             -- and subsequent times is the title plus the preceding names
-            Fetch (Data);
             declare
-               Name : string := Get_Value (Data, "name");
+               Name : string := Get_Value (Data, Row, "name");
             begin
 
                -- If the line is full (over our max length), print it and
@@ -581,14 +466,6 @@ package body Database is
       else
          OutputQ.Say ("No factoids match """ & Pat & """", Request.Destination);
       end if;
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("Instead of a list, I got this:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end List_Factoids;
 
    ---------------------------------------------------------------------------
@@ -615,11 +492,8 @@ package body Database is
       -- Have a factoid name, so connect and try to fetch it and its
       -- definition.  May fetch several rows, either multiple defs for a
       -- single factoid name, or multiple names matching a regexp.
-      Safe_Connect (Handle);
-      Prepare (Data, "select name,value from " & Factoid_Tbl & " where name" & Op);
-      Append_Quoted (Data, Handle, To_Lower (S (Request.Data)));
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "name,value", Factoid_Tbl, "where name" & Op & Escape (To_Lower (S (Request.Data))), Data);
 
       -- See how many hits we got from our query, and proceed differently if
       -- it's zero versus nonzero.
@@ -639,7 +513,7 @@ package body Database is
 
          -- Get the factoid name for some testing
          declare
-            Key : string := Get_Value (Data, "name");
+            Key : string := Get_Value (Data, 1, "name");
          begin
 
             -- Scan the name fields of the rows we got, for any that differ
@@ -647,8 +521,7 @@ package body Database is
             -- matched more than one factoid name; turn this into a "list"
             -- request and bail out.
             for Row in 2 .. Hits loop
-               Fetch (Data);
-               if Get_Value (Data, "name") /= Key then
+               if Get_Value (Data, Row, "name") /= Key then
                   OutputQ.Say ("""" & Request.Data & """ matches more than one factoid ...", Request.Destination);
                   List_Factoids (S (Request.Data));
                   Disconnect (Handle);
@@ -658,32 +531,22 @@ package body Database is
 
             -- All fetched rows are for the same factoid name, so update that
             -- factoid's fetch stats
-            Prepare (AccCnt, "select acc_count from " & Factstats_Tbl & " where name=");
-            Append_Quoted (AccCnt, Handle, Key);
-            Execute (AccCnt, Handle);
-            Fetch (AccCnt);
-
-            Prepare (AccCnt, "update " & Factstats_Tbl & " set acc_count=" &
-                     Natural'Image (Get_Value (AccCnt, "acc_count") + 1));
-            Append (AccCnt, ",acc_last='now',acc_by=");
-            Append_Quoted (AccCnt, Handle, To_Lower (S (Request.Origin)));
-            Append (AccCnt, "where name=");
-            Append_Quoted (AccCnt, Handle, Key);
-            Execute (AccCnt, Handle);
-
+            Fetch (Handle, "acc_count", Factstats_Tbl, "where name='" & Key & "'", AccCnt);
+            Statement (Handle, "update " & Factstats_Tbl &
+                       " set acc_count=" & natural'Image (Get_Value (AccCnt, 1, "acc_count") + 1) &
+                       ",acc_last='now',acc_by=" & Escape (To_Lower (S (Request.Origin))) &
+                       " where name='" & Key & "'");
             Disconnect (Handle);
          end;
 
          -- Print the fetched definition(s) in a human-friendly format
-         Rewind (Data);
          for Row in 1 .. Hits loop
-            Fetch (Data);
 
             -- Only print the factoid name on the first (or only) line
             if Row = 1 then
-               OutputQ.Say (Get_Value (Data, "name") & ":  " & Get_Value (Data, "value"), Request.Destination);
+               OutputQ.Say (Get_Value (Data, Row, "name") & ":  " & Get_Value (Data, Row, "value"), Request.Destination);
             else
-               OutputQ.Say (Get_Value (Data, "value"), Request.Destination);
+               OutputQ.Say (Get_Value (Data, Row, "value"), Request.Destination);
             end if;
 
             -- If this is the second or subsequent line of a multi-definition
@@ -718,14 +581,6 @@ package body Database is
             OutputQ.Say ("Sorry, I couldn't find anything that matches """ & Request.Data & """", Request.Destination);
          end if;
       end if;
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("I seem to have fetched up a hairball:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Fetch_Factoid;
 
    ---------------------------------------------------------------------------
@@ -740,53 +595,34 @@ package body Database is
 
    begin  -- Rename_Factoid
 
-      -- Connect and fetch the ID of the user who created this factoid originally
-      Safe_Connect (Handle);
-      Prepare (Data, "select creator from " & Factstats_Tbl & " where name=");
-      Append_Quoted (Data, Handle, To_Lower (OldName));
-      Execute (Data, Handle);
-      Fetch (Data);
+      -- Connect and fetch the ID of the user who created this factoid
+      -- originally
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "creator", Factstats_Tbl, "where name=" & Escape (To_Lower (OldName)), Data);
 
       -- If we didn't get anything, assume that the factoid doesn't exist;
       -- complain and return
       if Rows (Data) = 0 then
          OutputQ.Say ("I don't seem to know a factoid """ & OldName & """, so there's nothing to rename.",
                       Request.Destination);
-         Disconnect (Handle);
          return;
       end if;
 
       -- Only process the request if made by the original creator, or by the
       -- bot operator
-      if Is_Owner_Operator (S (Request.Origin), Get_Value (Data, "creator")) then
+      if Is_Owner_Operator (S (Request.Origin), Get_Value (Data, 1, "creator")) then
 
          -- Change the name in both the factoid and statistics databases, and
          -- report that to the user
-         Prepare (Data, "update " & Factoid_Tbl & " set name=");
-         Append_Quoted (Data, Handle, To_Lower (NewName));
-         Append (Data, "where name=");
-         Append_Quoted (Data, Handle, To_Lower (OldName));
-         Execute (Data, Handle);
-
-         Prepare (Data, "update " & Factstats_Tbl & " set name=");
-         Append_Quoted (Data, Handle, To_Lower (NewName));
-         Append (Data, "where name=");
-         Append_Quoted (Data, Handle, To_Lower (OldName));
-         Execute (Data, Handle);
-
+         Statement (Handle, "update " & Factoid_Tbl & " set name=" & Escape (To_Lower (NewName)) &
+                    " where name=" & Escape (To_Lower (OldName)));
+         Statement (Handle, "update " & Factstats_Tbl & " set name=" & Escape (To_Lower (NewName)) &
+                    " where name=" & Escape (To_Lower (OldName)));
          OutputQ.Say ("I've renamed factoid """ & OldName & """ to """ & NewName & """!", Request.Destination);
       end if;
 
       -- Done with the db now
       Disconnect (Handle);
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("What's in a name:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Rename_Factoid;
 
    ---------------------------------------------------------------------------
@@ -805,11 +641,8 @@ package body Database is
 
       -- Connect and fetch the ID of the user who created this factoid
       -- originally
-      Safe_Connect (Handle);
-      Prepare (Data, "select creator from " & Factstats_Tbl & " where name=");
-      Append_Quoted (Data, Handle, To_Lower (Fact));
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "creator", Factstats_Tbl, "where name=" & Escape (To_Lower (Fact)), Data);
 
       -- If we didn't get anything, assume that the factoid doesn't exist;
       -- complain and return
@@ -822,22 +655,15 @@ package body Database is
 
       -- Only process the request if made by the original creator, or by the
       -- bot operator
-      if Is_Owner_Operator (S (Request.Origin), Get_Value (Data, "creator")) then
+      if Is_Owner_Operator (S (Request.Origin), Get_Value (Data, 1, "creator")) then
 
          -- Process the request by deleting the old definition(s) and
          -- inserting the new one.  We don't update the statistics here, but
          -- maybe we should; presumably it would require adding a "reset"
          -- field to the stats table, or something like that.
-         Prepare (Data, "delete from " & Factoid_Tbl & " where name=");
-         Append_Quoted (Data, Handle, To_Lower (Fact));
-         Execute (Data, Handle);
-
-         Prepare (Data, "insert into " & Factoid_Tbl & " (name,value) values (");
-         Append_Quoted (Data, Handle, To_Lower (Fact));
-         Append (Data, ",");
-         Append_Quoted (Data, Handle, S (Request.Data));
-         Append (Data, ")");
-         Execute (Data, Handle);
+         Statement (Handle, "delete from " & Factoid_Tbl & " where name=" & Escape (To_Lower (Fact)));
+         Statement (Handle, "insert into " & Factoid_Tbl & " (name,value) values (" &
+                    Escape (To_Lower (Fact)) & "," & Escape (S (Request.Data)) & ")");
 
          -- Tell the user that the deed is done
          OutputQ.Say ("I've changed factoid """ & Fact & """!", Request.Destination);
@@ -845,14 +671,6 @@ package body Database is
 
       -- Done with the db now
       Disconnect (Handle);
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("I think I need to reset my brain:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Reset_Factoid;
 
    ---------------------------------------------------------------------------
@@ -867,27 +685,18 @@ package body Database is
    begin  -- Set_Access
 
       -- Connect and try to fetch the usermask from the user auth table
-      Safe_Connect (Handle);
-      Prepare (Data, "select name from " & UserLvl_Tbl & " where name=");
-      Append_Quoted (Data, Handle, To_Lower (S (Request.Key)));
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "name", UserLvl_Tbl, "where name = " & Escape (To_Lower (S (Request.Key))), Data);
 
       -- If we got the usermask, then this is an update; if not, it's an insert
       Hits := Rows (Data);
       if Hits > 0 then
-         Prepare (Data, "update " & UserLvl_Tbl & " set level=");
-         Append (Data, S (Request.Data) & " where name=");
-         Append_Quoted (Data, Handle, To_Lower (S (Request.Key)));
-         Execute (Data, Handle);
-
+         Statement (Handle, "update " & UserLvl_Tbl & " set level=" & S (Request.Data) &
+                    "where name=" & Escape (To_Lower (S (Request.Key))));
          OutputQ.Say ("Access level for " & To_Lower (S (Request.Key)) & " updated to " & S (Request.Data), Request.Origin);
       else
-         Prepare (Data, "insert into " & UserLvl_Tbl & " (name,level) values (");
-         Append_Quoted (Data, Handle, To_Lower (S (Request.Key)));
-         Append (Data, "," & S (Request.Data) & ")");
-         Execute (Data, Handle);
-
+         Statement (Handle, "insert into " & UserLvl_Tbl & " (name,level) values (" &
+                    Escape (To_Lower (S (Request.Key))) & "," & S (Request.Data) & ")");
          OutputQ.Say ("Usermask " & To_Lower (S (Request.Key)) & " added with level " & S (Request.Data), Request.Origin);
       end if;
 
@@ -896,14 +705,6 @@ package body Database is
 
       -- Re-read the user auth cache
       Auth.Init;
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("I seem to have accessed a bug:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Set_Access;
 
    ---------------------------------------------------------------------------
@@ -937,24 +738,20 @@ package body Database is
 
       -- Connect and fetch the count of unique factoid names in the factoid
       -- table
-      Safe_Connect (Handle);
-      Prepare (Data, "select count(distinct name) from " & Factoid_Tbl);
-      Execute (Data, Handle);
-      Fetch (Data);
+      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
+      Fetch (Handle, "count(distinct name)", Factoid_Tbl, "", Data);
 
       -- If we got data, extract the value; otherwise it stays 0
       if Rows (Data) > 0 then
-         FCount := Get_Value (Data, "count");
+         FCount := Get_Value (Data, 1, "count");
       end if;
 
       -- Fetch the count of items in the quotes table
-      Prepare (Data, "select count(quote) from " & Quotes_Tbl);
-      Execute (Data, Handle);
-      Fetch (Data);
+      Fetch (Handle, "count(quote)", Quotes_Tbl, "", Data);
 
       -- If we got data, extract the value; otherwise it stays 0
       if Rows (Data) > 0 then
-         QCount := Get_Value (Data, "count");
+         QCount := Get_Value (Data, 1, "count");
       end if;
 
       -- Done with the db now
@@ -963,14 +760,6 @@ package body Database is
       -- Report our results
       OutputQ.Say ("I currently know" & natural'Image (FCount) & " factoids and" & natural'Image (QCount) & " quotes.",
                    Request.Destination);
-
-   exception
-      when Connect_Error =>
-         null;  -- message already sent
-
-      when E : others =>
-         OutputQ.Say ("Statistics show ... a bug:  " & Ada.Exceptions.Exception_Information (E), Request.Destination);
-         Disconnect (Handle);
    end Show_Stats;
 
 ------------------------------------------------------------------------------
