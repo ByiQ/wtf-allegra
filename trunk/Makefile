@@ -6,6 +6,8 @@
 #
 
 # Configuration
+PGADA_INC   = $(shell pgada-conf compile incdir cflags)
+PGADA_LIB   = $(shell pgada-conf compile slibdir ldflags) -lpq
 DEBUG       =
 
 # Program structure
@@ -39,7 +41,7 @@ all: app_ident ${MAIN}
 
 # Program-building targets
 ${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY_BODY}
-	gnatmake ${DEBUG} ${MAIN}.adb -largs -lnail
+	gnatmake ${DEBUG} ${MAIN}.adb ${PGADA_INC} -largs -lnail ${PGADA_LIB}
 
 # App identity package body is produced by preprocessor
 NAME=$(shell perl -e 'print ucfirst ("${MAIN}")')
