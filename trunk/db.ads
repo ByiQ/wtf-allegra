@@ -19,8 +19,8 @@ package DB is
 ------------------------------------------------------------------------------
 
    -- Rename these to shorter and (for me) more familiar names
-   subtype DB_Handle is PGAda.Database.Connection_Type;
-   subtype DB_Result is PGAda.Database.Result_Type;
+   subtype DB_Handle is PGAda.Database.Connection_t;
+   subtype DB_Result is PGAda.Database.Result_t;
 
 ------------------------------------------------------------------------------
 --
