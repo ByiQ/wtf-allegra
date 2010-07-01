@@ -18,6 +18,7 @@ TASK_PACKAGES = \
 	database \
 	file \
 	input \
+	net \
 	output \
 	ping
 QUEUE_PACKAGES = \
@@ -25,6 +26,7 @@ QUEUE_PACKAGES = \
 	outputq
 QUEUE_SPECS = \
 	databaseq \
+	netq \
 	fileq
 UTIL_PACKAGES = \
 	auth \

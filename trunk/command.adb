@@ -39,6 +39,7 @@ with Input;
 with IRC;
 with Log;
 use  Log;
+with NetQ;
 with OutputQ;
 with Ping;
 
@@ -131,6 +132,7 @@ package body Command is
    -- Request variables for making requests to other tasks
    Database_Request : DatabaseQ.Request_Rec;
    File_Request     : FileQ.Request_Rec;
+   Net_Request      : NetQ.Request_Rec;
    Output_Request   : OutputQ.Request_Rec;
 
    -- Set true when we are to exit this task (set by the "quit" command)
@@ -774,6 +776,34 @@ package body Command is
 
    ---------------------------------------------------------------------------
 
+   -- Process the "shorten URL" command
+   procedure Short  (Cmd     : in String;
+                     Sender  : in IRC.MsgTo_Rec) is
+
+      Matches : Match_Array (Match_Range);
+
+   begin  -- Short
+
+      -- Re-match to extract the components
+      Match (Command_Table (Config.Cmd_Short).Matcher.all, Cmd, Matches);
+
+      -- Check shouldn't be necessary, right?  The regexp wouldn't have
+      -- matched in the first place, I'd think.  Maybe these can be removed in
+      -- all the places they're present.
+      if Matches (1) = No_Match then
+         Say ("The shorten-URL command is ""short URL"".");
+         return;
+      end if;
+
+      -- Bundle the request and send it to the net task for processing.
+      Net_Request.Operation   := NetQ.Shorten_URL_Operation;
+      Net_Request.Data        := US (Cmd (Matches (1).First .. Matches (1).Last));
+      Net_Request.Destination := Destination;
+      NetQ.Requests.Enqueue (Net_Request);
+   end Short;
+
+   ---------------------------------------------------------------------------
+
    -- Process the "stats" command
    procedure Stats  (Cmd     : in string;
                      Sender  : in IRC.MsgTo_Rec) is
@@ -1032,7 +1062,7 @@ package body Command is
                   Authorization'Image (Authorized));
             Cmds_Rejected := Cmds_Rejected + 1;
             case CmdType is
-               when Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List | Cmd_Last =>
+               when Cmd_CkAccess | Cmd_Fetch | Cmd_Find | Cmd_Help | Cmd_List | Cmd_Last | Cmd_Short =>
                   -- These commands are assumed to require only the default
                   OutputQ.Say ("You must have pissed somebody off, cuz you're persona non grata.", To);
                when Cmd_MyAccess =>
@@ -1134,6 +1164,7 @@ package body Command is
       Enter (Cmd_Reset,     "^no,\s*(\S.*?)\s+(is|are)\s+(\S.*)$",                 Reset'access);
       Enter (Cmd_Set,       "^(\S.*?)\s+(is|are)\s+(\S.*)$",                       Set'Access);
       Enter (Cmd_SetAccess, "^access\s+(\S+)\s+(\d+)$",                            SetAccess'Access);
+      Enter (Cmd_Short,     "^short\s+(\S.*)$",                                    Short'Access);
       Enter (Cmd_Stats,     "^stats(\s+\S.*)?$",                                   Stats'Access);
       Enter (Cmd_Tell,      "^tell\s+(\S+)\s+(about\s+)?(\S.*)$",                  Tell'Access);
 

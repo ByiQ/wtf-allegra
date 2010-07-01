@@ -57,6 +57,7 @@ package Config is
       Item_Port,
       Item_Quips,
       Item_RealName,
+      Item_Shorten_URL,
       Item_Shorthand,
       Item_UserName
      );
@@ -79,6 +80,7 @@ package Config is
       Cmd_Reset,
       Cmd_Set,
       Cmd_SetAccess,
+      Cmd_Short,
       Cmd_Stats,
       Cmd_Tell
      );
@@ -120,6 +122,7 @@ package Config is
       Cmd_Reset     => "reset           ",
       Cmd_Set       => "set             ",
       Cmd_SetAccess => "setaccess       ",
+      Cmd_Short     => "short           ",
       Cmd_Stats     => "stats           ",
       Cmd_Tell      => "tell            "
      );

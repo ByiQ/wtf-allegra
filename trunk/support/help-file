@@ -74,6 +74,11 @@ Prints a random quote.  Don't over-use this command, please!
 Command:  stats [ (<factoid-name>|commands) ]
 
 Print general statistics about the bot with "stats".  Print specific usage stats about a given factoid, with "stats <factoid-name>".  Print a count of command usages with "stats commands".
+---short
+
+Command:  short <url>
+
+Uses the ada.cx URL shortener service to retrieve (and store) a shortened form of the URL parameter.  Takes a moment to run, so be patient.  Currently experimental.
 ---access
 
 Command:  access [ <mask> [<level>] ]

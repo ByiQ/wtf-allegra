@@ -11,6 +11,7 @@ with Command;
 with Database;
 with File;
 with Input;
+with Net;
 with Output;
 with Ping;
 
