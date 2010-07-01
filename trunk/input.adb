@@ -54,7 +54,7 @@ package body Input is
    function Numeric_Reply (Field : in string) return boolean is
    begin  -- Numeric_Reply
       return Field'Length = IRC.Server_Reply_Length and then
-        (Is_Digit (Field (1)) and Is_Digit (Field (2)) and Is_Digit (Field (3)));
+        (Is_Digit (Field (Field'First)) and Is_Digit (Field (Field'First + 1)) and Is_Digit (Field (Field'First + 2)));
    end Numeric_Reply;
 
    ---------------------------------------------------------------------------
