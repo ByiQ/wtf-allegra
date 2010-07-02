@@ -94,6 +94,8 @@ package body Net is
 
       ------------------------------------------------------------------------
 
+      Shortener : String := S (URL_Shortener_Address);
+
       Handle    : Socket_Type;
       Address   : Sock_Addr_Type;
       Server    : Stream_Access;
@@ -103,17 +105,25 @@ package body Net is
 
    begin  -- Shorten_URL
 
-      -- Create a socket to use for the HTTP connection, then connect it
-      Create_Socket (Handle);
-      Set_Socket_Option (Handle, Socket_Level, (Reuse_Address, True));
-      Address.Addr := Addresses (Get_Host_By_Name (S (URL_Shortener_Address)));
-      Address.Port := Port_Type (Shortener_Port);
-      Connect_Socket (Handle, Address);
-      Server := Stream (Handle);
+      -- Create a socket to use for the HTTP connection, then connect it.  If
+      -- no connect, say so.
+      begin
+         Create_Socket (Handle);
+         Set_Socket_Option (Handle, Socket_Level, (Reuse_Address, True));
+         Address.Addr := Addresses (Get_Host_By_Name (Shortener));
+         Address.Port := Port_Type (Shortener_Port);
+         Connect_Socket (Handle, Address);
+         Server := Stream (Handle);
+      exception
+         when E : others =>
+            Log.Err (Net_Name, "URL shortener connect error:  " & Ada.Exceptions.Exception_Information (E));
+            OutputQ.Say ("Sorry, I couldn't talk to the URL shortener at " & Shortener, Req.Destination);
+            return;
+      end;
 
       -- Assemble and send the request
       declare
-         Get : String := Shorten_GET_1 & S (Req.Data) & Shorten_GET_2 & S (URL_Shortener_Address) & CRLF &
+         Get : String := Shorten_GET_1 & S (Req.Data) & Shorten_GET_2 & Shortener & CRLF &
                          Shorten_GET_3 & Identity.App_Name & " InfoBot v" & Identity.App_Version & CRLF &
                          CRLF;
       begin
