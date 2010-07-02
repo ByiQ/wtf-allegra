@@ -36,16 +36,17 @@ package body Net is
    -- This task's name, for logging purposes
    Net_Name       : constant string := "Net";
 
-   -- Maximum length of a shortened URL
-   Line_Max       : constant := 512;
-
-   -- Rename one of our faves
+   -- Rename a couple of our faves
    Newline        : constant Character := Ada.Characters.Latin_1.LF;
+   CRLF           : constant String := Ada.Characters.Latin_1.CR & Ada.Characters.Latin_1.LF;
 
-   -- First part of HTTP GET to fetch a shortened URL
+   -- Parts of HTTP GET to fetch a shortened URL
    Shorten_GET_1  : constant String := "POST /s?Long_URL=";
-   Shorten_GET_2  : constant String := " HTTP/1.1" & Newline & "Host: ";
+   Shorten_GET_2  : constant String := " HTTP/1.1" & CRLF & "Host: ";
    Shorten_GET_3  : constant String := "User-Agent: ";
+
+   -- The Content-Length header line's prefix
+   Content_Length : constant String := "Content-Length:";
 
    -- What port the shortener server listens on
    Shortener_Port : constant := 80;
@@ -93,10 +94,10 @@ package body Net is
 
       ------------------------------------------------------------------------
 
-      Handle  : Socket_Type;
-      Address : Sock_Addr_Type;
-      Answer  : Stream_Element_Array (1 .. Line_Max);
-      Last    : Stream_Element_Offset;
+      Handle    : Socket_Type;
+      Address   : Sock_Addr_Type;
+      Server    : Stream_Access;
+      Short_Len : Natural;
 
       ------------------------------------------------------------------------
 
@@ -108,38 +109,68 @@ package body Net is
       Address.Addr := Addresses (Get_Host_By_Name (S (URL_Shortener_Address)));
       Address.Port := Port_Type (Shortener_Port);
       Connect_Socket (Handle, Address);
+      Server := Stream (Handle);
 
       -- Assemble and send the request
       declare
-         Get : String := Shorten_GET_1 & S (Req.Data) & Shorten_GET_2 & S (URL_Shortener_Address) & Newline &
-                         Shorten_GET_3 & Identity.App_Name & " v" & Identity.App_Version & Newline &
-                         Newline;
+         Get : String := Shorten_GET_1 & S (Req.Data) & Shorten_GET_2 & S (URL_Shortener_Address) & CRLF &
+                         Shorten_GET_3 & Identity.App_Name & " InfoBot v" & Identity.App_Version & CRLF &
+                         CRLF;
       begin
-         String'Write (Stream (Handle), Get);
-         Log.Info (Net_Name, "Sent HTTP GET request: " & Get);
+         String'Write (Server, Get);
+         Log.Info (Net_Name, "Shortening URL """ & S (Req.Data) & """");
       end;
 
-      -- Get the answer
-      Receive_Socket (Handle, Answer, Last, Wait_For_A_Full_Reception);
-
-      -- Convert the answer to a string, and spit it out into the channel
+      -- Get the answer's header a character at a time
       declare
-         Response : String (1 .. Positive (Last));
-         Index    : Positive := Response'First;
+
+         -- Maximum length of an HTTP header line (at least, that we care about)
+         Line_Max : constant := 512;
+
+         Hdr   : String (1 .. Line_Max);
+         Index : Natural := Hdr'First;
+
       begin
-         for C in Answer'First .. Last loop
-            if Character'Val (Answer (C)) = Newline then
-               -- Discard all but the last line, and discard its newline if present
-               if C < Last then
-                  Index := Response'First;
+
+         loop
+
+            Character'Read (Server, Hdr (Index));
+
+            -- Check each header line to see if it's the Content-Length line
+            if Hdr (Index) = Newline then
+               if Hdr (Hdr'First .. Content_Length'Last) = Content_Length then
+
+                  -- It's the length, so extract the number
+                  while Index >= Hdr'First and then Hdr (Index) not in '0' .. '9' loop
+                     Index := Index - 1;
+                  end loop;
+                  Short_Len := Natural'Value (Hdr (Content_Length'Last + 1 .. Index));
+
+                  -- Discard the following blank line and move on
+                  Character'Read (Server, Hdr (Hdr'First));
+                  if Hdr (Hdr'First) = Ada.Characters.Latin_1.CR then
+                     Character'Read (Server, Hdr (Hdr'First));
+                  end if;
+                  exit;
+               else
+                  -- Not the right header line, throw it away
+                  Index := Hdr'First;
                end if;
             else
-               Response (Index) := Character'Val (Answer (C));
                Index := Index + 1;
             end if;
+
          end loop;
 
-         OutputQ.Say (Response (Response'First .. Index - 1), Req.Destination);
+      end;
+
+      -- Now we know the exact length of the real answer, so just fetch it
+      declare
+         Answer : String (1 .. Short_Len);
+      begin
+         String'Read (Server, Answer);
+         Log.Info (Net_Name, "Got short URL """ & Answer & """");
+         OutputQ.Say (Answer, Req.Destination);
       end;
 
       -- Clean up the server connection, which is probably closed already
