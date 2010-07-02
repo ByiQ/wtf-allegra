@@ -132,6 +132,7 @@ package body Net is
 
       begin
 
+         -- Read header lines until we see the Content-Length line
          loop
 
             Character'Read (Server, Hdr (Index));
@@ -146,14 +147,30 @@ package body Net is
                   end loop;
                   Short_Len := Natural'Value (Hdr (Content_Length'Last + 1 .. Index));
 
-                  -- Discard the following blank line and move on
-                  Character'Read (Server, Hdr (Hdr'First));
-                  if Hdr (Hdr'First) = Ada.Characters.Latin_1.CR then
-                     Character'Read (Server, Hdr (Hdr'First));
-                  end if;
                   exit;
                else
                   -- Not the right header line, throw it away
+                  Index := Hdr'First;
+               end if;
+            else
+               Index := Index + 1;
+            end if;
+
+         end loop;
+
+         -- Discard lines until end of header (which is a blank line)
+         Index := Hdr'First;
+         loop
+
+            Character'Read (Server, Hdr (Index));
+
+            -- Check each header line to see if it's the Content-Length line
+            if Hdr (Index) = Newline then
+               if Index = Hdr'First or else Hdr (Hdr'First .. CRLF'Last) = CRLF then
+                  -- Blank line means end of header, we're done
+                  exit;
+               else
+                  -- Just another header line, discard it and keep going
                   Index := Hdr'First;
                end if;
             else
