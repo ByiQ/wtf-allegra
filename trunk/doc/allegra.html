@@ -8,7 +8,7 @@
     <h1 align="center">The Allegra Info-Bot</h1>
 
     <p style="float: right; margin-left: 4em; margin-top: 0; margin-right: 0.5em; margin-bottom: 4em;" align="right">
-      <img src="robot.jpg" alt="[robot]" height="272" width="201">
+      <img src="robot2.jpg" alt="[robot]" height="370" width="200">
     </p>
 
     <!-- ------------------------------------------------------------------------ -->
@@ -57,34 +57,31 @@
       following environment:
     </p>
     <ul>
-      <li>Kernel: Linux 2.4.27-2-k7</li>
-      <li>Distribution: <a href="http://www.debian.org/">Debian</a> "etch" (testing)</li>
-      <li>Compiler: <a href="http://libre.adacore.com/GNAT/">GNAT</a> 4.1.2 (Debian package gnat, version 4.1.1-15)</li>
+      <li>Kernel: Linux 2.6.32-3-amd64</li>
+      <li>Distribution: <a href="http://www.debian.org/">Debian</a> "squeeze" (testing)</li>
+      <li>Compiler: <a href="http://libre.adacore.com/GNAT/">GNAT</a> GPL09 (GNAT GPL 2009 (20090519))</li>
     </ul>
 
     <p>
-      It depends on three Ada support libraries, one of which is a standard
-      Debian package, two of which are not, and were built from source:
+      It depends on two Ada support libraries:
     </p>
     <ul>
-      <li><a href="http://www.rfc1149.net/devel/adasockets">AdaSockets</a>, a
-      socket library for Ada by Samuel Tardieu: Debian package libadasockets1
-      for the run-time, libadasockets-dev for building, both version
-      1.8.4.7-4</li>
+      <li><a href="http://coreland.ath.cx/data/code/postgres-ada/">Postgres-Ada</a>,
+      a binding to the libpq API library for the PostgreSQL database,
+      originally written by Samuel Tardieu, updated and maintained now by
+      coreland: current version 0.2.1</li>
 
-      <li><a href="http://www.rfc1149.net/devel/pgada">PGAda</a>, a binding to
-      the libpq API library for the PostgreSQL database, also by M. Tardieu:
-      version 0.0.1</li>
-
-      <li><a href="http://www.niestu.com/software/">NAIL</a>, a simple set of
-      Ada utility packages, developed locally; current version 20050812</li>
+      <li><a href="http://www.niestu.com/software/nail-20090205.tar.bz2">NAIL</a>,
+      a simple set of Ada utility packages, developed locally: current version
+      20090205</li>
     </ul>
 
     <p>
-      In turn, PGAda depends on libpq (currently provided by the Debian
-      packages libpq-dev and libpq4, both version 8.1.6-1), and once running,
-      the bot expects a <a href="http://www.postgresql.org/">PostgreSQL</a>
-      server to be available (package postgresql, version 7.5.22).
+      In turn, Postgres-Ada depends on libpq (currently provided by the Debian
+      packages libpq-dev and libpq5, both currently at version 8.4.4-1+b1),
+      and once running, the bot expects
+      a <a href="http://www.postgresql.org/">PostgreSQL</a> server to be
+      available (package postgresql, current version 8.4.4-1).
     </p>
 
     <p>
@@ -97,11 +94,7 @@
     <p>
       We're unaware of any "tight" version requirements, so other versions of
       the above software will likely work.  If you discover any other
-      dependencies not listed here, please report them on #Ada.  Also, if
-      anybody creates a set of patches to replace AdaSockets with
-      GNAT.Sockets, please speak up.  AdaSockets is a fine piece of work, but
-      GNAT.Sockets is quickly becoming a de facto standard for GNAT programs.
-      (Although it is quite broken in older versions of GNAT.)
+      dependencies not listed here, please report them on #Ada.
     </p>
 
 
@@ -139,7 +132,7 @@
       AdaSockets and PGAda to gnatmake.</li>
 
       <li>The PGADA_DIR macro should be set to the pathname where you
-      installed the PGAda package.</li>
+      installed the Postgres-Ada package.</li>
 
       <li>Currently, gnatmake options can be specified via the DEBUG macro,
       eg. "<tt>make&nbsp;DEBUG=-O2</tt>".  Another macro with a more suitable
@@ -293,7 +286,7 @@
           <td>For IRC networks (like Freenode) which run NickServ, this is the
           password the bot should use for it.  You must register the bot's
           nick yourself, set the password, then put that password value into
-          the database..</td>
+          the database.</td>
         </tr>
         <tr>
           <td>port</td>
@@ -319,6 +312,13 @@
           treat them as commands.  For example, "Allegra: quote" is treated as
           a bot command, but if the shorthand string is "!", then "!quote" has
           the same effect.</td>
+        </tr>
+        <tr>
+          <td>shorturl</td>
+          <td>The network address of the URL shortener server the bot uses to
+          shorten long URLs.  If this changes, you'll probably have to update
+          the code that accesses it, too, to conform to the new site's
+          requirements.</td>
         </tr>
         <tr>
           <td>username</td>
@@ -449,9 +449,14 @@
     <br clear="all">
     <hr>
     <address><a href="mailto:allegra@niestu.com">Mail About Allegra</a></address>
+    <p style="font-size: x-small;">
+      Robot image derived from "Robot Joe" rendering by the extremely
+      talented <a href="http://www.flickr.com/people/flysi/">Simon Abrams</a>
+      of Brooklyn, New York.
+    </p>
 <!-- Created: Sun Jul 24 00:47:04 MST 2005 -->
 <!-- hhmts start -->
-Last modified: Fri Feb  2 14:49:56 MST 2007
+<p>Last modified: Thu  8 Jul 2010 00:12:22 MST</p>
 <!-- hhmts end -->
   </body>
 </html>
