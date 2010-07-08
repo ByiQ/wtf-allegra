@@ -1,0 +1,132 @@
+#!/bin/sh
+psql --dbname allegra --file - <<eof
+
+CREATE SEQUENCE actquipnum
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+CREATE TABLE actquips (
+    num integer DEFAULT nextval('actquipnum'::text),
+    msg text
+);
+
+CREATE TABLE cmdlevels (
+    name character varying(16),
+    "level" integer
+);
+
+CREATE TABLE cmdstats (
+    name character varying(16),
+    used integer
+);
+
+CREATE TABLE config (
+    name character varying(16),
+    value text
+);
+
+CREATE TABLE factoids (
+    name character varying(128),
+    value text
+);
+
+CREATE TABLE factstats (
+    name character varying(128),
+    created date DEFAULT 'now'::date,
+    creator character varying(128) DEFAULT 'nobody'::character varying,
+    acc_count integer DEFAULT 0,
+    acc_last date DEFAULT 'now'::date,
+    acc_by character varying(128) DEFAULT 'nobody'::character varying
+);
+
+CREATE SEQUENCE quipnum
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+CREATE TABLE quips (
+    num integer DEFAULT nextval('quipnum'::text),
+    msg text
+);
+
+CREATE SEQUENCE quitnum
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+CREATE TABLE quitmsgs (
+    num integer DEFAULT nextval('quitnum'::text),
+    msg text
+);
+
+CREATE SEQUENCE quotenum
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+CREATE TABLE quotes (
+    num integer DEFAULT nextval('quotenum'::text),
+    quote text,
+    attr character varying(128)
+);
+
+CREATE TABLE usrlevels (
+    name character varying(512),
+    "level" integer
+);
+
+
+INSERT INTO config VALUES ('armpath',   'support/rm-idx.txt');
+INSERT INTO config VALUES ('channel',   'Ada');
+INSERT INTO config VALUES ('helppath',  'support/help-file');
+INSERT INTO config VALUES ('host',      'irc.freenode.net');
+INSERT INTO config VALUES ('lastsize',  '5');
+INSERT INTO config VALUES ('loglevel',  'info');
+INSERT INTO config VALUES ('logpath',   '/var/log/allegra.log');
+INSERT INTO config VALUES ('nick',      'Allegra');
+INSERT INTO config VALUES ('nickpass',  'mypassword');
+INSERT INTO config VALUES ('port',      '6667');
+INSERT INTO config VALUES ('quips',     '0.5');
+INSERT INTO config VALUES ('realname',  'Allegra InfoBot');
+INSERT INTO config VALUES ('shorthand', '!');
+INSERT INTO config VALUES ('shorturl',  'ada.cx');
+INSERT INTO config VALUES ('username',  'allegra');
+
+INSERT INTO cmdlevels VALUES ('myaccess',    1);
+INSERT INTO cmdlevels VALUES ('ckaccess',    6);
+INSERT INTO cmdlevels VALUES ('setaccess',  10);
+INSERT INTO cmdlevels VALUES ('fetch',       1);
+INSERT INTO cmdlevels VALUES ('find',        1);
+INSERT INTO cmdlevels VALUES ('forget',      5);
+INSERT INTO cmdlevels VALUES ('help',        1);
+INSERT INTO cmdlevels VALUES ('last',        1);
+INSERT INTO cmdlevels VALUES ('list',        1);
+INSERT INTO cmdlevels VALUES ('quit',        9);
+INSERT INTO cmdlevels VALUES ('quote',       2);
+INSERT INTO cmdlevels VALUES ('rename',      5);
+INSERT INTO cmdlevels VALUES ('reset',       5);
+INSERT INTO cmdlevels VALUES ('set',         5);
+INSERT INTO cmdlevels VALUES ('short',       1);
+INSERT INTO cmdlevels VALUES ('stats',       2);
+INSERT INTO cmdlevels VALUES ('tell',        3);
+
+INSERT INTO cmdstats  VALUES ('myaccess',    0);
+INSERT INTO cmdstats  VALUES ('ckaccess',    0);
+INSERT INTO cmdstats  VALUES ('setaccess',   0);
+INSERT INTO cmdstats  VALUES ('fetch',       0);
+INSERT INTO cmdstats  VALUES ('find',        0);
+INSERT INTO cmdstats  VALUES ('forget',      0);
+INSERT INTO cmdstats  VALUES ('help',        0);
+INSERT INTO cmdstats  VALUES ('last',        0);
+INSERT INTO cmdstats  VALUES ('list',        0);
+INSERT INTO cmdstats  VALUES ('quit',        0);
+INSERT INTO cmdstats  VALUES ('quote',       0);
+INSERT INTO cmdstats  VALUES ('rename',      0);
+INSERT INTO cmdstats  VALUES ('reset',       0);
+INSERT INTO cmdstats  VALUES ('set',         0);
+INSERT INTO cmdstats  VALUES ('short',       0);
+INSERT INTO cmdstats  VALUES ('stats',       0);
+INSERT INTO cmdstats  VALUES ('tell',        0);
+
+eof

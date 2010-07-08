@@ -1,0 +1,63 @@
+
+bugs:
+ - exception handler doesn't always lead to clean termination
+ - bad access usermask causes exception
+
+improvements:
+ - ordering for multi-part factoids
+
+ - access "none" to delete user access entries
+
+ - make "find" accept an RM specifier (83/95/05), defaulting to current (95 right now)
+
+ - quote with regex
+
+ - switch to stream_text_io
+
+ - nickserv GHOST command, and nick change
+
+ - factoid => reply/action
+
+ - make user auth cache a variable-size array, not a linked list
+
+ - stylesheet for docs
+
+ x nick collisions and other stateful jobs (ping -> "periodic" task?  other error returns?)
+
+ x handle freenode version query (start by adding Identity package)
+
+ x actions
+
+ x "last" command
+
+ x message about how to get an access level
+
+ x ensure all quotes short enough to be transmitted in one go (max is 446, btw)
+
+ x access <user>
+
+ x per-command help messages, command access levels
+
+stats improvements:
+ x   ident line
+ x   count of known quotes
+ x   individual command usage stats
+
+ x rm lookup
+
+ x write final stat summary into log
+
+ x ensure good exception handler coverage
+
+ x change timeout queue to a semaphore
+
+doc update and completion
+
+final polish
+
+ x distribution test
+
+ x public posting
+
+bugs
+ x set-access command (or rather, re-read of user table) causes exception

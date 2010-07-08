@@ -1,0 +1,119 @@
+---set
+
+Command:  <factoid-name> (is|are) [also] <factoid-def>
+
+Define a new factoid with the given name, to the given definition.  Good factoid definitions have dense content, and include references to other information (like URLs) if possible.
+If the "also" keyword is given, adds a new definition line to an existing factoid.
+The output starts with "factoid-name: ", so take that into account when wording the definition.
+
+Examples:
+
+   kittens are The offspring of felidae.  More data at http://www.cutelittlekittens.com/ or http://www.feralcat.com/raising.html
+   kittens are also Highly entertaining: http://www.bonsaikitten.com/
+   wudge is The Wudge Project is devoted to making Ada lighter than assembler.  See http://www.wudgeproject.com/
+
+Factoids are subject to revision without warning by the bot operator.
+---reset
+
+Command:  no, <factoid-name> (is|are) <factoid-def>
+
+Forgets the old definition of a factoid and recreates it with the new definition.  You must be either the original factoid's creator or the bot operator to do this.  See "help set" for details about factoid definitions.
+---fetch
+
+Command:  what [is|are] [~]<factoid-name> [?]   -or-   [~]<factoid-name>[?]
+
+Fetch a factoid definition by giving its name.  Both forms are equivalent:
+
+   what are kittens?
+   kittens
+
+A leading "~" on the factoid name treats the string as a regular expression.  See "help regexp" for details.
+The "list" command will show what factoids the bot already knows.
+---tell
+
+Command:  tell (<nick>|me) [about] <factoid-name>
+
+Like a "fetch", but sends the response to another user.  The response is sent privately.  Intended for experienced users.
+---forget
+
+Command:  forget <factoid-name>
+
+Forgets the definition of the factoid whose name is "factoid-name".  You must be either the original factoid's creator or the bot operator to do this.
+---rename
+
+Command:  rename <from-name> (as|to) <to-name>
+
+Changes an existing factoid's name from what it currently is to a new name.  Does not affect the definition(s).
+---find
+
+Command:  find <regexp>
+
+Searches the Ada Reference Manual for a regular expression.  Currently experimental.
+---help
+
+Command:  help [<topic>]
+
+List a summary of help topics, with "help", or list help on a specific topic, with "help <topic>".  Responses are always sent privately.
+---list
+
+Command:  list [<regexp>]
+
+List all known factoid names with "list", or just list ones matching a regular expression, with "list <regexp>".  Usually best to do this in a private message.
+---last
+
+Command:  last [<num-lines>]
+
+Prints previous lines of dialog from the channel.  The maximum number is configurable, and is the default.  Limit the number with "last <num-lines>"
+---quote
+
+Command:  quote
+
+Prints a random quote.  Don't over-use this command, please!
+---stats
+
+Command:  stats [ (<factoid-name>|commands) ]
+
+Print general statistics about the bot with "stats".  Print specific usage stats about a given factoid, with "stats <factoid-name>".  Print a count of command usages with "stats commands".
+---short
+
+Command:  short <url>
+
+Uses the ada.cx URL shortener service to retrieve (and store) a shortened form of the URL parameter.  Takes a moment to run, so be patient.  Currently experimental.
+---access
+
+Command:  access [ <mask> [<level>] ]
+
+Has three forms:
+
+1. Check your own access level, with "access".
+
+2. Check a specific usermask's access level, with "access <usermask>".
+
+3. Set an access level for a given usermask, with "access <usermask> <level>".
+
+Each form usually requires a higher access level, as it is more impactive on other users.
+---quit
+
+Command:  quit
+
+Causes the bot to exit.  Normally only the bot operator can do this.
+---commands
+
+Giving commands to the bot.
+
+Commands must be directed specifically to the bot's attention.  In the channel, your message must begin with the bot's nick, followed by a ":" or ",", or with the shortcut character, which defaults to "!".
+Another alternative is to send commands privately, with "/msg", or however your IRC client does private messages.
+
+Examples:
+
+   Allegra: stats
+   Allegra, kittens
+   /msg Allegra help
+
+If you plan to conduct an extensive dialog with the bot, please use private messages.
+---regexp
+
+Tips on regular expressions.
+
+The bot recognizes full extended regular expressions, roughly the same as those used by Perl or Python.
+On a Linux system, you can get the regex documentation with "man 7 regex".  There are also a lot of good web pages about them; search Google for "POSIX 1003.2 regular expressions".  One such page is http://www.zytrax.com/tech/web/regex.htm

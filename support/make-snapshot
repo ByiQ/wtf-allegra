@@ -1,0 +1,22 @@
+#!/usr/bin/perl -w
+
+# Tarball basename passed as first param
+$distname = $ARGV [0];
+$tarname = "$distname.tar.bz2";
+
+# Get top-level source file names
+$srcfiles = qx{svn list | grep -v / | sort};
+$srcfiles =~ s/\n/ /g;
+
+@subdirs = split (' ', qx{svn list | grep / | sort});
+foreach $dir (@subdirs)
+{
+   @dirlist = split (' ', qx{svn list $dir | sort});
+   map { $_ = $dir . $_ } @dirlist;
+   $srcfiles = "$srcfiles " . join (" ", @dirlist);
+}
+
+system ("mkdir $distname");
+system ("cp -a $srcfiles $distname");
+system ("tar cvjf $tarname $distname");
+system ("rm -rf $distname");
