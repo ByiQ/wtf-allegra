@@ -44,7 +44,7 @@ package body Net is
    CRLF           : constant String := Ada.Characters.Latin_1.CR & Ada.Characters.Latin_1.LF;
 
    -- Parts of HTTP GET to fetch a shortened URL
-   Shorten_GET_1  : constant String := "POST /s?Long_URL=";
+   Shorten_GET_1  : constant String := Config.Get_Value (Config.Item_HTTP_Method) & " " & Config.Get_Value (Config.Item_HTTP_Action);
    Shorten_GET_2  : constant String := " HTTP/1.1" & CRLF & "Host: ";
    Shorten_GET_3  : constant String := "User-Agent: ";
 
@@ -52,7 +52,7 @@ package body Net is
    Content_Length : constant String := "Content-Length:";
 
    -- What port the shortener server listens on
-   Shortener_Port : constant := 80;
+   Shortener_Port : constant := Config.Get_Value (Config.Item_HTTP_Port)
 
 ------------------------------------------------------------------------------
 --
