@@ -1,0 +1,467 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE xweb PUBLIC "-//NDW-WMR//DTD DocBook XML V4.1.2-based Extension XWeb V1.0//EN"
+                      "file:///opt/litprog/dtd/xweb.dtd" [
+<!ENTITY prog "Alba">
+<!ENTITY pprog "Allegra">
+<!ENTITY pcmd "<command>alba</command>">
+<!ENTITY ppcmd "<command>allegra</command>">
+<!ENTITY site "http://www.niestu.com">
+]>
+
+<article xmlns:src="http://nwalsh.com/xmlns/litprog/fragment"
+         xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+
+
+<!-- Article meta-data -->
+<articleinfo>
+<title>The &prog; Technology Demonstrator</title>
+
+<author>
+<firstname>Chip</firstname>
+<surname>Richards</surname>
+</author>
+
+<address><email>chipr@niestu.com</email></address>
+<publisher>
+<publishername>NiEstu</publishername>
+<address><otheraddr><ulink url="&site;/allegra/alba/"></ulink></otheraddr></address>
+</publisher>
+
+<releaseinfo>Version 1.0</releaseinfo>
+<date>24 November 2003</date>
+
+<legalnotice>
+<para>This code is released under the terms of the <ulink
+url="http://www.gnu.org/licenses/gpl.html">GNU General Public License</ulink>,
+version 2.</para>
+</legalnotice>
+</articleinfo>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--      Introduction section      -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Background</title>
+
+<simpara>&prog; seems an appropriate name for this design trial for the #Ada
+IRC channel's info-bot.  &pprog; was Ada's bastard half-sister, who died in
+childhood after being exiled to a convent by her famous father.  Her mother
+named her &prog;, but Lord Byron overruled that choice and named her &pprog;
+instead.  Similarly, &pcmd; <emphasis>is</emphasis> &ppcmd;, in a sense,
+though without her full personality.</simpara>
+
+<simpara>We had three reasons for writing &prog;: To verify that &pprog;'s
+tasking structure is sound, to exercise <ulink
+url="http://docbook.sourceforge.net/projects/litprog/">the LP system</ulink>
+with something more than a trivial example, and to provide examples to
+interested parties of both of these points.</simpara>
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--     Code building section      -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>Building &prog;</title>
+
+<simpara>&prog; has been verified to work correctly under Linux 2.4.22, using
+the GNAT that comes as part of GCC 3.3.2.  It demands nothing unusual from its
+platform, however, and should build and run on a wide variety of
+platforms.</simpara>
+
+<simpara>There are actually two <quote>ways</quote> to build &prog; from
+source: the official way, and the easy way.</simpara>
+
+<section>
+<title>The Official Way</title>
+
+<para>Since &prog; is a <ulink
+url="http://www.faqs.org/faqs/literate-programming-faq/">literate
+program</ulink>, the official program source is an XML document, which
+contains both the Ada source code and its documentation.  To build a usable
+document file, you must <quote>weave</quote> the XML source into your desired
+viewing format.  To build an executable, you must <quote>tangle</quote> the
+XML source into Ada source files, then compile those sources.  The official
+distribution package includes the XML source files and a makefile to perform
+the above steps.</para>
+
+<para>
+The <quote>extra</quote> requirements for building &prog;, beyond those
+commonly found on a Unix or comparable system set up for Ada development, are
+these:
+
+<itemizedlist>
+<listitem>
+<simpara><ulink
+url="http://docbook.sourceforge.net/projects/litprog/">LitProg</ulink> -
+Norman Walsh's XML literate programming toolset.  It includes stylesheets
+which permit an <ulink url="http://www.w3.org/Style/XSL/">XSLT</ulink>
+processor to perform the tangle and weave operations on the XML source, to
+produce the actual source and documentation.</simpara>
+</listitem>
+
+<listitem>
+<simpara><ulink url="http://xmlsoft.org/XSLT/">xsltproc</ulink> - Part of
+<ulink url="http://www.gnome.org/">the GNOME Project</ulink>, used by the
+makefile to apply the LitProg tangle and weave stylesheets to the XML source,
+transforming them into documentation and source.  Any conforming XSLT
+stylesheet processor should work.</simpara>
+</listitem>
+</itemizedlist>
+</para>
+
+<simpara>The makefile also uses a short perl script, called
+<command>xweb-include</command>, which is included in the distribution
+package.</simpara>
+
+<section>
+<title>Building the Documentation</title>
+<simpara>The makefile produces the documentation in HTML format, using the
+weave stylesheet with <command>xsltproc</command>.  Different stylesheets
+could be used to produce the document in several other formats besides HTML.
+To create the HTML documentation, use the following command:</simpara>
+
+<simpara><command>make doc</command></simpara>
+
+<simpara>Note that the <command>xsltproc</command> commands to produce the
+document seem as of the time of this writing to be very processor-intensive,
+and take several minutes to execute on the development system.</simpara>
+</section>
+
+<section>
+<title>Building the Code</title>
+<simpara>To produce the &prog; executable program, and as a consequence, the
+Ada source code files, the makefile uses the tangle stylesheet to produce the
+Ada source, then invokes <command>gnatmake</command> to build the executable.
+Since its <quote>all</quote> target is set up to do this, you can invoke this
+sequence with this simple command:</simpara>
+
+<simpara><command>make</command></simpara>
+
+<simpara>That should produce an executable, usually called &pcmd; (but which
+may have other names on other platforms), which is the &prog; program
+itself.  See <link linkend="ref-man">the reference-manual section</link> for
+details on how to run it.</simpara>
+
+<simpara>In contrast to making the documentation, tangling the source is a
+pretty speedy operation with <command>xsltproc</command>: on the 700mHz Athlon
+system where &prog; was initially developed, the entire tangling and
+compilation process took around 12 seconds.</simpara>
+
+<simpara>You can also make any individual Ada source file, or several of them,
+by naming them on the <command>make</command> command line:</simpara>
+
+<simpara><command>make input.ads input.adb alba.adb</command></simpara>
+
+<simpara>Note that if you name sources like that, the makefile does not
+automatically compile them.</simpara>
+</section>
+</section>
+
+<section>
+<title>The Easy Way</title>
+
+<para>In addition to the official XML source files, the distribution includes
+a package containing the pre-woven documentation and pre-tangled source code.
+The documentation is standard HTML and should be viewable by any number of
+tools, such as <ulink url="http://lynx.browser.org/">Lynx</ulink> or <ulink
+url="http://www.mozilla.org/">Mozilla</ulink>.  The source code is standard
+Ada, and should build correctly using whatever technique you use to build Ada
+programs on your system.  On the author's <ulink
+url="http://www.debian.org/">Debian GNU/Linux</ulink> system, <ulink
+url="http://libre.act-europe.fr/">GNAT</ulink> is the favored compiler, and
+&prog; can be built with this command:</para>
+
+<simpara><command>gnatmake</command> &pcmd;</simpara>
+
+<simpara>That should produce an executable, usually called &pcmd; (but which
+may have other names on other platforms), which is the &prog; program
+itself.  See <link linkend="ref-man">the reference-manual section</link> for
+details on how to run it.</simpara>
+
+</section>
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--    Reference manual section    -->
+<!--++++++++++++++++++++++++++++++++-->
+<section id="ref-man">
+<title>Running &prog;</title>
+
+<section>
+<title>Executing &prog;</title>
+<simpara>Running &prog; is very simple--it has no command-line arguments,
+requires no configuration files, and has a very simple command set.  Simply
+type its name, though in many systems, you must specify that you want to run a
+program from the current directory by adding
+<quote><command>./</command></quote> to the beginning, like this:</simpara>
+
+<simpara><command>./</command>&pcmd;</simpara>
+
+<simpara>Note that &prog; issues no prompt to tell you it is expecting input.
+There is <link linkend="no-prompt">a discussion of this design choice</link>
+elsewhere in this document.</simpara>
+</section>
+
+<section id="cmd-set">
+<title>&prog; Command Set</title>
+<para>Once &prog; is running, you may issue a few simple commands
+to exercise its functions.  Here is a summary of its command set:
+
+<simplelist>
+<member><command>c</command> <replaceable>data</replaceable> - Simulate an
+internal command</member>
+<member><command>d</command> <replaceable>data</replaceable> - Simulate a
+database access request</member>
+<member><command>f</command> <replaceable>data</replaceable> - Simulate a file
+access request</member>
+<member><command>q</command> - Quit the simulator</member>
+</simplelist>
+</para>
+
+<simpara>Leading spaces before and after the command letter are ignored.  The
+maximum length of a command line is determined by the <link
+linkend="input-decls">length of the input line</link> declared by the input
+task.</simpara>
+
+<simpara>For those commands which accept data (<command>c</command>,
+<command>d</command>, and <command>f</command>), any string may be given.  It
+is sent to the appropriate subordinate task for processing:</simpara>
+
+<para>
+<itemizedlist>
+<listitem>
+<simpara>The <command>c</command> command simulates an <quote>internal</quote>
+command, one that &pprog; (remember that &prog; is a simulation of &pprog;)
+knows how to process without reference to any external data.  The command task
+marks it as such and sends it directly to the output task.</simpara>
+</listitem>
+
+<listitem>
+<simpara>The <command>d</command> command simulates a database access request,
+one that requires a read or write of &pprog;'s external database.  The command
+task sends the command's data to the database access task; in this simulator,
+the database task simply marks it as a database request and sends it on to the
+output task.</simpara>
+</listitem>
+
+<listitem>
+<simpara>The <command>f</command> command simulates a file access request, one
+that requires a read or write of an external file other than &pprog;'s
+database.  The command task sends the command's data to the file access task;
+in this simulator, the file task simply marks it as a file access request and
+sends it on to the output task.</simpara>
+</listitem>
+</itemizedlist>
+</para>
+
+<simpara>The <command>q</command> command simulates a shutdown command as
+issued by &pprog;'s operator, either from the IRC channel or the operator's
+console.  This command ignores any data string given to it, and terminates the
+program.</simpara>
+</section>
+</section>
+
+
+<!--++++++++++++++++++++++++++++++++-->
+<!--    Code explication section    -->
+<!--++++++++++++++++++++++++++++++++-->
+<section>
+<title>The &prog; Program Code</title>
+
+
+<!-- Design rationale -->
+<section>
+<title>Design Rationale</title>
+
+<para>In his book <citetitle pubwork="book">Ada as a Second
+Language</citetitle>, Norman Cohen says, <quote>Concurrent programming is more
+difficult than sequential programming.  There are many pitfalls for the unwary
+programmer.</quote> These statements are quite true, but in the case of an
+application like &pprog;, dividing the program into several tasks serves to
+simplify the design, as well as make the application more flexible.  Some
+advantages are:
+
+<itemizedlist>
+<listitem>
+<simpara>The overall program structure is simplified by having multiple
+threads of execution.  Accepting input from the IRC server and from the
+operator console, sending pings, sending responses back to the server, all
+need to be done, and deciding which thing gets done at which time could get
+quite hairy.  Plus, they each need to happen when they need to happen, not
+when a single-threaded program manages to get around to them.</simpara>
+</listitem>
+
+<listitem>
+<simpara>Responsiveness is enhanced.  If a sudden burst of traffic comes from
+the server, it will just pile up in the command queue, while the rest of the
+program's operations continue to happen in a timely manner.</simpara>
+</listitem>
+
+<listitem>
+<simpara>Each task's code is simplified, because it concentrates on its
+specific job, without worrying about the other things the whole program has to
+do.  <link linkend="input-task">The input task</link>, for example, need
+concern itself only with reading data from the socket that is connected to the
+IRC server, deciding whether it is addressed to the bot, and if so, stuffing
+it into the command queue.  Period.  It has no other concerns than this, and
+so can be quite simple in and of itself.</simpara>
+</listitem>
+
+<listitem>
+<simpara>Because the tasks are each focused on a single, simple subset of the
+processing, their external dependencies are correspondingly fewer.  The input
+task does not interact with the database, so it does not require any
+visibility of the database interface libraries.  The ping task does not need
+standard I/O, because its only job is to insert periodic requests into the
+output queue.  And so on.</simpara>
+</listitem>
+
+<listitem>
+<simpara>Because the tasks are so strongly partitioned, the interfaces between
+them are well defined.  This makes it easier to add to or modify the program,
+by replacing modules (tasks) or altering their behavior.  If the operator
+console needs to run remotely, the existing console task can be replaced with
+one that makes a CORBA connection, for example.  Or if &pprog; were to be
+enhanced to handle multiple IRC servers (don't count on it!), multiple input
+and output tasks could be created, one set to handle each server, with minimal
+impact on the rest of the program code.
+</simpara>
+</listitem>
+</itemizedlist>
+</para>
+
+<simpara>Yes, some of these benefits are not specifically related to the
+concurrent nature of the task structure, but rather can be attributed to the
+modular nature of the Ada language itself.  Reducing external visibility to
+make the program more manageable is done via package structure, not tasks.
+But thinking of the tasks as little separate programs unto themselves is a
+mental adjustment that makes it easier (at least for me) to see the
+separations between the various different portions of the code.</simpara>
+</section>
+
+
+<!-- The tasking structure -->
+<section>
+<title>&prog;'s Task Structure</title>
+
+<para>Here is an illustration showing the structure of &prog;'s (and
+&pprog;'s) tasks, and the communications among them.
+
+<figure>
+<title>Task Structure</title>
+<mediaobject>
+<imageobject>
+<imagedata fileref="structure.png"/>
+</imageobject>
+</mediaobject>
+</figure>
+</para>
+
+<para>Some clarification of the diagram is in order:
+
+<itemizedlist>
+<listitem>
+<simpara>Each task <quote>sits on</quote> something.  That is, it is usually
+blocked waiting for some event to occur or some input to arrive.  In the case
+of the four tasks with associated queues, they wait until an item is added to
+their queue.  In the case of the input task and the console task, they block
+on an I/O stream, denoted by the small circle on their inputs.  And the ping
+task blocks on a delay statement, denoted by the small clock icon within the
+task's box.</simpara>
+</listitem>
+
+<listitem>
+<simpara>The zig-zag <quote>communication link</quote> lines connecting to the
+IRC server denote a single socket.  One line is used only for input, the other
+only for output.  In &prog;, the role of the IRC server is played by the
+standard input and output streams.</simpara>
+</listitem>
+
+<listitem>
+<simpara>Since &prog; does not actually connect to a remote server, it is locally
+controlled directly by its input task.  Thus the console task is omitted in
+&prog;.</simpara>
+</listitem>
+</itemizedlist>
+</para>
+
+<simpara>In &pprog;, the input task waits for text from the IRC server.  It
+decides whether that input is directed at &pprog; specifically, and if so,
+passes it along to the command task.  The command task parses these commands
+and decides what to do with them: handle them itself, or pass them along to
+its helpers, the database and file tasks.  If it is an <quote>internal</quote>
+command, the command task places any output it generates directly onto the
+output queue itself.  If it's handled by a helper task, those tasks in turn
+place their output onto the output queue.  Periodically, the ping task puts a
+ping message onto the output queue.  If the operator wishes to control the bot
+locally, s/he gives a command to the console task, who places it onto the
+command queue.  And finally, the output task takes requests from its queue,
+formats them, and writes them to the IRC server.</simpara>
+
+<simpara>The broad summary of &pprog;'s execution is modeled by &prog;, with a
+few changes made for simplicity's sake.  In &prog;, input is read from the
+standard input stream instead of an IRC server, output is written to the
+standard output stream instead of an IRC server, and there is no console task.
+All input is assumed to be directed at the program, so no input is ignored as
+it is in &pprog;.  No actual inspection of the data is performed beyond
+command recognition.  No database or files are read or written.  &prog;'s
+design and structure are described in greater detail in the following
+sections.</simpara>
+</section>
+
+<!-- include input.xweb  -->
+
+<!-- include output.xweb -->
+
+<!-- include command.xweb -->
+
+<!-- include ping.xweb -->
+
+<!-- include file.xweb -->
+
+<!-- include database.xweb -->
+
+<section>
+<title>The Main Procedure</title>
+
+<para>
+Since all of the real processing of &prog; is done in the various tasks, the
+main procedure has a null body, and terminates immediately.  The application
+continues to execute until all its tasks have terminated, which occurs when
+the user enters a <quote>quit</quote> command.  Its main reason for being is
+to cause the elaboration of the task packages.
+
+<src:fragment id="alba-body">
+
+with
+   Command,
+   Database,
+   File,
+   Input,
+   Output,
+   Ping;
+
+procedure Alba is
+begin  -- Alba
+   null;
+end Alba;
+</src:fragment>
+</para>
+
+<simpara>Note that &prog; does very little error-checking.  Specifically, no
+exception handling is defined, so if a task's code raises an exception, that
+task will simply terminate and its queue will fill up with unprocessed
+requests if the user continues to issue requests for that task.  If the input
+task terminates while the rest of the tasks continue to run, &prog;
+essentially becomes useless and must be killed by an OS operation, such as the
+<command>kill</command> command.  This lack of robustness was deemed
+acceptable in a technology demonstrator.</simpara>
+
+</section>
+
+</section>
+
+</article>

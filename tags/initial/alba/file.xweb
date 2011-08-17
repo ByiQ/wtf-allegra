@@ -1,0 +1,229 @@
+
+
+<!-- The File task -->
+<section id="file-task">
+<title>The File Task</title>
+
+<simpara>The file task accepts requests for access to files on the host
+filesystem where the bot is executing.  In &prog;, it simply reports that such
+requests have been received, by placing a message on the output queue; in
+&pprog;, once the task is actually implemented, it will read and write files
+as directed by the requests it receives.</simpara>
+
+<section>
+<title>File Request Processing Loop</title>
+<para>
+The heart of the file task is an endless loop.  It removes a request from the
+file request queue and examines its <literal>Operation</literal> field.  If it
+is a file access request operation, it adds some identifying text to the data
+string and places the resulting string on the output queue.  If it is a
+shutdown request, the loop terminates, which terminates the task.
+
+<src:fragment id="file-loop">
+      loop
+         Requests.Dequeue (Request);
+         exit when Request.Operation = Shutdown_Operation;
+         Output_Request.Operation := Output.Output_Operation;
+         Output_Request.Data := "File request: " &amp; Request.Data;
+         Output.Requests.Enqueue (Output_Request);
+      end loop;
+</src:fragment>
+
+The task spends most of its time sitting on the
+<methodname>Dequeue</methodname> statement, waiting for a file access request
+to be placed in its queue by <link linkend="command-task">the command
+task</link>.
+</para>
+</section>
+
+<section>
+<title>File Task Declarations</title>
+
+<para>
+The file loop uses these variables:
+
+<itemizedlist>
+<listitem>
+<simpara><literal>Request</literal> - Local variable of the type of the
+file-queue entries, used to receive the next item taken from the request
+queue.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Output_Request</literal> - Request-queue variable for the
+output task.  Used to report requests received by the file task.</simpara>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="file-decls">
+      Request:           Request_Rec;
+      Output_Request:    Output.Request_Rec;
+</src:fragment>
+
+</para>
+</section>
+
+<section>
+<title>File Task Body</title>
+<para>
+The task's body contains only the processing loop, and its required
+declarations:
+
+<src:fragment id="file-task-body">
+
+   task body File_Task is
+<src:fragref linkend="file-decls"/>
+
+   begin  -- File_Task
+<src:fragref linkend="file-loop"/>
+   end File_Task;
+
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>File Task Package</title>
+
+<section>
+<title>File Package Body</title>
+<para>
+For compilation purposes, the task is contained in a package.  The package
+body contains only the (anonymous) task object.  The external dependencies
+are:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname> - Provides the
+<quote>&amp;</quote> operator, used to concatenate the informational message
+to the request data..</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>Output</classname> - Lets the file task see the request
+queue of the output task, so it can make output requests.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library package via a
+<command>use</command> clause; references to items declared in the
+<classname>Output</classname> package must be fully qualified.
+
+<src:fragment id="file-pkg-body">
+with
+   Ada.Strings.Unbounded,
+   Output;
+
+use
+   Ada.Strings.Unbounded;
+
+package body File is
+<src:fragref linkend="file-task-body"/>
+end File;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>File Package Spec</title>
+
+<simpara>The file request queue and its supporting types are declared in the
+package spec so they can be used by other packages.</simpara>
+
+<section>
+<title>File Package Spec Basic Type Declarations</title>
+<para>
+The spec declares the file-queue request record type and its supporting
+operation type.  In &pprog;, if the operation field is
+<literal>File_Operation</literal>, the data field is a file access request; in
+&prog;, it's any arbitrary text.  The <literal>Unbounded_String</literal> type
+of the <literal>Data</literal> field is defined via <link
+linkend="file-pkg-spec-context-section">the context clause</link>.
+
+<src:fragment id="file-basic-types">
+   type Operation_Type is ( Shutdown_Operation, File_Operation );
+
+   type Request_Rec is record
+      Operation:  Operation_Type;
+      Data:       Unbounded_String;
+   end record;
+
+   task File_Task;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>File Queue Declaration</title>
+<para>
+The spec instatiates the generic library package <literal>PQueue</literal>
+using <literal>Request_Rec</literal> as its data-item type, and then declares
+the actual file queue itself, as an item of that new queue type.
+
+<src:fragment id="file-queue-decl">
+   package File_Queue_Pkg is new PQueue (Request_Rec);
+
+   Requests:  File_Queue_Pkg.Protected_Queue_Type;
+</src:fragment></para>
+</section>
+
+<section id="file-pkg-spec-context-section">
+<title>File Package Spec Context Clause</title>
+<para>
+The file task's package spec depends on these two packages:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname>, which provides the
+<literal>Unbounded_String</literal> type used for the request record's data.
+</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>PQueue</classname>, a local library package, which is not
+defined in this document.  It is a generic package which implements a simple
+protected queue type.  The code was adapted from Cohen's book <citetitle
+pubwork="book">Ada as a Second Language</citetitle>.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library package via a
+<command>use</command> clause; references to items declared in the
+<classname>PQueue</classname> package (whose instantiation is called
+<literal>File_Queue_Pkg</literal>) must be fully qualified.
+
+<src:fragment id="file-pkg-spec-context">
+with
+   Ada.Strings.Unbounded,
+   PQueue;
+
+use
+   Ada.Strings.Unbounded;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Package Spec Proper</title>
+<para>
+
+The package spec puts together the context clause and the declarations to make
+a compilation unit.
+
+<src:fragment id="file-pkg-spec">
+<src:fragref linkend="file-pkg-spec-context"/>
+
+package File is
+
+<src:fragref linkend="file-basic-types"/>
+
+<src:fragref linkend="file-queue-decl"/>
+
+end File;
+</src:fragment>
+</para>
+</section>
+
+</section>
+</section>
+</section>

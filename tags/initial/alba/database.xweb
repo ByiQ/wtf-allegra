@@ -1,0 +1,228 @@
+
+
+<!-- The Database task -->
+<section id="database-task">
+<title>The Database Task</title>
+
+<simpara>In &pprog;, the database task accepts requests for access to the
+bot's database.  In &prog;, it simply reports that such requests have been
+received, by placing a message on the output queue.</simpara>
+
+<section>
+<title>Database Request Processing Loop</title>
+<para>
+The heart of the database task is an endless loop.  It removes a request from
+the database request queue and examines its <literal>Operation</literal>
+field.  If it is a database access request operation, it adds some identifying
+text to the data string and places the resulting string on the output queue.
+If it is a shutdown request, the loop terminates, which terminates the task.
+
+<src:fragment id="database-loop">
+      loop
+         Requests.Dequeue (Request);
+         exit when Request.Operation = Shutdown_Operation;
+         Output_Request.Operation := Output.Output_Operation;
+         Output_Request.Data := "Database request: " &amp; Request.Data;
+         Output.Requests.Enqueue (Output_Request);
+      end loop;
+</src:fragment>
+
+The task spends most of its time sitting on the
+<methodname>Dequeue</methodname> statement, waiting for a database access
+request to be placed in its queue by <link linkend="command-task">the command
+task</link>.
+</para>
+</section>
+
+<section>
+<title>Database Task Declarations</title>
+
+<para>
+The database loop uses these variables:
+
+<itemizedlist>
+<listitem>
+<simpara><literal>Request</literal> - Local variable of the type of the
+database-queue entries, used to receive the next item taken from the request
+queue.</simpara>
+</listitem>
+
+<listitem>
+<simpara><literal>Output_Request</literal> - Request-queue variable for the
+output task.  Used to report requests received by the database task.</simpara>
+</listitem>
+</itemizedlist>
+
+<src:fragment id="database-decls">
+      Request:           Request_Rec;
+      Output_Request:    Output.Request_Rec;
+</src:fragment>
+
+</para>
+</section>
+
+<section>
+<title>Database Task Body</title>
+<para>
+The task's body contains only the processing loop, and its required
+declarations:
+
+<src:fragment id="database-task-body">
+
+   task body Database_Task is
+<src:fragref linkend="database-decls"/>
+
+   begin  -- Database_Task
+<src:fragref linkend="database-loop"/>
+   end Database_Task;
+
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Database Task Package</title>
+
+<section>
+<title>Database Package Body</title>
+<para>
+For compilation purposes, the task is contained in a package.  The package
+body contains only the (anonymous) task object.  The external dependencies
+are:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname> - Provides the
+<quote>&amp;</quote> operator, used to concatenate the informational message
+to the request data..</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>Output</classname> - Lets the database task see the request
+queue of the output task, so it can make output requests.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library package via a
+<command>use</command> clause; references to items declared in the
+<classname>Output</classname> package must be fully qualified.
+
+<src:fragment id="database-pkg-body">
+with
+   Ada.Strings.Unbounded,
+   Output;
+
+use
+   Ada.Strings.Unbounded;
+
+package body Database is
+<src:fragref linkend="database-task-body"/>
+end Database;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Database Package Spec</title>
+
+<simpara>The database request queue and its supporting types are declared in the
+package spec so they can be used by other packages.</simpara>
+
+<section>
+<title>Database Package Spec Basic Type Declarations</title>
+<para>
+The spec declares the database-queue request record type and its supporting
+operation type.  In &pprog;, if the operation field is
+<literal>Database_Operation</literal>, the data field is a database access
+request; in &prog;, it's any arbitrary text.  The
+<literal>Unbounded_String</literal> type of the <literal>Data</literal> field
+is defined via <link linkend="database-pkg-spec-context-section">the context
+clause</link>.
+
+<src:fragment id="database-basic-types">
+   type Operation_Type is ( Shutdown_Operation, Database_Operation );
+
+   type Request_Rec is record
+      Operation:  Operation_Type;
+      Data:       Unbounded_String;
+   end record;
+
+   task Database_Task;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Database Queue Declaration</title>
+<para>
+The spec instatiates the generic library package <literal>PQueue</literal>
+using <literal>Request_Rec</literal> as its data-item type, and then declares
+the actual database queue itself, as an item of that new queue type.
+
+<src:fragment id="database-queue-decl">
+   package Database_Queue_Pkg is new PQueue (Request_Rec);
+
+   Requests:  Database_Queue_Pkg.Protected_Queue_Type;
+</src:fragment></para>
+</section>
+
+<section id="database-pkg-spec-context-section">
+<title>Database Package Spec Context Clause</title>
+<para>
+The database task's package spec depends on these two packages:
+
+<itemizedlist>
+<listitem>
+<simpara><classname>Ada.Strings.Unbounded</classname>, which provides the
+<literal>Unbounded_String</literal> type used for the request record's data.
+</simpara>
+</listitem>
+
+<listitem>
+<simpara><classname>PQueue</classname>, a local library package, which is not
+defined in this document.  It is a generic package which implements a simple
+protected queue type.  The code was adapted from Cohen's book <citetitle
+pubwork="book">Ada as a Second Language</citetitle>.</simpara>
+</listitem>
+</itemizedlist>
+
+Visibility is provided to the standard library package via a
+<command>use</command> clause; references to items declared in the
+<classname>PQueue</classname> package (whose instantiation is called
+<literal>Database_Queue_Pkg</literal>) must be fully qualified.
+
+<src:fragment id="database-pkg-spec-context">
+with
+   Ada.Strings.Unbounded,
+   PQueue;
+
+use
+   Ada.Strings.Unbounded;
+</src:fragment>
+</para>
+</section>
+
+<section>
+<title>Package Spec Proper</title>
+<para>
+
+The package spec puts together the context clause and the declarations to make
+a compilation unit.
+
+<src:fragment id="database-pkg-spec">
+<src:fragref linkend="database-pkg-spec-context"/>
+
+package Database is
+
+<src:fragref linkend="database-basic-types"/>
+
+<src:fragref linkend="database-queue-decl"/>
+
+end Database;
+</src:fragment>
+</para>
+</section>
+
+</section>
+</section>
+</section>

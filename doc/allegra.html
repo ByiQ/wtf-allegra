@@ -1,0 +1,462 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+  <head>
+    <title>The Allegra Info-Bot</title>
+  </head>
+
+  <body bgcolor="#FFFFFF">
+    <h1 align="center">The Allegra Info-Bot</h1>
+
+    <p style="float: right; margin-left: 4em; margin-top: 0; margin-right: 0.5em; margin-bottom: 4em;" align="right">
+      <img src="robot2.jpg" alt="[robot]" height="370" width="200">
+    </p>
+
+    <!-- ------------------------------------------------------------------------ -->
+    <a name="introduction">&nbsp;</a>
+    <h2>Introduction</h2>
+
+    <p>
+      Allegra is an IRC info-bot (an information "robot", or software agent)
+      created for the #Ada channel on the Freenode IRC network.  This document
+      describes the program itself, including how to build, install, and
+      maintain it.  <a href="userman.html">Another document</a> exists
+      describing how to use the bot once it is running, and <a
+      href="codeman.html">yet another</a> discussing the code itself.
+    </p>
+
+    <p>
+      Allegra was intended primarily to serve the needs of the #Ada channel,
+      and is not presented as a general-purpose info-bot, although her <a
+      href="#licensing">code is freely available</a> and may be employed by
+      others to whatever extent they find it useful.  For a general-purpose
+      IRC bot, try <a href="http://blootbot.sourceforge.net/">blootbot</a>, <a
+      href="http://sourceforge.net/projects/infobot/">infobot</a>, <a
+      href="http://dagny.sourceforge.net/">dagny</a>, <a
+      href="http://www.eggheads.org/">eggdrop</a>, or any one of a zillion
+      others.
+    </p>
+
+
+    <!-- ------------------------------------------------------------------------ -->
+    <a name="licensing">&nbsp;</a>
+    <h2>Licensing</h2>
+
+    <p>
+      Allegra's code is covered under the <a
+      href="http://en.wikipedia.org/wiki/GNAT_Modified_GPL">GNAT Modified
+      General Public License</a>.
+    </p>
+
+
+    <!-- ------------------------------------------------------------------------ -->
+    <a name="requirements">&nbsp;</a>
+    <h2>Requirements</h2>
+
+    <p>
+      The code for the bot currently running on #Ada was built and runs in the
+      following environment:
+    </p>
+    <ul>
+      <li>Kernel: Linux 2.6.32-3-amd64</li>
+      <li>Distribution: <a href="http://www.debian.org/">Debian</a> "squeeze" (testing)</li>
+      <li>Compiler: <a href="http://libre.adacore.com/GNAT/">GNAT</a> GPL09 (GNAT GPL 2009 (20090519))</li>
+    </ul>
+
+    <p>
+      It depends on two Ada support libraries:
+    </p>
+    <ul>
+      <li><a href="http://coreland.ath.cx/data/code/postgres-ada/">Postgres-Ada</a>,
+      a binding to the libpq API library for the PostgreSQL database,
+      originally written by Samuel Tardieu, updated and maintained now by
+      coreland: current version 0.2.1</li>
+
+      <li><a href="http://www.niestu.com/software/nail-20090205.tar.bz2">NAIL</a>,
+      a simple set of Ada utility packages, developed locally: current version
+      20090205</li>
+    </ul>
+
+    <p>
+      In turn, Postgres-Ada depends on libpq (currently provided by the Debian
+      packages libpq-dev and libpq5, both currently at version 8.4.4-1+b1),
+      and once running, the bot expects
+      a <a href="http://www.postgresql.org/">PostgreSQL</a> server to be
+      available (package postgresql, current version 8.4.4-1).
+    </p>
+
+    <p>
+      The code uses some GNAT-specific packages, GNAT.Regpat most heavily, so
+      porting it to another Ada compiler would be a bit of work, although the
+      GNAT run-time library code is open-source, so in a pinch that could be
+      used.
+    </p>
+
+    <p>
+      We're unaware of any "tight" version requirements, so other versions of
+      the above software will likely work.  If you discover any other
+      dependencies not listed here, please report them on #Ada.
+    </p>
+
+
+    <!-- ------------------------------------------------------------------------ -->
+    <a name="buildinst">&nbsp;</a>
+    <h2>Building, Installation, and Configuration</h2>
+
+    <a name="building">&nbsp;</a>
+    <h3>Building</h3>
+    <p>
+      Building is quite straightforward (at least on our system!):
+    </p>
+    <p style="margin-left: 2em;"><tt>make</tt></p>
+    <p>
+      If all goes well, this creates the binary, "allegra", which may be
+      installed anywhere you wish.  It has no hard-coded dependencies on
+      external files; it fetches all of its configuration from the "allegra"
+      database on the PostgreSQL server, which is assumed to be running on the
+      same host.  To use a server on a different host, the "Host" argument to
+      the "Connect" call in config.adb would need to be set to the hostname
+      where the server is running.  Possibly, this might be made more
+      configurable in a future release, like being taken from a command-line
+      option.
+    </p>
+
+    <p>
+      Some notable aspects of the makefile:
+    </p>
+    <ul>
+      <li>The makefile uses several GNU-make text functions to build lists of
+      pathnames and to execute shell functions.  If another make processor is
+      used, the makefile will require adaptation to its requirements.  In a
+      pinch, you can simply run the gnatprep and gnatmake commands by hand,
+      providing the appropriate identity values to gnatprep, and paths for
+      AdaSockets and PGAda to gnatmake.</li>
+
+      <li>The PGADA_DIR macro should be set to the pathname where you
+      installed the Postgres-Ada package.</li>
+
+      <li>Currently, gnatmake options can be specified via the DEBUG macro,
+      eg. "<tt>make&nbsp;DEBUG=-O2</tt>".  Another macro with a more suitable
+      name will be added in a future release.</li>
+
+      <li>The program's "identity" text is created each time by the build
+      process, then passed to the gnatprep Ada pre-processor to create the
+      "identity.adb" package body from the "identity.adp" source.  The VER and
+      REV values are set by calling svn, the <a
+      href="http://subversion.tigris.org/">Subversion</a> command-line client;
+      if you have retrieved the source from its Subversion repository, and
+      have svn installed, these commands should work as-is.  If not, you may
+      retrieve them from some other source, or simply hard-code them into the
+      makefile.</li>
+    </ul>
+
+    <a name="installation">&nbsp;</a>
+    <h3>Installation</h3>
+    <p>
+      As mentioned <a href="#building">above</a>, the allegra binary may be
+      placed in any location.  It uses a PostgreSQL database for all
+      configuration data.  To set up the database, follow these steps:
+    </p>
+    <ol>
+      <li>
+        Once you have the binary built, you need to initialize the database
+        used by the bot.  The PostgreSQL utility to create the empty database
+        initially is "createdb", and might be used like so:
+        <p style="margin-left: 2em;"><tt>createdb allegra "Database for Allegra info-bot"</tt></p>
+        If you wish to use a different database name, you will need to change
+        the value of the constant "Allegra_DB" in config.ads; again, this is a
+        good candidate for a command-line option in future.
+      </li>
+
+      <li>
+        Once you have created the database, run:
+        <p style="margin-left: 2em;"><tt>support/init-config</tt></p>
+        from the Allegra install directory, to create the necessary tables and
+        populate the configuration tables with their default values.
+      </li>
+
+      <li>
+        <a name="ranvals">No default values</a> are provided for these tables:
+        <ul>
+          <li>actquips: Quips that are "actions" (as opposed to normal messages)</li>
+          <li>quips: Quips that are normal messages</li>
+          <li>quitmsgs: Quit messages</li>
+          <li>quotes: Quotes, retrievable via the bot's "quote" command</li>
+          <li>usrlevels: Command authorization levels assigned to various usermasks</li>
+        </ul>
+        You will need to provide your own values for these tables.  One simple
+        way to do this is via the PostgreSQL utility "psql", using shell commands
+        like so:
+        <ul>
+          <li><tt>psql -d allegra -c "insert into actquips (msg) values ('runs the 100-metre dash')"</tt></li>
+          <li><tt>psql -d allegra -c "insert into quips (msg) values ('I hear you knocking, but you can''t get in!')"</tt></li>
+          <li><tt>psql -d allegra -c "insert into quitmsgs (msg) values ('I shall now take my leave.')"</tt></li>
+          <li><tt>psql -d allegra -c "insert into quotes (quote,attr) values ('Bah!','Ebenezer Scrooge')"</tt></li>
+          <li><tt>psql -d allegra -c "insert into usrlevels values ('nick!user@some.host.net',6)"</tt></li>
+        </ul>
+        You may insert as many of each sort of message as you wish.  The bot
+        will select randomly from among the ones found in the tables.  Adding
+        entries to the usrlevels table gives users who match the usermask that
+        access level for executing bot commands.  We recommended that you:
+        <ol>
+          <li>Add your own usermask immediately, with bot operator access (level 10).</li>
+
+          <li>Be careful in giving out bot operator access to anybody else.
+          Be sure you trust them implicitly, although most of the damage they
+          might do can be corrected by adjusting the database directly using
+          psql.  However, without a <a href="#maintenance">backup</a>, you
+          can't recover deleted factoids!
+          </li>
+        </ol>
+        
+      </li>
+
+      <li>
+        The factoid and statistics tables are filled and maintained by the
+        bot, either automatically or via bot commands, so no special action
+        need be taken for those at installation time.
+      </li>
+    </ol>
+
+    <a name="configuration">&nbsp;</a>
+    <h3>Configuration</h3>
+    <p>
+      The default configuration values are found in the support/init-config
+      script, in the section with the "INSERT INTO config" statements.  The
+      current configuration items are:
+    </p>
+    <table border="1">
+      <tbody>
+        <tr>
+          <th><strong>Item&nbsp;Name</strong></th>
+          <th><strong>Usage</strong></th>
+        </tr>
+        <tr>
+          <td>armpath</td>
+          <td>Pathname of the RM index file to be used for index lookups via
+          the "find" bot command.  Set to null to disable the "find"
+          command.</td>
+        </tr>
+        <tr>
+          <td>channel</td>
+          <td>The IRC channel the bot should join, without the leading "#",
+          which is added automatically, eg. "mychan".  May be overridden via a
+          command-line parameter.</td>
+        </tr>
+        <tr>
+          <td>helppath</td>
+          <td>Pathname of the bot's help-message file.</td>
+        </tr>
+        <tr>
+          <td>host</td>
+          <td>Network name of the host running the IRC server to which you
+          wish to connect, eg. "irc.freenode.net".  May be overridden via a
+          command-line parameter.</td>
+        </tr>
+        <tr>
+          <td>lastsize</td>
+          <td>Size in lines of the buffer used for the "last" bot command.
+          This sets the max number of lines the bot remembers, and thus that
+          may be recalled using "last".</td>
+        </tr>
+        <tr>
+          <td>loglevel</td>
+          <td>
+            Verbosity level for the bot log.  Legal values are:
+            <ul>
+              <li>none -- lowest, no messages logged</li>
+              <li>err -- error messages</li>
+              <li>warn -- warning and error messages</li>
+              <li>info -- informational, warning, and error messages</li>
+              <li>dbg -- highest, enable all message output</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td>logpath</td>
+          <td>Pathname of file to use for log messages, eg. "local.log".  May
+          be overridden via a command-line parameter.</td>
+        </tr>
+        <tr>
+          <td>nick</td>
+          <td>The IRC nickname the bot should use, eg. "Momzer".  May be
+          overridden via a command-line parameter.</td>
+        </tr>
+        <tr>
+          <td>nickpass</td>
+          <td>For IRC networks (like Freenode) which run NickServ, this is the
+          password the bot should use for it.  You must register the bot's
+          nick yourself, set the password, then put that password value into
+          the database.</td>
+        </tr>
+        <tr>
+          <td>port</td>
+          <td>Numeric port number to use for the IRC connection, eg. "9996".
+          May be overridden via a command-line parameter.</td>
+        </tr>
+        <tr>
+          <td>quips</td>
+          <td>Numeric probability that the bot will print a quip when it sees
+          its nick used in channel traffic, as a decimal fraction.  Set to 0.0
+          to disable quips, 1.0 to always print quips, or somewhere in between
+          for occasional ones.</td>
+        </tr>
+        <tr>
+          <td>realname</td>
+          <td>The value the bot should use for the IRC "realname" field when
+          registering with the server, eg. "My Allegra Clone".</td>
+        </tr>
+        <tr>
+          <td>shorthand</td>
+          <td>A short string (usually just one character) which may be used in
+          channel messages instead of the bot's nick, to cause the bot to
+          treat them as commands.  For example, "Allegra: quote" is treated as
+          a bot command, but if the shorthand string is "!", then "!quote" has
+          the same effect.</td>
+        </tr>
+        <tr>
+          <td>shorturl</td>
+          <td>The network address of the URL shortener server the bot uses to
+          shorten long URLs.  If this changes, you'll probably have to update
+          the code that accesses it, too, to conform to the new site's
+          requirements.</td>
+        </tr>
+        <tr>
+          <td>username</td>
+          <td>The value the bot should use for the IRC "username" field when
+          registering with the server, eg. "allegra".  Roughly equivalent to a
+          Unix user ID.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      <a name="chgcfg">You can change the configuration values</a> either by
+      editing the support/init-config script before running it, or at any time
+      after installation by psql shell commands like these:
+    </p>
+    <ul>
+      <li><tt>psql -d allegra -c "update config set value='foobar' where name='nickpass'"</tt></li>
+      <li><tt>psql -d allegra -c "update config set value=0.1 where name='quips'"</tt></li>
+      <li><tt>psql -d allegra -c "update config set value='irc.othernet.org' where name='host'"</tt></li>
+    </ul>
+    <p>
+      Note that the bot only reads the configuration values at startup, so if
+      you change them while it is running, you'll need to stop it (via the
+      "quit" bot command) and re-start it.  Hey, we <em>said</em> it wasn't a
+      general-purpose bot!
+    </p>
+
+
+    <!-- ------------------------------------------------------------------------ -->
+    <a name="running">&nbsp;</a>
+    <h2>Running</h2>
+
+    <p>
+      To use the configured settings for IRC server, port, nickname, channel,
+      and logfile pathname, simply run the bot binary with no arguments:
+    </p>
+    <p style="margin-left: 2em;"><tt>/path/to/allegra</tt></p>
+    <p>
+      Normally, we run it backgrounded and nohup'd, like so (under a Bourne-like shell, at least):
+    </p>
+    <p style="margin-left: 2em;"><tt>nohup /path/to/allegra >/path/to/startup-errors.log 2>&amp;1 &amp;</tt></p>
+    <p>
+      The first time or two, check the stderr output (shown above as
+      "/path/to/startup-errors.log") to see if any serious errors occurred
+      during startup.  After the bot is started, it logs errors in its
+      configured log file.
+    </p>
+
+    <p>
+      To override any of the above-mentioned five configuration values, use
+      one or more of these positional command-line parameters:
+    </p>
+    <p style="margin-left: 2em;"><tt>allegra <em>irc-host irc-port nick channel logpath</em></tt></p>
+    <p>
+      Since they are positional, you must specifify them in the order given
+      above, and to specify, for example, an alternate IRC channel to join,
+      you must also specify the <em>irc-host</em>, <em>irc-port</em>, and
+      <em>nick</em> parameters too.  Their meanings:
+    </p>
+    <ul>
+      <li><em><strong>irc-host</strong></em> -- Network name of the host
+      running the IRC server to which you wish to connect,
+      eg. "irc.freenode.net"</li>
+
+      <li><em><strong>irc-port</strong></em> -- Numeric port number to use for
+      the IRC connection, eg. "9996"</li>
+
+      <li><em><strong>nick</strong></em> -- The IRC nickname the bot should
+      use, eg. "Momzer"</li>
+
+      <li><em><strong>channel</strong></em> -- The IRC channel the bot should
+      join, without the leading "#", which is added automatically,
+      eg. "mychan"</li>
+
+      <li><em><strong>logpath</strong></em> -- Pathname of file to use for log
+      messages, eg. "local.log"</li>
+    </ul>
+
+    <p>
+      For testing your own setup and installation of this code, we highly
+      recommend <a href="http://pircd.sourceforge.net/">pircd, a Perl IRC
+      server</a>.  It's easy to configure and run, and it's what we used when
+      developing Allegra.  We run pircd on the development machine, then use
+      an allegra command like this, to avoid impacting the one that's running
+      live on Freenode:
+    </p>
+    <p style="margin-left: 2em;"><tt>./allegra myhost 6667 Allegra testchan local.log &amp;</em></tt></p>
+    <p>
+      Then we log onto the same server with an IRC client (<a
+      href="http://www.xchat.org/">xchat</a> is a good one) and beat hell out
+      of, er, <em>test</em> the new bot version from there.
+    </p>
+
+
+    <!-- ------------------------------------------------------------------------ -->
+    <a name="maintenance">&nbsp;</a>
+    <h2>Maintenance</h2>
+
+    <p>
+      The bot requires very little upkeep, just a botsnack now and again, and
+      careful cultivation of a useful factoid database.  Some maintenance
+      tasks to consider:
+    </p>
+    <ul>
+      <li><a href="#ranvals">Adding new values</a> to the random-message tables.</li>
+
+      <li><a href="#chgcfg">Changing values</a> in the configuration.</li>
+
+      <li>Backing up the database.  After the bot has been running for a
+      while, the factoid database, user auth table, and command statistics can
+      become rather valuable and difficult to recreate.  We recommend that you
+      perform regular backups of the database; to that end, we have provided a
+      simple shell script, "support/backup", that uses the PostgreSQL shell
+      command pg_dump to create a full backup of the current database.  If you
+      <a href="#installation">call your database</a> something other than
+      "allegra", you will need to change that name on the pg_dump command in
+      that script.  It puts the backup in a file named
+      "db-backup.<em>YYYY-MM-DD</em>", where "<em>YYYY-MM-DD</em>" is the date
+      you ran the script.</li>
+
+      <li>Her log file will grow endlessly, and while she doesn't log too much
+      when the default "err" log level is set, it can grow quite quickly if
+      you set "dbg" and run on a busy channel.  Consider using something like
+      <a href="http://iain.cx/src/logrotate/">the logrotate utility</a> to
+      automatically archive the log file.</li>
+    </ul>
+
+    <br clear="all">
+    <hr>
+    <address><a href="mailto:allegra@niestu.com">Mail About Allegra</a></address>
+    <p style="font-size: x-small;">
+      Robot image derived from "Robot Joe" rendering by the extremely
+      talented <a href="http://www.flickr.com/people/flysi/">Simon Abrams</a>
+      of Brooklyn, New York.
+    </p>
+<!-- Created: Sun Jul 24 00:47:04 MST 2005 -->
+<!-- hhmts start -->
+<p>Last modified: Thu  8 Jul 2010 00:12:22 MST</p>
+<!-- hhmts end -->
+  </body>
+</html>

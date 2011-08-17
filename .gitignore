@@ -1,0 +1,8 @@
+*~
+*.ali
+*.o
+backups
+logs
+publog
+svn-version
+to-git

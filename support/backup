@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# Use backup directory name if given on the command line, otherwise use cwd
+if [ "$1" ]; then
+   dir="$1"
+else
+   dir="."
+fi
+
+# Figure out the basename for today's backup
+suffix=$(date +'%Y-%m-%d')
+base="$dir/db-backup.$suffix"
+name="$base"
+
+# Avoid collisions if more than one backup on the same day
+num=1
+while [ -e "$name" ]; do
+   name="$base.$num"
+   let num="$num+1"
+done
+
+# Do the actual backup
+pg_dump allegra >$name
+
+# Email backups of the backup to selected kindly users
+cat <<EOF | mutt -s "Allegra database backup for $suffix" -a $name -- "jkimball4@gmail.com"
+Here is the Allegra database backup for this week.  Thanks for stashing them!
+
+-- 
+Chip
+EOF
+
+# Report success
+echo "Backed up database to $name"

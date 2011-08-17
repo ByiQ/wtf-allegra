@@ -1,0 +1,716 @@
+
+
+Thu Mar 21 04:58:06 MST 2002
+
+So begins a new IRC robot project, Allegra.  If there's one thing I've always
+thought there was already too much of in the world, it's IRC software.  One
+may well ask, then, why this project exists, or at least why I chose to do it.
+Not so much because the world needs another IRC bot, but because as is usual
+with open-source projects, I had an itch.  None of the existing bots did what
+I wanted them to do, exactly, although the Python bot "Dagny" came close.  So
+when #ada on the OpenProjects IRC network needed a replacement for its Dagny,
+the obvious choice was to write a new one in Ada.  Think of Allegra more as an
+Ada demo than as Yet Another IRC Bot.
+
+I've now done a couple of proof-of-concept programs, to answer some questions
+I had about IRC connections, adasockets, XML, and so on.  Those questions have
+now been answered to my satisfaction, so it's time to begin the design.
+Before I start, I must note that, courtesy of a link posted on Slashdot, I
+have just recently read Donald Knuth talking about what a joy it is to program
+with LP (literate programming), and the last Ada project I did was LP, so I
+think Allegra will be LP too.  Maybe this blather can serve as a preface or
+something.
+
+I guess that leads me to having to decide what LP system to use.  For that
+matter, I guess I should state up front all aspects of the environment in
+which I expect Allegra to function:
+
+ * The code will be developed on Linux, though any POSIX platform that
+   supports the rest of the environment should work.  I use Debian Woody
+   at the moment, and thus will be using only things that come with that
+   distro, or that can easily be installed on it.  Florist may be a notable
+   exception, but I've found that the Florist RPMs from ALT can be installed
+   quite easily using alien, although they won't work with the stock Debian
+   GNAT package, so currently my entire Ada installation is alien'ed ALT
+   RPMs.  Is that enough geekspeak for you?
+
+ * I hope to be keeping the source in a semi-public Subversion repository,
+   and/or may eventually place it on Savannah (savannah.gnu.org).  The
+   licensing will be GPL.
+
+ * I'll be using the GNAT compiler, currently version 3.13p.  I'm going to try
+   to avoid any GNAT-specific constructs or libraries, though, unless they are
+   just too tempting and juicy (and will clearly save me a buttload of work),
+   in which case I'll certainly isolate them as much as possible.
+
+   The LP system isn't quite as easy a choice.  I have in the past used noweb,
+   and liked it fairly well.  It's simple and relatively unobtrusive, works
+   well with Ada, produces nice-enough output, and is available as a standard
+   Debian package.  Of course, with all those advantages, I simply *must* look
+   for an alternative!  Late last year, I played a bit with XML-Lit
+   (xml-lit.sourceforge.net), but never got off the ground with it.  It does
+   some things I don't much care for, although I guess I could always hack the
+   source.  And there's several other SGML or XML LP systems, most based on
+   the DocBook DTD, such as Mark Wroth's DBLP
+   (http://www.west-point.org/users/usma1978/36200/LitProg/LiterateProgramming.html)
+   and Norman Walsh's thingie, which is part of his DocBook CVS at SourceForge
+   (http://sourceforge.net/projects/docbook/).  Now, while I'm probably going
+   to use XML at various points within Allegra, and am getting more familiar
+   and comfortable using it every day, the SGML/XML LP systems aren't quite
+   ready for prime-time, methinks, so for now I'll stick with noweb.  The
+   principles are the same, however, so converting shouldn't be too terribly
+   onerous should I later decide to do so.
+
+ * I intend to use PostgreSQL as the database engine, although the DB
+   interface should be pretty simple and thus easy to abstract, so it should
+   be relatively straightforward to replace Pg with other database software.
+
+ * The thing will run on OPN (irc.openprojects.net), although again, I hope to
+   avoid writing something that absolutely won't run anywhere else.  I'll be
+   testing it on my small in-house server, which currently runs pircd, and can
+   also test on "vanilla" ircd, so it should be reasonably portable IRC-wise.
+
+I suppose that next I should state what Allegra is and is not, what she will
+and will not be expected to be able to do.
+
+She will not:
+
+ * Be the be-all and end-all of IRC robots.  She'll do what #ada and I need
+   and want her to do, and not much more.
+
+ * Be the be-all and end-all of Ada code.  I have my own likes and dislikes,
+   strengths and weaknesses, and am not going to worry too much about solving
+   any research problems, or winning the elegance war.  Simple and functional
+   will be the watchwords.
+
+ * Read email, stream audio, serve web pages, or any of the other fancy things
+   that so many other programs seem to be able to do, regardless of their
+   actual intended function.  Sheesh, give a programmer a full-featured
+   run-time library and he goes nuts.
+
+ * Be scriptable, or support plug-ins.  Probably.  Unless it's easy to do and
+   solves one or more of the problems I'm setting out to solve.
+
+ * Be a general-purpose solution to anything.  I'm not writing the canonical
+   Ada IRC library, nor anything else that's likely to be re-usable.  Been
+   there, done that, it's hard, have neither the time nor the energy at the
+   moment to do it again.
+
+ * Be a "war" bot, or any other such IRC flummery.  She's an information
+   utility bot, not a channel guard or an attack dog.  She's also not an "op"
+   bot, nor will she provide any user services such as memos.
+
+She will, or is intended to:
+
+ * Be simple and robust.  She should be able to take a reasonable beating,
+   whether from the fates, network weather, or abusers, and continue to
+   respond in a non-embarrassing fashion.
+
+ * Provide information services.  At the very least, she should be able to
+   learn and look up keywords/phrases.  Better, she could do RM searches.
+   Having her learn from normal channel traffic would be cute, but currently
+   not appropriate for #ada.  My inspiration here is #debian's apt.
+
+ * Be amusing, if it doesn't otherwise interfere with her utility functions.
+
+ * Do any additional functions that seem useful or appealing.  Which means
+   that she should be easy to expand.  Did I mention that we're not going to
+   have scripts or plug-ins?  Well, something will be done, not sure what yet.
+
+ * Be reasonably configurable.  With XML as a configuration language, there's
+   no excuse for not allowing most program behaviors to be adjustable instead
+   of fixed.
+
+That still leaves a lot of questions open:
+
+ * Should she support multiple servers simultaneously?  I'm thinking not.
+   Just start multiple instances.
+
+ * Will she be able to serve files, presumably via DCC?  It'd be nice for her
+   to be able to hand out her own sources, but I'm thinking that's a job
+   better left to the web and ftp.
+
+But that's enough to start spitballing, I think, so that'll come next.
+
+
+Fri Nov 14 21:00:53 MST 2003
+
+I'm really interested in getting this going (again), and I'm starting to look
+very seriously at Norm Walsh's XML Docbook literate programming system, which
+is described at http://nwalsh.com/docs/articles/xml2002/lp/paper.html and
+whose home page is http://docbook.sourceforge.net/projects/litprog/ .
+
+I went through a bunch of stylesheet processors, and I still have only the
+vaguest idea of what I'm doing.  I started by installing OpenJade, but that's
+apparently not quite the kind of processor I need, and trying to use it on
+Norm's code caused it to vomit badly, as well it should.  Like trying to feed
+C to a Pascal compiler, I guess, or rather, more like trying to feed C source
+to yacc or something.  Clearly that wasn't the right path.
+
+Finally, from the tools section of the Docbook site at SourceForge, I
+downloaded the "xslt" script, which lists a bunch of the popular stylesheet
+processors.  I started installing them one at a time.
+
+First, I tried xalan, because it seemed to be a C++ program.  As far as I can
+tell, it's native code compiled from Java, cuz it runs dog-slow as do all Java
+apps I've ever tried.  It worked on the examples, mostly, except it couldn't
+get all the way through extracting the HTML for the Fibonacci example--got a
+mysterious runtime error "called pure virtual function".  Oh, real helpful.
+
+So I looked further, and installed saxon, in the form of the Debian
+lib-saxon-java package.  Saxon is the default in the xslt script, but it's a
+Java program, which I could never get to run.  Running Java apps always takes
+a half-day of fiddling to get the correct set of incantations, and I lost
+patience pretty quickly and looked further.
+
+Finally, I installed xsltproc, which seems to be part of GNOME.  It went
+through the Fibonacci example in fine style, though it barfs on the "doc"
+example, which shows how one can do XML itself in XML literate programming.  I
+don't envision wanting to do that any time soon, but if I do, xalan seems to
+do that one without problems.  Sigh.  So clearly this whole area isn't quite
+settled yet, but at least I can do the example that is like what I want to do.
+
+So now, I want to do my own tiny example so I can prove to myself that I can
+work the machinery.  But I am quickly lost in XEmacs' PSGML mode and DTD's and
+Docbook and crap, and can't seem to quite get the right package of stuff
+loaded into emacs to tell it what I'm actually doing.  I bet it's possible,
+though.
+
+During my explorations, I found that one of the namespace pointers (again, I'm
+talking out my ass here, having only the vaguest idea what it all means) at
+Norm Walsh's site is just gone, and exploring his site gives no help at all.
+Since his litprog code hasn't been updated in almost a year, it's quite likely
+that he moved it and hasn't quite caught up with all his little pieces.  So
+I'm now on a search for that, and on a search for how to load DTD's into
+emacs, and similar crap.  But I do see a glimmering of light at the end of the
+tunnel, at least enough to convince me that it's a tunnel and not a bottomless
+pit.  So onward I plunge.
+
+
+Sun Nov 16 22:00:01 MST 2003
+
+Welp, I did it.  Over the course of this weekend, I figured out everything I
+needed in order to make the XML LP stuff work, and to allow XEmacs to read
+DTDs and provide some degree of assistance in editing XML, and thus XWeb,
+documents.  And as a side benefit, I can do HTML now without those annoying
+error messages, and with that same degree of assistance.
+
+This is not to say that I have it all figured out.  But I was able to write my
+own example and get it working, package and configure everything, then write
+another version of the example totally from scratch.  It's just a "Hello,
+world" program, but it might be of some interest to someone interested in
+doing LP using XML and Ada.  All one of us, no doubt.
+
+A quote from the paper Walsh wrote about his DocBook XSLT-based LP system sums
+up the LP quandary pretty nicely:
+
+   There are significant learning and training issues associated with adopting
+   a system like this. It is so radically different from what most programmers
+   are used to doing that there may be some resistance to adopting this new
+   methodology. The system definitely imposes short-term productivity losses,
+   but the long-term rewards in program maintainability and understandability
+   can be tremendous.
+
+In this era of short-term focus, LP seems pretty weird to most people,
+especially the rapid-fire net jockeys that one meets on IRC and other
+net-based forums.  But Knuth's arguments and presentation are persuasive to
+me, so I'm sticking with it for things I care about.  Is LP appropriate for a
+short shell script?  Maybe not, but as sure as you think something is going to
+be a one-shot throwaway, before you can sneeze it has become the bane of your
+existence, taking on a life of its own and being adopted as a vital part of
+essential processes all over the planet.  Trust me on this one--it's happened
+to me, more than once.
+
+So am I going to start doing every piece of code in LP?  No, probably not.
+Certainly at work they don't want that, and I'm not sure I can afford it for
+my own projects, even though I am darned sure that I'll regret it later on
+certain ones.  Part of it is, I'm still really just a beginner at LP itself.
+Even now as I type these notes, I'm still doing it as plain text, not as
+DocBook XML, for example.  I should probably convert them, huh?  And I've
+never done anything large, even something modest like Allegra, using LP, so
+this is going to be yet another learning experience for me.  But the payoff
+seems worth it, long-term though it might be.
+
+So, enough preaching.  I also sketched out what I think should be the tasking
+structure for Allegra, initially as just a pencil sketch, then later as an
+XFig diagram.  It's at least going to give me something to start with.  I have
+been thinking about creating a "skeleton" of the finished app, with all the tasks
+and queues in place, but with dummy logic, stubbed I/O, etc.  That's a lot
+of work, and I'm afraid I won't be able to re-use enough of it to make it
+worthwhile, but it's really just a variation on the interative development
+approach that I tend to favor, so that's probably how I'll start.  It'll give
+a good exercise to my Ada and LP skills, anyway.
+
+
+Wed Nov 19 10:19:06 MST 2003
+
+A good passage about Allegra, found at http://www.gothicpress.freeserve.co.uk/Byronic%20Legacy.htm:
+
+Clara Allegra Byron (1817-1822)
+
+Claire Clairmont [the stepsister of Mary Shelley] gave birth at Bath to a
+daughter, on 12 January 1817, whom she named Alba, after Alb&eacute;, the name the
+Shelley family had assigned to Byron while in Geneva. Byron asked
+rhetorically: "Is the brat mine? ~ I have reason to think so." Before leaving
+England with her mother, the child was baptised "Clara Allegra Byron, born of
+Rt Hon George Gordon Lord Byron ye reputed father by Clara Mary Jane
+Clairmont."
+
+Allegra was spoilt, wilful, and undisciplined ~ a carbon copy of her father
+when he was a child. By the age of four Byron arranged for her to be enrolled
+at a Capucine convent at Bagnacavallo, Italy. On 20 April 1822 Allegra, aged
+five years and three months, was dead, to the profound grief of the nuns who
+regarded her a very special child. When Byron heard the news he sank into a
+chair, and asked to be left alone. Three years later he told Lady Blessington:
+"While she lived, her existence never seemed necessary to my happiness; but no
+sooner did I lose her than it appeared to me as if I could not live without
+her."
+
+The body of Allegra was sent back to England to be buried at Harrow Church
+near Peachey Stone where the poet had spent so many hours as a boy. The rector
+of Harrow refused to erect Byron's proposed tablet, and the child was buried
+just inside the threshold of the church. Byron had wanted the words: "I shall
+go to her, but she shall not return to me."
+
+
+Sun Nov 23 17:30:13 MST 2003
+
+Another quote, this time about why hackers don't use Ada, from the ADAIC:
+
+    C++ gives programmers more freedom. The language allows for rugged
+    individualism and, therefore, all the danger that can come with it. Ada
+    imposes discipline on the developer and safety on the development; it is,
+    and will continue to be, unpopular with hackers.
+
+From http://archive.adaic.com/docs/present/engle/whyada/tsld018.htm
+
+
+Tue Dec  9 15:16:28 MST 2003
+
+Well, I finished Alba day before yesterday, and posted her announcement to
+resounding indifference.  I think exactly one person aside from my immediate
+circle of friends has looked at it so far.  No matter--I now have a skeleton
+upon which to hang Allegra.  I got the source for "blootbot", which is what I
+think debian's "apt" (now "dpkg") is.  It's a perl script, and relies on the
+perl IRC library for a lot of its mechanism, so I suppose I'll have to get
+that, too.  But blootbot did remind me of a lot of stuff I need to worry
+about, that I might have overlooked without it, so it was a very good find.
+
+I think my next step is to write some code to parse IRC messages, and to
+construct replies.  With that, I can turn Alba into a version of my earlier
+"ripetulo" test, and then just start adding stuff from there.  I think the big
+steps will be:
+
+ * IRC communication
+ * IRC message formats
+ * PostgreSQL communication
+ * ARM lookups (maybe)
+
+I've decided not to add any DCC capability beyond a reply that says "I don't
+do DCC."  And the local console app should probably do configuration, too, and
+should probably be a slick GUI.  Should it also have a text-only version?
+Isn't that sorta what the IRC control interface is?
+
+
+Sun Feb 29 21:44:51 MST 2004
+
+Some quick jottings:
+
+Configuration data:
+   Command:access level table (lists the commands/actions, and the access
+                               level needed to perform them)
+
+   Quip table (what she says when she sees her name)
+
+   Quote table (from the "quote" command)
+
+Operational data:
+   Mask:access level table    (lists masks and the access levels they grant)
+   Factoids
+
+Commands:
+   <factoid-name> (is|are) [also|so|too|action|reply] <factoid-def>
+   [~]<factoid-name> ?
+   tell <nick> about <factoid>
+   what [is|are] [~]<factoid> [?]
+   forget <factoid>
+   rename <from-name> [as|to] <to-name>
+   find <string>
+   help
+   quote
+   stats [<factoid>]
+   access <mask> <level>
+   quit
+
+For access levels, I was thinking maybe 0 .. 10 or something, with 0 being
+"persona non grata", as in, the bot will ignore this person entirely.  Level 1
+is pretty much dirt, but is anybody who isn't on the "0" list gets a 1, unless
+they're already listed at higher.  And level 10 is the bot operator.  I was
+thinking the command levels would run something like this:
+
+   set factoid:      5
+   fetch factoid:    1
+   tell factoid:     3
+   forget factoid:   5 creator mask match, 10 no match
+   rename factoid:   5 creator mask match, 10 no match
+   find:             1
+   help:             1
+   quote:            2
+   stats:            2
+   access:          10
+   quit:             9 (or 10?)
+
+I'm considering having an auto-increment (and decrement?) of the access level
+per user.  That is, if they "behave" themselves, doing only helps and fetches
+for a few (?) intervals (days?), their access level gets incremented.  Maybe
+just chatting in the channel a lot (?) would do it, too.  Obviously, there'd
+have to be an auto-increment limit, like 7 or something, maybe with it getting
+increasingly hard to go up levels near the end?  And "pestering" the bot, like
+giving it unrecognized commands, might serve to decrement the level, too.
+
+
+Sat Mar  6 21:58:50 MST 2004
+
+Thought of a new configuration table:
+
+   Quit table (what she says when she is asked to quit)
+
+And some SQL:
+
+create sequence quitnum increment 1 start 1;
+create sequence quipnum increment 1 start 1;
+
+create table quitmsgs
+(
+   num integer default nextval('quitnum'),
+   msg text
+);
+
+create table quips
+(
+   num integer default nextval('quipnum'),
+   msg text
+);
+
+create table cmdlevels
+(
+   name  varchar (16),
+   level integer
+);
+
+create table usrlevels
+(
+   name  varchar (512),
+   level integer
+);
+
+insert into cmdlevels values ('set',     5);
+insert into cmdlevels values ('fetch',   1);
+insert into cmdlevels values ('tell',    3);
+insert into cmdlevels values ('forget',  5);
+insert into cmdlevels values ('rename',  5);
+insert into cmdlevels values ('find',    1);
+insert into cmdlevels values ('help',    1);
+insert into cmdlevels values ('list',    1);
+insert into cmdlevels values ('quote',   2);
+insert into cmdlevels values ('stats',   2);
+insert into cmdlevels values ('access', 10);
+insert into cmdlevels values ('quit',    9);
+
+
+Sat Mar 27 16:36:01 MST 2004
+
+The quotes table:
+
+create sequence quotenum increment 1 start 1;
+create table quotes
+(
+   num integer default nextval('quotenum'),
+   quote  text,
+   attr   varchar(128)
+);
+
+And the factoid and factoid statistics tables:
+
+create table factoids
+(
+   name        varchar(128),
+   value       text
+);
+
+create table factstats
+(
+   name        varchar(128),
+   created     date           default 'now',
+   creator     varchar(128)   default 'nobody',
+   acc_count   integer        default 0,
+   acc_last    date           default 'now',
+   acc_by      varchar(128)   default 'nobody'
+);
+
+
+Sun Apr  4 21:52:40 MST 2004
+
+I realize we need a "list" command, to list available factoids.  Presumably it
+would have to be put out in parcels, so as to avoid exceeding the IRC message
+length limit.  Maybe it could accept an optional regexp argument, to list only
+matching factoids.
+
+Oh, and some way of dealing with fetch requests for things like "~.", too.
+Maybe limit the number of responses?  Check that the fetched name is the same
+for all items?  (Currently doesn't actually fetch the name, but it's not
+impossible.)  Yeah, that sounds like a plan--if more than one factoid name
+matches, then just list the names, not the factoids themselves.  That way,
+fetching "~." would be equivalent to a "list" command.
+
+
+Sat Apr 10 07:21:34 MST 2004
+
+New and updated command syntax:
+
+   <factoid-name>; (is|are) [also|action|reply] <factoid-def>
+   no, <factoid-name> (is|are) [action|reply] <factoid-def>
+   [~]<factoid-name>[?]"),
+   tell (<nick>|me) [about] <factoid>
+   what [is|are] [~]<factoid> [?]
+   forget <factoid>
+   rename <from-name> [as|to] <to-name>
+   find <string>
+   help
+   list [regexp]
+   quote
+   stats [<factoid>]
+   access [<mask> <level>]
+   quit
+
+The "no, factoid is definition" is called a "reset".  Its auth level is the same
+as forget and rename:
+
+   reset factoid:    5 creator mask match, 10 no match
+
+
+Sun Jul  3 13:28:09 MST 2005
+
+Resurrection time.  I've migrated the source into a Subversion repository, and
+yeah, I guess it's better than cvs, though it'll take some getting used to.
+
+As soon as it was building in its svn suit, I changed the logic that responded
+to timeouts.  Previously, the ping task would close the socket, and expect
+that to raise an exception on the read where the input task was sitting, but
+that really didn't work too well.  Maybe it was a misconception on my part
+about how it was supposed to work, but in any case, that just plain didn't
+work much of the time.
+
+So now, it does an asynchronous select, waiting on the read to complete *or*
+for an entry to show up in the "timeout queue", which is really just a
+semaphore, but I didn't feel like creating a whole new protected type when the
+queue would serve.  It's sorta hard to test on demand, but what tests I've
+been able to do so far seem to work okay.
+
+But that testing revealed the next big change that needs to be made, which is
+a stateful response mechanism, for logins and such.  Something like a
+mini-"expect", where one input sets up an expectation for a future input,
+presumably along with an anticipated response to it.  That would also allow
+"interactive" operation, where she could ask a question and wait for the
+answer, while the rest of her processing continues normally.  That's not going
+to be as simple as most of the other code has been so far, but it needs to be
+done.
+
+And that rather brief re-introduction to her code has also brought me to a
+painful decision:  I'm going to "flatten" the code.  That is, I'm going to run
+a final tangle, and start working on the Ada source directly.  I'm going to
+un-LP-ify Allegra.  This is sad news both for the program and for me
+personally, but it's the right decision at this point.
+
+I still fully believe in the concept of literate programming, and hope to
+maybe someday return Allegra to that format, and certainly plan to use it for
+future projects, but right now, its cost is outweighing its benefit by too
+much.  Here's why I've come to this sad turn:
+
+1. LitProg is obviously dead.  Oh, it works well enough as it is, but Walsh
+hasn't touched it for over two years, and it looks as if neither he nor anyone
+else is going to.  It's a very clever and functional "program", but it has the
+air about it of being a weekend project, done to demonstrate that an entire LP
+processor could be written using only XSLT stylesheets.  Since he put it to
+bed in December 2002, nothing has changed, nothing has been written about it,
+there's no support for it that I can see, and in general it has become an
+orphan, entirely supported and maintained by those who use it, if there are
+any besides me.  I'm an expert on orphaned programs, so trust me when I say
+that if I wanted to keep using this one, I'd need to "adopt" it myself.
+
+2. As sad as I am to admit it, it's true:  LitProg sorta sucks.  Oh, not in
+and of itself, but for me and my current purposes, it really falls rather
+short.  Some notable aspects of this suckage:
+
+2a. It's terribly sloooow, at least when producing the documents.  Producing
+the source code, that's pretty swift, but running "make doc" is a 20-minute
+job on my box.  This may be the fault of xsltproc instead of LitProg, or (more
+likely, I think) the fault of my configuration of them, although I don't know
+enough about DocBook-XML, XSL, LitProg, or xsltproc to tell who's at fault.
+
+2b. Which brings up the next point: I don't know enough about DocBook-XML and
+XSL to make truly effective use of the system, and honestly, I don't care to
+spend the time necessary to learn them.  And forget about modifying it--I
+spent a little time at the beginning trying to hack in a couple of minor
+changes, and soon gave up on that.  I don't like using programs I don't
+understand.  There's an old adage in the LP world, that nobody is truly happy
+until they've created their own LP tool, and I can certainly understand that.
+I've considered it myself, and have a lot of great ideas about how it might
+work, but honestly, I don't want to write an LP tool.  I just want to *use*
+one.
+
+2c. And because I don't really understand it and can't really modify it, I'm
+left with the rather limited facilities I *do* understand.  I like
+parameterizing things, and hate duplication, and this system doesn't help much
+with those goals.  Oh, one can define "entities" that serve as macros/micros,
+but I find their use to be constricting and uncomfortable.  I'm sure that if I
+were comfortable with XSL and DocBook-XML, I'd be doing all sorts of crazy and
+fantastic things, but I'm not, and am not about to become thus skilled any
+time soon.
+
+3. The tools I have for dealing with it are quite limited compared to the
+tools for dealing with XML and Ada separately.  If I were to take the time to
+create an editing mode for XEmacs that handled xweb files, this wouldn't be an
+issue, but that would require that I learn Emacs LISP, and that's definitely
+not gonna happen.  As it is now, editing xweb files is painful at best, and
+having to de-XML-ize my Ada source fragments manually is a real hassle too.
+
+4. I've come to the conclusion that DocBook, and its sister DocBook-XML, are
+beautiful systems for document preparation, and I'd want to use them for any
+and all technical documenation I might want to prepare in the future.
+However, for an LP document for an open-source IRC robot, it's *way* overkill.
+Not only is the physical task of editing the source tedious (although I will
+say that the XEmacs xml-mode is very nice, and has made the job *possible*, if
+not entirely a joy), but just keeping up with the DocBook constructs is a
+full-time chore, that I must do in addition to, and at the same time as,
+worrying about the Ada source.  The modest familiarity I have gained over the
+past couple of years has helped a lot in this regard, but even now, it sucks
+up mental energy that would, I think, be better spent on the actual code.
+Yes, one must always divide one's attentions to some extent when coding a
+literate program, although I believe (and am willing to bet that Knuth also
+believes) that the extra thought one must put in should work to the *benefit*
+of the final executable code, not to its detriment.  At this time, the latter
+is the case with Allegra under LitProg, regrettably.  Not only is my poor Ada
+buried in a sea of verbose markup tags, but even my *documentation* is too,
+and that shouldn't be the case--one should be able to focus on the solution
+being presented, and not have to focus on the presentation itself.
+
+5. Because of the effect of the previous two phenomena--difficult editing, and
+excess markup--I've discovered in looking at the generated source code that
+there are bits of cruft in various places: Harmless (mostly) but useless
+statements that should have been moved or removed, omissions, oversights, and
+spurious inclusions that really shouldn't be there.  In the trade, we call
+these "bugs", and although I'm as prone to putting bugs in my code as anybody,
+I think these are only there because the presentation format distracted me.  I
+don't deal well with distractions even on my best days, and this is one I can
+remove easily, though not without cost, sigh.
+
+6. Between the time I started Allegra, early in 2002, and now in late 2005, I
+have written a *ton* of Ada for a project at work.  I have developed a "feel"
+for the "raw" source code that I did not really have back then, and now,
+working with it in separate chunks embedded in a dense forest of markup tags,
+especially when it takes so long to prepare a readable version of the document
+that *should* be their best presentation, is really harshing my mellow.  This,
+in fact, is one reason commonly given by people for not liking LP, and it is
+actually just a lazy man's excuse, but in this case, I need to get Allegra
+finished up so I can move on to my next project.  I could tolerate the LP
+overhead if it were minimal, but it's not, as long as I'm using this system,
+so away it goes.
+
+7. Probably the most serious reason I'm dropping the LP for Allegra for now is
+that much to my embarrassment, I wasn't really using it anyway.  One of the
+flagship benefits of LP should have been realized in exactly my current
+situation, that of picking up a piece of code one hasn't touched for a long
+time (over a year, in this case) and trying to carry it forward.  One should
+be able to skim through the documents to re-familiarize oneself quickly with
+the gestalt of the program, and when modifying particular sections, one should
+find nearby a detailed description of the whys and wherefores of that section,
+and its relation to the program as a whole.  All of this information should
+allow one to pick up the program and be able to make changes safely and
+reliably within a short amount of time.
+
+At least that's the theory.  But in my haste to get Allegra working at some
+level, so she could sit in the channel and, I told myself, get some mileage on
+her, I let the documentation parts slide to a ridiculous degree.  The original
+Allegra sources were created by copying and modifying the Alba sources, and in
+many many cases, the accompanying documentation fragments in the Allegra xweb
+files were the original Alba ones, completely unchanged.  And that's worse
+than useless--it's pure overhead, with zero, or even negative, benefit.
+
+Now, I cannot blame my usage patterns of this LP system on the system itself,
+at least not to any great extent.  Sure, it may be hard to use, but that's
+not an excuse for not using it at all.  So despite all my whining about
+LitProg, this collapse is really my own fault.  So be it.
+
+So my course of action now will be:
+
+1. Do the final tangle, to produce the Ada sources.
+
+2. Pretty-print the sources a bit, probably just using emacs.
+
+3. Commit the sources to the repository.
+
+4. Add comments and do general cleanup.
+
+5. Make my next round of changes, in this case the "expect" mechanism.
+
+6. Once I'm convinced that all is going well, I'll retire the xweb sources,
+   leaving them in older versions of the repository.
+
+Sad sad tale, and more a reflection on me than on LP, LitProg, or
+DocBook-XML.  But that's the reality today.
+
+And after doing steps 1..3, I think I'll do step 4 incrementally, dusting up
+each source file (or maybe each whole package) as I have occasion to touch it,
+not all in one big sweep like I'd originally thought I might.  Which of course
+allows me to move on to step 5! <g>
+
+
+Sat Jul 16 23:09:53 MST 2005
+
+Well, the flattening has gone well so far.  I've been appalled at how much
+cruft had crept in because I didn't have (or rather, didn't take) a
+"high-level" view of my source.  Sigh.  I'll need to ponder this some more,
+and I do still think LP is the way to go, but maybe my next project will be
+more, um, conventional.  At least until I can find (or write) an LP system
+that suits my needs.
+
+Wanted to record the sequence of steps for adding a new configuration item:
+
+1. Think up a name for it, different from all existing names
+
+2. Add an INSERT statement for its default value to support/init-config
+
+3. If you have an existing database, run the INSERT statement in it,
+appropriately modified for your setup if necessary (I use psql for this)
+
+4. Add an Item_* enum constant to Config_Item in config.ads
+
+5. Add an entry for the new name in Cfg_Map in config.adb
+
+And et voila, start using it!
+
+
+The reason I needed a new config item was for the path to the help file, and I
+want to record the format of that file here, too.  It's a plain text file, and
+consists of zero or more "help-item" entries, one after the other.  A
+help-item looks like this:
+
+marker-line
+(zero or more blank lines)
+summary-line
+help-text
+
+A marker-line is "---topic", where "topic" is a help topic name.  These are
+the names users can put after the "help" command.
+
+The first non-blank line after the marker line is taken as the summary-line,
+and it's just a one-line summary of the command's syntax, if it's a command
+help section, or just a one-line summary if it's a general help topic.  The
+summary lines are cached so that just plain "help" won't have to hit the file.
+
+The help-text is zero or more lines (blank or non-blank, all are preserved)
+which are printed as the help message for the associated topic.  It ends with
+the next marker-line, or at end of file.
+
+
