@@ -5,7 +5,10 @@
 -- Standard packages
 with Ada.Characters.Latin_1;
 with Ada.Exceptions;
+with Ada.Integer_Text_IO;
 with Ada.Streams;
+with Ada.Strings.Fixed;
+with Ada.Strings.Maps;
 with Ada.Text_IO;
 
 -- Compiler-specific packages
@@ -65,7 +68,118 @@ package body Net is
 --
 ------------------------------------------------------------------------------
 
-   -- Init the net task
+   subtype Escape_Code is String (1 .. 2);
+
+   subtype ASCII_7 is Character range Character'First .. Character'Val (127);
+   type ASCII_7_Set is array (ASCII_7) of Escape_Code;
+
+   use type Ada.Strings.Maps.Character_Set;
+
+   Default_Encoding_Set : constant Ada.Strings.Maps.Character_Set
+     := Ada.Strings.Maps.To_Set
+         (Span => (Low  => Character'Val (128),
+                   High => Character'Val (Character'Pos (Character'Last))))
+     or
+      Ada.Strings.Maps.To_Set (";/?:@&=+$,<>#%""{}|\^[]`' ");
+
+   Not_Escaped : constant Escape_Code := "  ";
+
+   function Hex (V : Natural; Width : Natural := 0) return String is
+      use Ada.Strings;
+
+      Hex_V : String (1 .. Integer'Size / 4 + 4);
+   begin
+      Ada.Integer_Text_IO.Put (Hex_V, V, 16);
+
+      declare
+         Result : constant String
+           := Hex_V (Fixed.Index (Hex_V, "#") + 1
+                       .. Fixed.Index (Hex_V, "#", Backward) - 1);
+      begin
+         if Width = 0 then
+            return Result;
+
+         elsif Result'Length < Width then
+            declare
+               use Ada.Strings.Fixed;
+               Zero : constant String := (Width - Result'Length) * '0';
+            begin
+               return Zero & Result;
+            end;
+
+         else
+            return Result (Result'Last - Width + 1 .. Result'Last);
+         end if;
+      end;
+   end Hex;
+
+   ----------
+   -- Code --
+   ----------
+
+   function Code (C : Character) return Escape_Code is
+   begin
+      return Hex (Character'Pos (C));
+   end Code;
+
+   ----------------------
+   -- Build_Hex_Escape --
+   ----------------------
+
+   function Build_Hex_Escape return ASCII_7_Set is
+      Result : ASCII_7_Set;
+   begin
+      for C in Character'Val (0) .. Character'Val (127) loop
+         if Ada.Strings.Maps.Is_In (C, Default_Encoding_Set) then
+            Result (C) := Code (C);
+         else
+            Result (C) := Not_Escaped;
+         end if;
+      end loop;
+      return Result;
+   end Build_Hex_Escape;
+
+   Hex_Escape : constant ASCII_7_Set :=  Build_Hex_Escape;
+   --  Limit Hex_Escape to 7bits ASCII characters only. Other ISO-8859-1 are
+   --  handled separately in Encode function. Space character is not processed
+   --  specifically, contrary to what is done in AWS.URL.
+
+   function Encode
+     (Str          : String;
+      Encoding_Set : Ada.Strings.Maps.Character_Set := Default_Encoding_Set)
+      return String
+   is
+      C_128 : constant Character := Character'Val (128);
+      Res   : String (1 .. Str'Length * 3);
+      K     : Natural := 0;
+   begin
+      for I in Str'Range loop
+         if Ada.Strings.Maps.Is_In (Str (I), Encoding_Set) then
+            --  This character must be encoded
+
+            K := K + 1;
+            Res (K) := '%';
+            K := K + 1;
+
+            if Str (I) < C_128 then
+               --  We keep a table for characters lower than 128 for efficiency
+               Res (K .. K + 1) := Hex_Escape (Str (I));
+            else
+               Res (K .. K + 1) := Code (Str (I));
+            end if;
+
+            K := K + 1;
+
+         else
+            K := K + 1;
+            Res (K) := Str (I);
+         end if;
+      end loop;
+
+      return Res (1 .. K);
+   end Encode;
+
+-- Init the net task
    procedure Init is
 
       use Ada.Text_IO;
