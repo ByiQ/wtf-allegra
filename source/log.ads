@@ -14,10 +14,10 @@ package Log is
 
    -- Logging procedures, for successive verbosity levels.  Each will only
    -- write to the log file if the configured logging level allows it.
-   procedure Err  (From : in string;   Msg : in string);
-   procedure Warn (From : in string;   Msg : in string);
-   procedure Info (From : in string;   Msg : in string);
-   procedure Dbg  (From : in string;   Msg : in string);
+   procedure Err  (From : in String;   Msg : in String);
+   procedure Warn (From : in String;   Msg : in String);
+   procedure Info (From : in String;   Msg : in String);
+   procedure Dbg  (From : in String;   Msg : in String);
 
    -- Initialization and wrapup procedures
    procedure Init;

@@ -6,9 +6,9 @@
 
 --
 -- Third-party library packages
+with PGAda.Connections;
 with PGAda.Database;
-with PGAda.Syntax;
-
+with PGAda.Results;
 
 package DB is
 
@@ -19,8 +19,8 @@ package DB is
 ------------------------------------------------------------------------------
 
    -- Rename these to shorter and (for me) more familiar names
-   subtype DB_Handle is PGAda.Database.Connection_t;
-   subtype DB_Result is PGAda.Database.Result_t;
+   subtype DB_Handle is PGAda.Connections.Connection;
+   subtype DB_Result is PGAda.Results.Result;
 
 ------------------------------------------------------------------------------
 --
@@ -41,8 +41,8 @@ package DB is
    -- Establish a connection to the given database on the given host.  May
    -- raise Connect_Error.
    procedure Connect (Handle : out DB_Handle;
-                      Host   : in  string;
-                      DB     : in  string);
+                      Host   : in  String;
+                      DB     : in  String);
 
    -- Terminate the database connection
    procedure Disconnect (Handle : in out DB_Handle);
@@ -52,43 +52,44 @@ package DB is
    --
    -- select Fields from Table Clause
    procedure Fetch (Handle : in  DB_Handle;
-                    Fields : in  string;
-                    Table  : in  string;
-                    Clause : in  string;
+                    Fields : in  String;
+                    Table  : in  String;
+                    Clause : in  String;
                     Result : out DB_Result);
 
    -- Perform an arbitrary SQL statement, useful for things like insert,
    -- delete, and update
    procedure Statement (Handle : in DB_Handle;
-                        Stmt   : in string);
+                        Stmt   : in String);
 
    -- Re-export these library routines so that users don't need to "with" the
    -- PGAda packages
-   function Escape (S : string) return string renames PGAda.Syntax.Escape;
 
    function Get_Value (Result : in DB_Result;
-                       Row    : in positive;
-                       Col    : in positive)
-                      return string renames PGAda.Database.Get_Value;
+                       Row    : in Positive;
+                       Col    : in Positive)
+                      return String renames PGAda.Database.Get_Value;
 
    function Get_Value (Result : in DB_Result;
-                       Row    : in positive;
-                       Col    : in positive)
-                      return integer renames PGAda.Database.Get_Value;
+                        Row    : in Positive;
+                        Col    : in Positive)
+                       return integer;
 
    function Get_Value (Result : in DB_Result;
-                       Row    : in positive;
-                       Field  : in string)
-                      return string renames PGAda.Database.Get_Value;
+                       Row    : in Positive;
+                       Field  : in String)
+                      return String renames PGAda.Database.Get_Value;
 
    function Get_Value (Result : in DB_Result;
-                       Row    : in positive;
-                       Field  : in string)
-                      return integer renames PGAda.Database.Get_Value;
+                        Row    : in Positive;
+                        Field  : in String)
+                       return Integer;
 
-   function Rows (Result : in DB_Result) return natural    renames PGAda.Database.Nbr_Tuples;
+   function Escape (S : String) return String;
 
-   function Cols (Result : in DB_Result) return natural    renames PGAda.Database.Nbr_Fields;
+   function Rows (Result : in DB_Result) return natural    renames PGAda.Results.Number_Of_Tuples;
+
+   function Cols (Result : in DB_Result) return natural    renames PGAda.Results.Number_Of_Fields;
 
    ---------------------------------------------------------------------------
 

@@ -1366,7 +1366,7 @@ package body Command is
                -- this code will break; it should probably be a config item
                -- instead.
                if Fixed.Index (To_Lower (S (Request.Origin)), "nickserv") > 0 and
-                  Fixed.Index (To_Lower (S (Request.Data)), "this nickname is owned") > 0 then
+                  Fixed.Index (To_Lower (S (Request.Data)), "this nickname is registered") > 0 then
                   OutputQ.Say ("identify " & Config.Get_Value (Config.Item_NickPass), "nickserv");
                end if;
 

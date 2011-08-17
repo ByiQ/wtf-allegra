@@ -6,6 +6,7 @@
 
 -- Standard packages
 with Ada.Characters.Latin_1;
+with Ada.Exceptions;
 with Ada.Streams;
 with Ada.Strings.Unbounded;
 
@@ -119,8 +120,8 @@ package body IRC is
 
    exception
       -- Map socket exceptions into our local generic exception
-      when others =>
-         raise Connect_Error;
+      when E : others =>
+         raise Connect_Error with Ada.Exceptions.Exception_Information (E);
    end Open_Server;
 
    ---------------------------------------------------------------------------

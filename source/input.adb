@@ -67,8 +67,8 @@ package body Input is
             IRC.Open_Server (Config.Get_Value (Config.Item_Host), positive'Value (Config.Get_Value (Config.Item_Port)));
             exit;
          exception
-            when IRC.Connect_Error =>
-               Dbg (Input_Name, "Connect error during " & Msg);
+            when E : IRC.Connect_Error =>
+               Dbg (Input_Name, "Connect error during " & Msg & " because " & Ada.Exceptions.Exception_Information (E) );
 
             when E : others =>
                Err (Input_Name, "Other exception " & Ada.Exceptions.Exception_Information (E) & " during " & Msg);
