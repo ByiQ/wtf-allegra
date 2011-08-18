@@ -63,26 +63,27 @@ package body Config is
    type Cfg_Map_Array is array (Config_Item) of Item_Name;
    Cfg_Map : constant Cfg_Map_Array :=
      (
-      Item_None        => "                ",
-      Item_ARMPath     => "armpath         ",
-      Item_Channel     => "channel         ",
-      Item_HelpPath    => "helppath        ",
-      Item_Host        => "host            ",
-      Item_HTTP_Action => "httpaction      ",
-      Item_HTTP_Method => "httpmethod      ",
-      Item_HTTP_Port   => "httpport        ",
-      Item_LastSize    => "lastsize        ",
-      Item_Line_Pause  => "linepause       ",
-      Item_LogLevel    => "loglevel        ",
-      Item_LogPath     => "logpath         ",
-      Item_Nick        => "nick            ",
-      Item_NickPass    => "nickpass        ",
-      Item_Port        => "port            ",
-      Item_Quips       => "quips           ",
-      Item_RealName    => "realname        ",
-      Item_Shorten_URL => "shortenurl      ",
-      Item_Shorthand   => "shorthand       ",
-      Item_UserName    => "username        "
+      Item_None            => "                ",
+      Item_ARMPath         => "armpath         ",
+      Item_Channel         => "channel         ",
+      Item_HelpPath        => "helppath        ",
+      Item_Host            => "host            ",
+      Item_HTTP_Action     => "httpaction      ",
+      Item_HTTP_Method     => "httpmethod      ",
+      Item_HTTP_Port       => "httpport        ",
+      Item_LastSize        => "lastsize        ",
+      Item_Line_Pause      => "linepause       ",
+      Item_LogLevel        => "loglevel        ",
+      Item_LogPath         => "logpath         ",
+      Item_Nick            => "nick            ",
+      Item_NickPass        => "nickpass        ",
+      Item_Nickserv_Notice => "nickservnotice  ",
+      Item_Port            => "port            ",
+      Item_Quips           => "quips           ",
+      Item_RealName        => "realname        ",
+      Item_Shorten_URL     => "shortenurl      ",
+      Item_Shorthand       => "shorthand       ",
+      Item_UserName        => "username        "
      );
 
 ------------------------------------------------------------------------------

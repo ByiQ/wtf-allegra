@@ -1362,11 +1362,9 @@ package body Command is
             -- is from nickserv asking us to identify.
             when Notice_Operation =>
                -- Notice from NickServ about identification causes us to try
-               -- to identify to it.  If Freenode ever changes the message,
-               -- this code will break; it should probably be a config item
-               -- instead.
+               -- to identify to it.
                if Fixed.Index (To_Lower (S (Request.Origin)), "nickserv") > 0 and
-                  Fixed.Index (To_Lower (S (Request.Data)), "this nickname is registered") > 0 then
+                  Fixed.Index (To_Lower (S (Request.Data)), Config.Get_Value (Config.Item_Nickserv_Notice)) > 0 then
                   OutputQ.Say ("identify " & Config.Get_Value (Config.Item_NickPass), "nickserv");
                end if;
 

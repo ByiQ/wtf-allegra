@@ -58,6 +58,7 @@ package Config is
       Item_LogPath,
       Item_Nick,
       Item_NickPass,
+      Item_Nickserv_Notice,
       Item_Port,
       Item_Quips,
       Item_RealName,
