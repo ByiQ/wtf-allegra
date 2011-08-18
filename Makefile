@@ -12,28 +12,28 @@ DEBUG       =
 
 # Program structure
 MAIN          = allegra
-IDENTITY_BODY = source/identity.adb
+IDENTITY_BODY = identity.adb
 TASK_PACKAGES = \
-	source/command \
-	source/database \
-	source/file \
-	source/input \
-	source/net \
-	source/output \
-	source/ping
+	command \
+	database \
+	file \
+	input \
+	net \
+	output \
+	ping
 QUEUE_PACKAGES = \
-	source/commandq \
-	source/outputq
+	commandq \
+	outputq
 QUEUE_SPECS = \
-	source/databaseq \
-	source/netq \
-	source/fileq
+	databaseq \
+	netq \
+	fileq
 UTIL_PACKAGES = \
-	source/auth \
-	source/config \
-	source/db \
-	source/irc \
-	source/log
+	auth \
+	config \
+	db \
+	irc \
+	log
 PACKAGES       = ${TASK_PACKAGES} ${QUEUE_PACKAGES} ${UTIL_PACKAGES}
 PACKAGE_SPECS  = $(addsuffix .ads,${PACKAGES} ${QUEUE_SPECS})
 PACKAGE_BODIES = $(addsuffix .adb,${PACKAGES})
@@ -42,8 +42,8 @@ PACKAGE_BODIES = $(addsuffix .adb,${PACKAGES})
 all: app_ident ${MAIN}
 
 # Program-building targets
-${MAIN}: source/${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY_BODY}
-	gnatmake -fstack-check -g -gnata -gnat05 -gnato -gnatVa -gnatwa -gnatW8 -gnatiw -s -z ${DEBUG} source/${MAIN}.adb -L/opt/postgresql/current/lib -largs "-lpq"
+${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY_BODY}
+	gnatmake ${DEBUG} ${MAIN}.adb ${PGADA_INC} -largs -lnail ${PGADA_LIB}
 
 # App identity package body is produced by preprocessor
 NAME=$(shell perl -e 'print ucfirst ("${MAIN}")')
@@ -54,7 +54,7 @@ BUILD_DATE=$(shell date +'%d %b %Y')
 
 ${IDENTITY_BODY}: app_ident
 
-app_ident: source/identity.adp source/identity.ads
+app_ident: identity.adp identity.ads
 	gnatprep -DAppName=\"${NAME}\" -DAppVer=\"${VERREV}\" -DBuild_Date="\"${BUILD_DATE}\"" $< ${IDENTITY_BODY}
 
 # Utility targets
