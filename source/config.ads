@@ -3,6 +3,8 @@
 -- Config -- Program configuration utility package for Allegra info-bot
 --
 
+with FS_Config;
+
 
 package Config is
 
@@ -13,11 +15,13 @@ package Config is
 ------------------------------------------------------------------------------
 
 
-   -- Name of the database host, new for PostgreSQL 8
-   DB_Hostname    : constant string := "";
+   -- Name of the database host
+   DB_Hostname    : constant string := FS_Config.Get ("/config/db/host");
+
+   -- Name of the database
+   Allegra_DB     : constant string := FS_Config.Get ("/config/db/name");
 
    -- Names of our database tables
-   Allegra_DB     : constant string := "allegra";
    Config_Tbl     : constant string := "config";
    Cmd_Auth_Tbl   : constant string := "cmdlevels";
    Cmd_Stat_Tbl   : constant string := "cmdstats";
