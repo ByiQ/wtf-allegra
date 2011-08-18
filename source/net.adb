@@ -52,7 +52,7 @@ package body Net is
    Content_Length : constant String := "Content-Length:";
 
    -- What port the shortener server listens on
-   Shortener_Port : constant := Config.Get_Value (Config.Item_HTTP_Port)
+   Shortener_Port : constant Integer := Integer'Value (Config.Get_Value (Config.Item_HTTP_Port) );
 
 ------------------------------------------------------------------------------
 --

@@ -51,7 +51,7 @@ package Config is
       Item_Host,
       Item_HTTP_Action,
       Item_HTTP_Method,
-      Item_HTTP_Post,
+      Item_HTTP_Port,
       Item_LastSize,
       Item_Line_Pause,
       Item_LogLevel,

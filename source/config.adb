@@ -70,7 +70,7 @@ package body Config is
       Item_Host        => "host            ",
       Item_HTTP_Action => "httpaction      ",
       Item_HTTP_Method => "httpmethod      ",
-      Item_HTTP_Post   => "httppost        ",
+      Item_HTTP_Port   => "httpport        ",
       Item_LastSize    => "lastsize        ",
       Item_Line_Pause  => "linepause       ",
       Item_LogLevel    => "loglevel        ",
