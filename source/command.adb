@@ -464,6 +464,8 @@ package body Command is
       Count   : natural;
       Show    : integer;
 
+      Line_Pause : constant Duration := Duration'Value (Config.Get_Value (Config.Item_Line_Pause));
+
       ------------------------------------------------------------------------
 
       -- List a saved message for the "last" operation
@@ -527,7 +529,7 @@ package body Command is
 
          -- List the next line
          List_Line (Show);
-         delay Config.Line_Pause;
+         delay Line_Pause;
 
          -- See if we need to wrap around to the start of the circular buffer,
          -- or just advance to the next entry
@@ -811,6 +813,8 @@ package body Command is
       Matches : Match_Array (Match_Range);
       Msg     : UString;
 
+      Line_Pause : constant Duration := Duration'Value (Config.Get_Value (Config.Item_Line_Pause));
+
    begin  -- Stats
 
       -- Re-match to extract the components
@@ -821,9 +825,9 @@ package body Command is
 
          -- First, print the stats we know in this task
          Say ("I am " & Identity.App_ID);
-         delay Config.Line_Pause;
+         delay Line_Pause;
          Say ("I have currently been running for " & Times.Elapsed (Start) & ".");
-         delay Config.Line_Pause;
+         delay Line_Pause;
          Msg := US ("I've been connected for " & Times.Elapsed (Last_Connected));
          if Reconnects = 1 then
             Msg := Msg & "; this is my first connect.";
@@ -833,14 +837,14 @@ package body Command is
             Msg := Msg & ", after " & Img (Reconnects - 1) & " reconnects.";
          end if;
          Say (S (Msg));
-         delay Config.Line_Pause;
+         delay Line_Pause;
          Msg := US ("I've accepted " & Img (Cmds_Accepted) & " command");
          if Cmds_Accepted > 1 then
             Msg := Msg & "s";
          end if;
          Msg := Msg & ", including this one, and rejected " & Img (Cmds_Rejected) & ".";
          Say (S (Msg));
-         delay Config.Line_Pause;
+         delay Line_Pause;
 
          -- Now ask the file and database tasks to print the statistics that
          -- they know about
@@ -864,7 +868,7 @@ package body Command is
                OutputQ.Say ("Command statistics:", Sender.Nick);
                for VCmd in Config.Valid_Commands loop
                   OutputQ.Say ("   " & Config.Cmd_Names (VCmd) & Img (Config.Command_Usage (VCmd), 4), Sender.Nick);
-                  delay Config.Line_Pause;
+                  delay Line_Pause;
                end loop;
 
                -- Return directly, since we don't want to send a database

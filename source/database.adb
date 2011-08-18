@@ -339,6 +339,8 @@ package body Database is
       Handle : DB_Handle;
       Msg    : UString;
 
+      Line_Pause : constant Duration := Duration'Value (Config.Get_Value (Config.Item_Line_Pause));
+
    begin  -- Factoid_Stats
 
       -- Connect, fetch the factoid's stats, and disconnect
@@ -350,7 +352,7 @@ package body Database is
       if Rows (Data) > 0 then
          OutputQ.Say ("The factoid named """ & Name & """ was created by " & Get_Value (Data, 1, "creator") &
                       " on " & Get_Value (Data, 1, "created") & ".", Request.Destination);
-         delay Config.Line_Pause;
+         delay Line_Pause;
          declare
             Count : string := Get_Value (Data, 1, "acc_count");
          begin
@@ -460,6 +462,8 @@ package body Database is
       Msg    : UString;
       First  : boolean;
 
+      Line_Pause : constant Duration := Duration'Value (Config.Get_Value (Config.Item_Line_Pause));
+
    begin  -- List_Factoids
 
       -- Connect and fetch the names of factoids matching the regexp.  We use
@@ -512,7 +516,7 @@ package body Database is
                   -- The "title" for second and subsequent lines is just a
                   -- continuation marker.  Also, reset the insert-comma flag
                   Msg := US (" - and:  ");
-                  delay Config.Line_Pause;
+                  delay Line_Pause;
                   First := true;
                end if;
 
@@ -557,6 +561,8 @@ package body Database is
       AccCnt : DB_Result;
       Handle : DB_Handle;
       Hits   : natural;
+
+      Line_Pause : constant Duration := Duration'Value (Config.Get_Value (Config.Item_Line_Pause));
 
    begin  -- Fetch_Factoid
 
@@ -630,9 +636,9 @@ package body Database is
             -- If this is the second or subsequent line of a multi-definition
             -- factoid, print the definition separator
             if Hits > 1 and then Row /= Hits then
-               delay Config.Line_Pause;
+               delay Line_Pause;
                OutputQ.Say (" - or -", Request.Destination);
-               delay Config.Line_Pause;
+               delay Line_Pause;
             end if;
          end loop;
 
@@ -938,7 +944,7 @@ package body Database is
                begin
                   Random_Quote (Quote, Attrib);
                   OutputQ.Say (Quote, Request.Destination);
-                  delay Config.Line_Pause;
+                  delay Duration'Value (Config.Get_Value (Config.Item_Line_Pause));
                   OutputQ.Say ("  -- " & Attrib, Request.Destination);
                end;
 

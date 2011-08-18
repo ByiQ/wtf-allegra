@@ -32,9 +32,6 @@ package Config is
    Min_Auth_Level : constant :=  0;
    Max_Auth_Level : constant := 10;
 
-   -- Pause between each line of multi-line output, in seconds
-   Line_Pause     : constant Duration := 0.75;
-
 ------------------------------------------------------------------------------
 --
 -- Public types

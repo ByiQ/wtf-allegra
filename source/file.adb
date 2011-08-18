@@ -498,6 +498,8 @@ package body File is
       HelpPath : string := Config.Get_Value (Config.Item_HelpPath);
       HelpNow  : GNAT.OS_Lib.OS_Time;
 
+      Line_Pause : constant Duration := Duration'Value (Config.Get_Value (Config.Item_Line_Pause));
+
       ------------------------------------------------------------------------
 
       -- Print item-specific help
@@ -542,7 +544,7 @@ package body File is
             Get_Line (HelpFile, HelpLine, Last);
             exit when Is_Marker (HelpLine (1 .. Last));
             OutputQ.Say (HelpLine (1 .. Last), Req.Destination);
-            delay Config.Line_Pause;
+            delay Line_Pause;
          end loop;
       end Item_Help;
 
@@ -552,7 +554,7 @@ package body File is
       procedure Fmt (Topic, Subject : in string) is
       begin  -- Fmt
          OutputQ.Say ("   " & Head (Topic, Topic_Width) & "  " & Subject, Req.Destination);
-         delay Config.Line_Pause;
+         delay Line_Pause;
       end Fmt;
 
       ------------------------------------------------------------------------
@@ -570,7 +572,7 @@ package body File is
 
          -- No topic given, print summaries only
          OutputQ.Say ("I currently know the following help topics:", Req.Destination);
-         delay Config.Line_Pause;
+         delay Line_Pause;
 
          -- Main summary listing, extracted from help file
          Fmt ("Topic", "Subject");
@@ -585,17 +587,17 @@ package body File is
          -- Summary trailer
          OutputQ.Say ("The shortcut string is """ & Config.Get_Value (Config.Item_Shorthand) &
                       """; a leading ""~"" in a factoid name treats it as a regexp.", Req.Destination);
-         delay Config.Line_Pause;
+         delay Line_Pause;
          OutputQ.Say ("Use ""help <topic>"" for details about one of the listed topics.", Req.Destination);
       else
 
          -- Check for magic keywords first
          if Equal (Req.Data, US (K_Levels)) then
             OutputQ.Say ("Required access levels for each command:", Req.Destination);
-            delay Config.Line_Pause;
+            delay Line_Pause;
             for Cmd in Config.Valid_Commands loop
                OutputQ.Say ("   " & Config.Cmd_Names (Cmd) & Img (Config.Get_Auth_Level (Cmd), 2), Req.Destination);
-               delay Config.Line_Pause;
+               delay Line_Pause;
             end loop;
             return;
          end if;
@@ -656,6 +658,8 @@ package body File is
       Matches : array (1 .. Max_Print) of RM_Index_Item;
       Refs    : UString;
 
+      Line_Pause : constant Duration := Duration'Value (Config.Get_Value (Config.Item_Line_Pause));
+
       ------------------------------------------------------------------------
 
    begin  -- Lookup
@@ -697,7 +701,7 @@ package body File is
             Refs := Matches (Item).Refs;
          end if;
          OutputQ.Say (Matches (Item).Text & " " & Refs, Req.Destination);
-         delay Config.Line_Pause;
+         delay Line_Pause;
       end loop;
 
    exception
