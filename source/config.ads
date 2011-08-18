@@ -47,6 +47,7 @@ package Config is
       Item_None,
       Item_ARMPath,
       Item_Channel,
+      Item_CTCP_Location,
       Item_HelpPath,
       Item_Host,
       Item_HTTP_Action,

@@ -66,6 +66,7 @@ package body Config is
       Item_None            => "                ",
       Item_ARMPath         => "armpath         ",
       Item_Channel         => "channel         ",
+      Item_CTCP_Location   => "ctcplocation    ",
       Item_HelpPath        => "helppath        ",
       Item_Host            => "host            ",
       Item_HTTP_Action     => "httpaction      ",
