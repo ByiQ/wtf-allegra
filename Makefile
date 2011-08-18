@@ -42,8 +42,8 @@ PACKAGE_BODIES = $(addsuffix .adb,${PACKAGES})
 all: app_ident ${MAIN}
 
 # Program-building targets
-${MAIN}: source/${MAIN}.adb
-	gnatmake -fstack-check -g -gnata -gnat05 -gnato -gnatVa -gnatwa -gnatW8 -gnatiw -s -z ${DEBUG} source/${MAIN}.adb -L/opt/postgresql/current/lib -largs "-lpq"
+${MAIN}: ${MAIN}.adb ${PACKAGE_SPECS} ${PACKAGE_BODIES} ${IDENTITY_BODY}
+	gnatmake ${DEBUG} ${MAIN}.adb ${PGADA_INC} -largs -lnail ${PGADA_LIB}
 
 # App identity package body is produced by preprocessor
 NAME=$(shell perl -e 'print ucfirst ("${MAIN}")')
@@ -54,7 +54,7 @@ BUILD_DATE=$(shell date +'%d %b %Y')
 
 ${IDENTITY_BODY}: app_ident
 
-app_ident: source/identity.adp source/identity.ads
+app_ident: identity.adp identity.ads
 	gnatprep -DAppName=\"${NAME}\" -DAppVer=\"${VERREV}\" -DBuild_Date="\"${BUILD_DATE}\"" $< ${IDENTITY_BODY}
 
 # Utility targets
