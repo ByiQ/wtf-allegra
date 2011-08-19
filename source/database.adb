@@ -630,15 +630,15 @@ package body Database is
             if Row = 1 then
                OutputQ.Say (Get_Value (Data, Row, "name") & ":  " & Get_Value (Data, Row, "value"), Request.Destination);
             else
-               OutputQ.Say (Get_Value (Data, Row, "value"), Request.Destination);
+               OutputQ.Say ("or: " & Get_Value (Data, Row, "value"), Request.Destination);
             end if;
 
             -- If this is the second or subsequent line of a multi-definition
             -- factoid, print the definition separator
             if Hits > 1 and then Row /= Hits then
                delay Line_Pause;
-               OutputQ.Say (" - or -", Request.Destination);
-               delay Line_Pause;
+--               OutputQ.Say (" - or -", Request.Destination);
+--               delay Line_Pause;
             end if;
          end loop;
 
