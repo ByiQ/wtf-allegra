@@ -237,7 +237,7 @@ package body Net is
 
       -- Assemble and send the request
       declare
-         Get : String := Shorten_GET_1 & S (Req.Data) & Shorten_GET_2 & Shortener & CRLF &
+         Get : String := Shorten_GET_1 & Encode (S (Req.Data)) & Shorten_GET_2 & Shortener & CRLF &
                          Shorten_GET_3 & Identity.App_Name & " InfoBot v" & Identity.App_Version & CRLF &
                          CRLF;
       begin
