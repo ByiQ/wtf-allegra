@@ -51,9 +51,6 @@ package Config is
       Item_CTCP_Location,
       Item_HelpPath,
       Item_Host,
-      Item_HTTP_Action,
-      Item_HTTP_Method,
-      Item_HTTP_Port,
       Item_LastSize,
       Item_Line_Pause,
       Item_LogLevel,
@@ -64,7 +61,10 @@ package Config is
       Item_Port,
       Item_Quips,
       Item_RealName,
-      Item_Shorten_URL,
+      Item_Shortener_Action,
+      Item_Shortener_Method, -- GET supported only
+      Item_Shortener_Port,
+      Item_Shortener_Host,
       Item_Shorthand,
       Item_UserName
      );
