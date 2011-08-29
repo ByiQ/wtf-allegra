@@ -1,0 +1,14 @@
+with "../common/common";
+with "../fs_config/fs_config";
+with "../postgres-ada/pgada";
+with "../nail/nail";
+
+project Allegra is
+   for Source_Dirs use ("source");
+   for Object_Dir use "build";
+   for Exec_Dir use ".";
+   for Main use ("allegra.adb");
+
+   package Builder renames Common.Builder;
+   package Compiler renames Common.Compiler;
+end Allegra;
