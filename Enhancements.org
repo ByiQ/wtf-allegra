@@ -1,0 +1,45 @@
+
+* TODO Track record number of channel visitors.  Tell channel when new high is reached.
+* TODO SQLite ability.
+* TODO Use prepared statements for database queries.  CAn SQLite handle?
+* TODO Full text factoid search.
+* TODO Don't respond to the same factoid request more than once in a period.
+* TODO Keep track of last n links posted to channel.
+* DONE FS_Config for items not able to be stored in database config item.
+* TODO Emit quote by search term or regular expression.
+* TODO Search different RM revisions.
+* TODO Full text RM search.
+* TODO See to what page a shortened URL points.  -reverse switch maybe.
+* TODO Real-time logging.
+* TODO Check if nicks are valid when adding access.  Ask nickserv for info.  Perhaps take a nick and translate to *!*@* thing.
+* TODO Emit URL to pastes made on ada.cx paste site if we known the paste is for Ada.
+* TODO ordering for multi-part factoids
+* TODO access "none" to delete user access entries
+* TODO make "find" accept an RM specifier (83/95/05), defaulting to current (95 right now)
+* TODO switch to stream_text_io
+* TODO nickserv GHOST command, and nick change
+* TODO make user auth cache a variable-size array, not a linked list
+* TODO stylesheet for docs
+* DONE nick collisions and other stateful jobs (ping -> "periodic" task?  other error returns?)
+* DONE handle freenode version query (start by adding Identity package)
+* DONE actions
+* DONE "last" command
+* DONE message about how to get an access level
+* DONE ensure all quotes short enough to be transmitted in one go (max is 446, btw)
+* DONE access <user>
+* DONE per-command help messages, command access levels
+
+* doc update and completion
+** DONE final polish
+** DONE distribution test
+** DONE public posting
+
+* stats
+** DONE ident line
+** DONE count of known quotes
+** DONE individual command usage stats
+** DONE rm lookup
+** DONE write final stat summary into log
+** DONE ensure good exception handler coverage
+** DONE change timeout queue to a semaphore
+

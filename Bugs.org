@@ -1,0 +1,4 @@
+
+* TODO exception handler doesn't always lead to clean termination
+* DONE bad access usermask causes exception
+* DONE set-access command (or rather, re-read of user table) causes exception

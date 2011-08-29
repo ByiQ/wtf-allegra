@@ -1,0 +1,27 @@
+
+* Allow anonymizing nicks
+* Search by
+  Caracal mentioned some pre-existing solutions exist that may work.
+** Nick
+** Date
+** Message contents
+** Regex searching
+* AWS
+* Frequency of updates
+  We agreed that the static logs don't need to update in realtime.  After all, the log searching function is not meant to be an #ada broadcast channel.  Refreshes up to 2 hours were agreeable to caracal.
+* Static HTML pages by day
+  Caracal generated logs by year and month, but even monthly logs were some 2MB a piece.  Days should be the largest duration for a static log file.
+* Acquire logs from June
+** The digital curtain prevents outsiders from seeing old logs on niestu.com.  All logs beyong June are fair game for public exposure.
+* Store logs in easily searchable format
+  Caracal originally suggested storing logs in HTML and then searching from there, but it seems like a nightmare to search through HTML even if well-structured.
+** What data needs to be stored?
+** Types of log entries
+*** Join
+*** Part
+*** Message
+*** Netsplit?
+*** Topic Changes
+*** Kicks
+
+* Where logging can be performed in code.
