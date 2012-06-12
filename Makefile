@@ -6,7 +6,8 @@
 #
 
 MAIN = allegra
-IDENTITY_BODY = source/identity.adb
+IDENTITY_DEF  = templates/identity.adp
+IDENTITY_SPEC = source/identity.ads
 
 all: app_ident ${MAIN}
 
@@ -14,21 +15,20 @@ ${MAIN}:
 	gnatmake -P ${MAIN}.gpr
 
 # App identity package body is produced by preprocessor
-VERSION    = ""
-BUILD_DATE = $(shell date +'%d %b %Y')
+APP_NAME   = Allegra
+VERSION    = $(shell git log -1 --oneline | cut -d \  -f 1)
+BUILD_DATE = $(shell date)
 
-${IDENTITY_BODY}: app_ident
+app_ident: ${IDENTITY_SPEC}
 
-app_ident: source/identity.adp source/identity.ads
-	gnatprep -DAppName=\"${MAIN}\" -DAppVer=\"${VERSION}\" -DBuild_Date="\"${BUILD_DATE}\"" $< ${IDENTITY_BODY}
+${IDENTITY_SPEC}: ${IDENTITY_DEF}
+	gnatprep -DApp_Name="\"${APP_NAME}\"" -DApp_Version="\"${VERSION}\"" -DBuild_Date="\"${BUILD_DATE}\"" ${IDENTITY_DEF} ${IDENTITY_SPEC}
 
 # Utility targets
 clean:
-	rm ${IDENTITY_BODY}
+	rm ${IDENTITY_SPEC}
 	gnatclean -P allegra
-
-realclean: clean
-	rm ${MAIN}
+	rm build/identity.*
 
 # Target to create snapshot tarball
 snapshot:
