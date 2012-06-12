@@ -566,7 +566,7 @@ package body Command is
       -- Bundle the request and send it to the database task for processing
       Database_Request.Operation   := DatabaseQ.List_Operation;
       Database_Request.Data        := Pat;
-      Database_Request.Destination := Destination;
+      Database_Request.Destination := Sender.Nick;
       DatabaseQ.Requests.Enqueue (Database_Request);
    end List;
 
