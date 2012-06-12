@@ -7,7 +7,6 @@
 -- Standard packages
 with Ada.Command_Line;
 
-
 --
 -- Local library packages
 with Strings;
@@ -79,10 +78,10 @@ package body Config is
       Item_Port             => "port            ",
       Item_Quips            => "quips           ",
       Item_RealName         => "realname        ",
-      Item_Shortener_Action => "shorteneraction ",
-      Item_Shortener_Method => "shortenermethod ",
-      Item_Shortener_Port   => "shortenerport   ",
-      Item_Shortener_Host   => "shortenerhost   ",
+      Item_Shortener_Action => "httpaction      ",
+      Item_Shortener_Method => "httpmethod      ",
+      Item_Shortener_Port   => "httpport        ",
+      Item_Shortener_Host   => "shortenurl      ",
       Item_Shorthand        => "shorthand       ",
       Item_UserName         => "username        "
      );
