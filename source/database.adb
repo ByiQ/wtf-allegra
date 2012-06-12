@@ -615,7 +615,7 @@ package body Database is
 
             -- All fetched rows are for the same factoid name, so update that
             -- factoid's fetch stats
-            Fetch (Handle, "acc_count", Factstats_Tbl, "where name='" & Key & "'", AccCnt);
+            Fetch (Handle, "acc_count", Factstats_Tbl, "where name=" & Escape (Key), AccCnt);
             Statement (Handle, "update " & Factstats_Tbl &
                        " set acc_count=" & natural'Image (Get_Value (AccCnt, 1, "acc_count") + 1) &
                        ",acc_last='now',acc_by=" & Escape (To_Lower (S (Request.Origin))) &
