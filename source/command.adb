@@ -1282,7 +1282,7 @@ package body Command is
                   -- configured shorthand string.
                   Has_Prefix := false;
                   Command := US (Message);
-                  if Shorthand'Length > 0 and then Fixed.Index (Message, Shorthand) = 1 then
+                  if Shorthand'Length > 0 and then (Fixed.Index (Message, Shorthand) = 1 and Fixed.Index (Message, Shorthand & Shorthand) /= 1) then
                      -- Starts with shorthand, trim it and note that we have a prefix
                      Has_Prefix := true;
                      Command := US (Message (Shorthand'Length + 1 .. Message'Length));
