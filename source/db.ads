@@ -40,9 +40,14 @@ package DB is
 
    -- Establish a connection to the given database on the given host.  May
    -- raise Connect_Error.
-   procedure Connect (Handle : out DB_Handle;
-                      Host   : in  String;
-                      DB     : in  String);
+   procedure Connect (Handle   : out DB_Handle;
+                      Host     : in  String;
+                      Port     : in  Natural := 0;
+                      Options  : in  String  := "";
+                      TTY      : in  String  := "";
+                      DB       : in  String  := "";
+                      Login    : in  String  := "";
+                      Password : in  String  := "");
 
    -- Terminate the database connection
    procedure Disconnect (Handle : in out DB_Handle);

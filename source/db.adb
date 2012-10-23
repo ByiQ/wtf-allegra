@@ -13,12 +13,24 @@ package body DB is
 
    -- Establish a connection to the given database on the given host.  May
    -- raise Connect_Error.
-   procedure Connect (Handle : out DB_Handle;
-                      Host   : in  String;
-                      DB     : in  String) is
+   procedure Connect (Handle   : out DB_Handle;
+                      Host     : in String;
+                      Port     : in Natural := 0;
+                      Options  : in String  := "";
+                      TTY      : in String  := "";
+                      DB       : in String  := "";
+                      Login    : in String  := "";
+                      Password : in String  := "") is
    begin  -- Connect
-      PGAda.Connections.Connect (Handle, Host => Host, DB_Name => DB);
-
+      PGAda.Connections.Connect
+         (Connection => Handle,
+          Host       => Host,
+          Port       => Port,
+          Options    => Options,
+          TTY        => TTY,
+          DB_Name    => DB ,
+          Login      => Login,
+          Password   => Password);
    exception
       -- Map PGAda exceptions into our local generic exception
       when others =>
