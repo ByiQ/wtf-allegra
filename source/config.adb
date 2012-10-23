@@ -127,7 +127,7 @@ package body Config is
 
       -- Connect to the db and get all three tables we need to init, then
       -- disconnect
-      DB.Connect (Handle, Host => DB_Hostname, DB => Allegra_DB);
+      DB.Connect (Handle, Host => DB_Hostname, DB => DB_Name, Login => DB_Login, Password => DB_Password);
       DB.Fetch (Handle, "*", Config_Tbl,   "", Cfg_Data);
       DB.Fetch (Handle, "*", Cmd_Auth_Tbl, "", Auth_Data);
       DB.Fetch (Handle, "*", Cmd_Stat_Tbl, "", Stat_Data);
@@ -295,7 +295,7 @@ package body Config is
       -- The only cached thing we currently update is the command statistics
       -- table
       Access_Control.Wait_For_Data;
-      DB.Connect (Handle, Host => DB_Hostname, DB => Allegra_DB);
+      DB.Connect (Handle, Host => DB_Hostname, DB => DB_Name, Login => DB_Login, Password => DB_Password);
       for Cmd in Valid_Commands loop
          DB.Statement (Handle, "update " & Cmd_Stat_Tbl & " set used=" & Img (Cmd_Usages (Cmd)) &
                                " where name=" & DB.Escape (RTrim (Cmd_Names (Cmd))));

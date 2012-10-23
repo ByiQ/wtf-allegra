@@ -108,8 +108,12 @@ package body Database is
 
    procedure Safe_Connect (Handle : out DB_Handle) is
    begin  -- Safe_Connect
-      Connect (Handle, Host => Config.DB_Hostname, DB => Config.Allegra_DB);
-
+      Connect
+         (Handle   => Handle,
+          Host     => Config.DB_Hostname,
+          DB       => Config.DB_Name,
+          Login    => Config.DB_Login,
+          Password => Config.DB_Password);
    exception
       when others =>
          OutputQ.Say ("Can't connect to the factoid database.  Release the hounds!  (And tell the bot operator, please.)",
