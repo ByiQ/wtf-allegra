@@ -1,4 +1,5 @@
 
+* TODO Improve error reporting for config options not being set in the database. Log level specifically.
 * TODO Track record number of channel visitors.  Tell channel when new high is reached.
 * TODO SQLite ability.
 * TODO Use prepared statements for database queries.  CAn SQLite handle?
